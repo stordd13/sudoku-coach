@@ -2,13 +2,29 @@
    /api/ocr — fonction serverless Vercel
    Reçoit { image: <base64 jpeg>, media_type } et renvoie { grid: "81 chiffres" }.
    La clé API reste côté serveur : variable d'environnement ANTHROPIC_API_KEY.
-   Modèle configurable via la variable OCR_MODEL (défaut : claude-sonnet-5 ;
-   claude-haiku-4-5-20251001 est une option plus économique).
+   Modèle configurable via la variable OCR_MODEL (défaut : claude-opus-4-8, le plus
+   fiable en vision ; claude-sonnet-5 est un peu plus rapide, claude-haiku-4-5 le
+   moins cher mais nettement moins précis pour la lecture de grille).
    ================================================================ */
 
-const OCR_PROMPT = `Tu lis la photo d'une grille de sudoku (9x9). Réponds UNIQUEMENT avec ce JSON, sans aucun texte autour ni balises markdown :
-{"grid":"<81 caractères>"}
-Règles : lis la grille ligne par ligne, du haut vers le bas puis de gauche à droite. Un caractère par case : le chiffre (1-9) si la case contient un chiffre définitif (imprimé, ou écrit en grand au centre), 0 si la case est vide. Ignore les petites annotations de coin (candidats). Si l'image ne contient pas de grille lisible, réponds {"grid":"ERROR"}.`;
+// Laisse le déploiement Vercel prendre jusqu'à 60 s (la transcription pas-à-pas
+// d'Opus peut dépasser le défaut de 10 s sur une photo dense).
+export const maxDuration = 60;
+
+const OCR_PROMPT = `Tu es un expert en lecture de grilles de sudoku. On te donne la photo d'une grille 9×9.
+
+Procède méthodiquement, une ligne à la fois, du haut vers le bas :
+- Pour chaque ligne, lis les 9 cases de gauche à droite.
+- Écris le chiffre (1-9) imprimé ou écrit en GRAND au centre de la case, ou 0 si la case est vide.
+- Ignore les petites annotations de coin (candidats/notes).
+- Sers-toi des bordures ÉPAISSES qui délimitent les blocs 3×3 pour ne pas décaler l'alignement.
+- Chaque ligne fait EXACTEMENT 9 caractères. Vérifie ce compte avant de passer à la suivante.
+
+Transcris d'abord les 9 lignes (une par ligne, ex. "L1: 5 3 0 0 7 0 0 0 0").
+Puis, tout à la fin, donne ta réponse finale sur une seule ligne au format JSON strict, sans aucun texte après :
+{"grid":"<les 81 chiffres, lignes concaténées>"}
+
+Si l'image ne contient pas de grille de sudoku lisible, réponds simplement {"grid":"ERROR"}.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -40,8 +56,8 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: process.env.OCR_MODEL || "claude-sonnet-5",
-        max_tokens: 300,
+        model: process.env.OCR_MODEL || "claude-opus-4-8",
+        max_tokens: 2000,
         messages: [
           {
             role: "user",
@@ -74,10 +90,13 @@ export default async function handler(req, res) {
       .join("");
     const clean = txt.replace(/```json|```/g, "").trim();
 
+    // Le modèle transcrit ligne par ligne puis finit par {"grid":"..."} :
+    // on récupère la DERNIÈRE occurrence du champ grid (la réponse finale).
     let grid = null;
-    try { grid = JSON.parse(clean).grid; } catch (e) { /* fallback ci-dessous */ }
+    const gridMatches = [...clean.matchAll(/"grid"\s*:\s*"([^"]*)"/g)];
+    if (gridMatches.length) grid = gridMatches[gridMatches.length - 1][1];
     if (!grid) {
-      const m = clean.match(/[0-9]{81}/);
+      const m = clean.match(/[0-9]{81}/); // repli : une suite brute de 81 chiffres
       grid = m ? m[0] : null;
     }
     if (!grid || grid === "ERROR") {
