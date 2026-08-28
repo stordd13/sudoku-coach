@@ -14,6 +14,7 @@ export const LESSONS = [
   {
     id: "naked-single",
     num: 1,
+    level: "classic",
     title: "Candidat unique",
     concept:
       "Une case ne « voit » plus qu’un seul chiffre possible : les chiffres déjà posés dans sa ligne, sa colonne et son bloc éliminent les 8 autres. C’est la technique de base — toujours commencer par elle.",
@@ -35,6 +36,7 @@ export const LESSONS = [
   {
     id: "hidden-single",
     num: 2,
+    level: "classic",
     title: "Single caché",
     concept:
       "On ne regarde plus une case, mais une zone entière (ligne, colonne ou bloc) en suivant UN chiffre : s’il n’a plus qu’une seule case disponible dans la zone, il s’y place — même si cette case a encore d’autres candidats.",
@@ -57,6 +59,7 @@ export const LESSONS = [
   {
     id: "naked-pair",
     num: 3,
+    level: "classic",
     title: "Paire nue",
     concept:
       "Deux cases d’une même zone ne contiennent que les deux mêmes candidats. Ces deux chiffres sont « réservés » à ces deux cases (peu importe l’ordre) : on peut donc les barrer partout ailleurs dans la zone.",
@@ -81,6 +84,7 @@ export const LESSONS = [
   {
     id: "pointing-pair",
     num: 4,
+    level: "classic",
     title: "Paire pointante",
     concept:
       "Dans un bloc, un chiffre n’est possible que sur une seule ligne (ou colonne). Comme il finira forcément dans le bloc sur cette ligne, on peut le barrer sur le reste de la ligne, en dehors du bloc.",
@@ -105,6 +109,7 @@ export const LESSONS = [
   {
     id: "claiming",
     num: 5,
+    level: "classic",
     title: "Réduction bloc/ligne",
     concept:
       "C’est la paire pointante en sens inverse : sur une ligne (ou colonne), un chiffre n’est possible que dans un seul bloc. Il « appartient » donc à ce bloc via cette ligne : on le barre des autres cases du bloc.",
@@ -129,6 +134,7 @@ export const LESSONS = [
   {
     id: "hidden-pair",
     num: 6,
+    level: "classic",
     title: "Duo caché",
     concept:
       "Deux chiffres n’apparaissent que dans les deux mêmes cases d’une zone : ces cases leur sont réservées. Leurs autres candidats s’effacent — et ce grand nettoyage débloque souvent la suite.",
@@ -148,6 +154,128 @@ export const LESSONS = [
       "Dans le bloc bas-gauche, suis le **2** et le **9** : chacun n’apparaît que dans **L8C2** et **L9C3**.",
       "Ces deux cases sont donc réservées au duo {2, 9} → leurs autres candidats s’effacent : L8C2 −{4, 6}, L9C3 −{1, 5}.",
       "Conséquence : le **1** du bloc n’a plus qu’une seule place possible, **L7C1** → **L7C1 = 1**. Un duo caché vient de débloquer un single caché.",
+    ],
+  },
+  {
+    id: "x-wing",
+    num: 7,
+    level: "intermediate",
+    title: "X-Wing",
+    concept:
+      "Un chiffre n’a plus que deux places sur deux lignes, et ces places tombent dans les deux mêmes colonnes : elles forment un rectangle. Le chiffre occupera une diagonale ou l’autre — dans tous les cas, il est « réservé » à ces deux colonnes. On le barre donc ailleurs dans ces colonnes.",
+    question: "Le 4 est bloqué sur les lignes 1 et 5 : quel chiffre se libère en L3C2 ?",
+    hint: "Suis le 4 sur les lignes 1 et 5 : dans quelles colonnes se cache-t-il ? Remarque le rectangle.",
+    given: {},
+    notes: {
+      1: [4, 8], 5: [4, 9], 37: [4, 6], 41: [4, 5],
+      19: [4, 7], 68: [2, 4],
+    },
+    removals: { 19: [4], 68: [4] },
+    unit: [...COLS[1], ...COLS[5]],
+    focus: [1, 5, 37, 41],
+    target: 19,
+    answer: 7,
+    steps: [
+      "Suis le **4** sur les lignes 1 et 5 : dans chacune, il ne reste que deux cases possibles — **L1C2/L1C6** et **L5C2/L5C6**, toutes dans les colonnes 2 et 6.",
+      "Ces quatre cases forment un rectangle (**X-Wing**). Sur chaque colonne, le 4 sera pris par l’une des deux lignes → aucune autre case des colonnes 2 et 6 ne peut être un 4 : L3C2 −{4}, L8C6 −{4}.",
+      "**L3C2** passe de {4, 7} à {7} → **L3C2 = 7**.",
+    ],
+  },
+  {
+    id: "xy-wing",
+    num: 8,
+    level: "intermediate",
+    title: "XY-Wing",
+    concept:
+      "Trois cases à deux candidats reliées en Y : un pivot {a, b}, et deux « pinces » {a, c} et {b, c} qu’il voit. Quelle que soit la valeur du pivot, l’une des pinces vaudra c. Toute case qui voit les deux pinces perd donc le c.",
+    question: "Le pivot L5C5 et ses deux pinces débloquent L1C1 : avec quel chiffre ?",
+    hint: "Repère le pivot {1, 2}. Ses deux pinces partagent un même troisième chiffre : lequel ?",
+    given: {},
+    notes: { 40: [1, 2], 36: [1, 3], 4: [2, 3], 0: [3, 7] },
+    removals: { 0: [3] },
+    unit: [0, 4, 36, 40],
+    focus: [40, 36, 4],
+    target: 0,
+    answer: 7,
+    steps: [
+      "**L5C5** ne contient que {1, 2}. Ses deux pinces : **L5C1** = {1, 3} (même ligne) et **L1C5** = {2, 3} (même colonne).",
+      "Si L5C5 = 1, alors L5C1 = 3 ; si L5C5 = 2, alors L1C5 = 3. Dans tous les cas, **un 3 apparaît en L5C1 ou L1C5**.",
+      "**L1C1** voit ces deux pinces : elle ne peut pas être un 3. Elle passe de {3, 7} à {7} → **L1C1 = 7**.",
+    ],
+  },
+  {
+    id: "swordfish",
+    num: 9,
+    level: "intermediate",
+    title: "Swordfish",
+    concept:
+      "Le X-Wing en plus grand : un chiffre se répartit sur trois lignes, entièrement contenu dans trois colonnes (deux ou trois cases par ligne). Ces trois colonnes se partageront le chiffre sur ces lignes → on le barre ailleurs dans ces colonnes.",
+    question: "Le 3 dessine un Swordfish sur les lignes 1, 5 et 9 : que devient L3C3 ?",
+    hint: "Suis le 3 sur les lignes 1, 5 et 9 : combien de colonnes différentes occupe-t-il en tout ?",
+    given: {},
+    notes: {
+      2: [3, 5], 4: [3, 6], 40: [3, 7], 42: [3, 8], 74: [1, 3], 78: [2, 3],
+      20: [3, 9],
+    },
+    removals: { 20: [3] },
+    unit: [...COLS[2], ...COLS[4], ...COLS[6]],
+    focus: [2, 4, 40, 42, 74, 78],
+    target: 20,
+    answer: 9,
+    steps: [
+      "Suis le **3** sur les lignes 1, 5 et 9 : il se limite à chaque fois aux colonnes 3, 5 et 7 (six cases en surbrillance).",
+      "Ces trois colonnes se partageront les 3 de ces trois lignes (**Swordfish**) → aucune autre case des colonnes 3, 5 et 7 ne peut être un 3 : L3C3 −{3}.",
+      "**L3C3** passe de {3, 9} à {9} → **L3C3 = 9**.",
+    ],
+  },
+  {
+    id: "skyscraper",
+    num: 10,
+    level: "intermediate",
+    title: "Skyscraper",
+    concept:
+      "Un chiffre forme deux « liens forts » (deux cases seulement) sur deux lignes, et ces liens partagent une même colonne (la base). Comme la base ne peut pas porter le chiffre deux fois, l’un des deux « toits » le porte forcément : toute case voyant les deux toits perd ce chiffre.",
+    question: "Les deux liens forts du 5 se rejoignent sur la colonne 1 : quel chiffre va en L2C6 ?",
+    hint: "Le 5 n’a que deux places sur la ligne 1 et deux sur la ligne 4. Que partagent ces liens ?",
+    given: {},
+    notes: {
+      0: [1, 5], 4: [2, 5], 27: [3, 5], 32: [4, 5],
+      14: [5, 8],
+    },
+    removals: { 14: [5] },
+    unit: [0, 4, 27, 32, 14],
+    focus: [0, 4, 27, 32],
+    target: 14,
+    answer: 8,
+    steps: [
+      "Le **5** n’a que deux places sur la ligne 1 (**L1C1**, **L1C5**) et deux sur la ligne 4 (**L4C1**, **L4C6**). Les deux « pieds » L1C1 et L4C1 partagent la colonne 1 : c’est la base.",
+      "La base ne peut pas porter deux 5 → l’un des deux « toits » (**L1C5** ou **L4C6**) est forcément un 5.",
+      "**L2C6** voit ces deux toits (par la colonne 6 et par le bloc) : elle perd le 5 et passe de {5, 8} à {8} → **L2C6 = 8**.",
+    ],
+  },
+  {
+    id: "remote-pairs",
+    num: 11,
+    level: "intermediate",
+    title: "Remote Pairs",
+    concept:
+      "Une chaîne de cases ne contenant que la même paire {a, b}, reliées de proche en proche. Le long de la chaîne, a et b s’alternent (deux « couleurs »). Toute case extérieure qui voit deux maillons de couleurs opposées ne peut être ni a ni b.",
+    question: "La chaîne {1, 2} serpente jusqu’à cerner L1C9 : quel chiffre s’y pose ?",
+    hint: "Colorie la chaîne en alternance. Quelles cases L1C9 voit-elle aux deux extrémités ?",
+    given: {},
+    notes: {
+      0: [1, 2], 4: [1, 2], 40: [1, 2], 44: [1, 2],
+      8: [2, 5],
+    },
+    removals: { 8: [2] },
+    unit: [0, 4, 40, 44, 8],
+    focus: [0, 4, 40, 44],
+    target: 8,
+    answer: 5,
+    steps: [
+      "Quatre cases ne contiennent que {1, 2} et s’enchaînent : **L1C1 – L1C5 – L5C5 – L5C9**. On les colorie en alternance.",
+      "Le 1 et le 2 s’échangent le long de la chaîne : les extrémités **L1C1** et **L5C9** sont de couleurs opposées — l’une porte le 1, l’autre le 2.",
+      "**L1C9** voit ces deux extrémités : elle ne peut être ni 1 ni 2. Elle perd le 2 et passe de {2, 5} à {5} → **L1C9 = 5**.",
     ],
   },
 ];

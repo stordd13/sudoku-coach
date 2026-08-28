@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, SAMPLES,
@@ -131,18 +131,32 @@ function LearnView() {
   useEffect(() => { setRevealed(false); setShowHint(false); }, [ix]);
   return (
     <>
-      <div style={{ width: W, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-        {LESSONS.map((l, i) => (
-          <button key={l.id} type="button" onClick={() => setIx(i)} style={{
-            flex: "0 0 auto", border: `1px solid ${i === ix ? C.teal : "#D8DEDC"}`,
-            background: i === ix ? C.teal : "#fff", color: i === ix ? "#fff" : C.ink,
-            borderRadius: 999, padding: "7px 12px", fontSize: 12.5, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-            WebkitTapHighlightColor: "transparent",
-          }}>
-            {l.num} · {l.title}
-          </button>
-        ))}
+      <div style={{ width: W, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, alignItems: "center" }}>
+        {LESSONS.map((l, i) => {
+          const newSection = i === 0 || LESSONS[i - 1].level !== l.level;
+          const sectionLabel = l.level === "intermediate" ? "Intermédiaire" : "Classiques";
+          return (
+            <Fragment key={l.id}>
+              {newSection && (
+                <span style={{
+                  flex: "0 0 auto", fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+                  textTransform: "uppercase", color: C.gray, whiteSpace: "nowrap",
+                  padding: i === 0 ? "0 2px" : "0 4px 0 8px",
+                  borderLeft: i === 0 ? "none" : "1px solid #E2E7E5",
+                }}>{sectionLabel}</span>
+              )}
+              <button type="button" onClick={() => setIx(i)} style={{
+                flex: "0 0 auto", border: `1px solid ${i === ix ? C.teal : "#D8DEDC"}`,
+                background: i === ix ? C.teal : "#fff", color: i === ix ? "#fff" : C.ink,
+                borderRadius: 999, padding: "7px 12px", fontSize: 12.5, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                WebkitTapHighlightColor: "transparent",
+              }}>
+                {l.num} · {l.title}
+              </button>
+            </Fragment>
+          );
+        })}
       </div>
 
       <div style={{
@@ -391,7 +405,7 @@ export default function App() {
       kind: "ok", target: t, digit: d, chain: [], hint1: "", hint2: "",
       tech: "Au-delà des techniques classiques",
       paras: [
-        `Aucune des techniques enseignées ici (candidat unique, single caché, paires, alignements) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
+        `Aucune des techniques enseignées ici (candidat unique, single caché, paires, alignements, X-Wing, XY-Wing, Swordfish, Skyscraper, Remote Pairs) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
         `La valeur vient de la résolution complète : **${cellName(t)} = ${d}**.`,
         `Conseil : commence par les cases accessibles (bouton 🎲) — celle-ci se débloquera naturellement en chemin.`,
       ],
@@ -835,8 +849,8 @@ export default function App() {
                 <>
                   <p style={pStyle}>
                     Plus aucune case n’est déductible avec les techniques du coach (candidat unique,
-                    singles cachés, paires, alignements). La suite demande des techniques expertes —
-                    chaînes, X-Wing…
+                    singles cachés, paires, alignements, X-Wing, XY-Wing, Swordfish, Skyscraper,
+                    Remote Pairs). La suite demande des techniques avancées — chaînes, coloriage…
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="primary" grow onClick={solveAll}>Tout résoudre</Btn>
@@ -849,8 +863,8 @@ export default function App() {
                 <>
                   <p style={pStyle}>
                     La case <strong>{cellName(plan.target)}</strong> n’est pas déductible pour l’instant
-                    avec des techniques classiques : il faut d’abord remplir d’autres cases (ou recourir
-                    à des techniques expertes).
+                    avec les techniques du coach : il faut d’abord remplir d’autres cases (ou recourir
+                    à des techniques avancées).
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="accent" grow onClick={randomHint}>🎲 Une case accessible</Btn>
