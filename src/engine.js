@@ -585,6 +585,10 @@ function pruneChain(grid, chain, goal) {
       lineThrough(e.base[0], e.roof[0]).forEach((c) => addNeed(c, e.digit));
       lineThrough(e.base[1], e.roof[1]).forEach((c) => addNeed(c, e.digit));
     }
+    else if (e.kind === "xWing" || e.kind === "swordfish") {
+      const base = e.lineType === "row" ? ROWS : COLS;
+      e.lines.forEach((li) => base[li].forEach((c) => addNeed(c, e.digit)));
+    }
     else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair, xyWing, remotePair…
   }
   return kept;
