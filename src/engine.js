@@ -536,6 +536,45 @@ function finalizeHidden(grid, t, digit, unit, chain) {
     unitCells: [...unit.cells],
   };
 }
+/* ---------- Élagage de la chaîne : ne garder que les étapes utiles ---------- */
+function valueBlocks(grid, c, d) {
+  return ROWS[rowOf(c)].some((x) => grid[x] === d)
+    || COLS[colOf(c)].some((x) => grid[x] === d)
+    || BOXES[boxOf(c)].some((x) => grid[x] === d);
+}
+function lineThrough(a, b) {
+  return rowOf(a) === rowOf(b) ? ROWS[rowOf(a)] : COLS[colOf(a)];
+}
+function pruneChain(grid, chain, goal) {
+  // needs : cell -> Set de chiffres dont l'élimination est utile (0 = n'importe lequel)
+  const needs = new Map();
+  const addNeed = (c, d) => { if (!needs.has(c)) needs.set(c, new Set()); needs.get(c).add(d); };
+  const isNeeded = (c, d) => { const s = needs.get(c); return !!s && (s.has(d) || s.has(0)); };
+  if (goal.type === "naked") {
+    for (const d of goal.baseCands) if (d !== goal.digit) addNeed(goal.target, d);
+  } else {
+    for (const c of goal.unit.cells)
+      if (c !== goal.target && grid[c] === 0 && !valueBlocks(grid, c, goal.digit))
+        addNeed(c, goal.digit);
+  }
+  const kept = [];
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const e = chain[i];
+    if (!e.removals.some((r) => r.digits.some((d) => isNeeded(r.cell, d)))) continue;
+    kept.unshift(e);
+    // Prémisses de l'étape gardée : ce qu'elle « lit » devient à son tour nécessaire
+    if (e.kind === "pointing") BOXES[e.box].forEach((c) => addNeed(c, e.digit));
+    else if (e.kind === "claiming") e.line.cells.forEach((c) => addNeed(c, e.digit));
+    else if (e.kind === "hiddenPair") e.unit.cells.forEach((c) => { addNeed(c, e.digits[0]); addNeed(c, e.digits[1]); });
+    else if (e.kind === "skyscraper") {
+      lineThrough(e.base[0], e.roof[0]).forEach((c) => addNeed(c, e.digit));
+      lineThrough(e.base[1], e.roof[1]).forEach((c) => addNeed(c, e.digit));
+    }
+    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair, xyWing, remotePair…
+  }
+  return kept;
+}
+
 export function buildPlan(grid, target) {
   if (grid[target] !== 0) return null;
   const baseCands = candidatesFromGrid(grid, target);
@@ -544,14 +583,24 @@ export function buildPlan(grid, target) {
   const chain = [];
   for (let k = 0; k < 8; k++) {
     const cs = [...cands[target]];
-    if (cs.length === 1) return finalizeNaked(grid, target, cs[0], chain, baseCands);
+    if (cs.length === 1) {
+      const kept = pruneChain(grid, chain, { type: "naked", target, digit: cs[0], baseCands });
+      const plan = finalizeNaked(grid, target, cs[0], kept.map(describeElim), baseCands);
+      plan.rawChain = kept;
+      return plan;
+    }
     const hs = findHiddenSingleFor(grid, cands, target);
-    if (hs) return finalizeHidden(grid, target, hs.digit, hs.unit, chain);
+    if (hs) {
+      const kept = pruneChain(grid, chain, { type: "hidden", target, digit: hs.digit, unit: hs.unit });
+      const plan = finalizeHidden(grid, target, hs.digit, hs.unit, kept.map(describeElim));
+      plan.rawChain = kept;
+      return plan;
+    }
     if (chain.length >= 4) return null;
     const e = findElim(cands, prefer) || findElim(cands, null);
     if (!e) return null;
     applyElim(cands, e);
-    chain.push(describeElim(e));
+    chain.push(e); // objets bruts — describeElim n'est appelé qu'après élagage
   }
   return null;
 }

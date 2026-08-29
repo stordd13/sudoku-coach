@@ -42,6 +42,16 @@ console.log("Moteur (buildPlan sur l'exemple 1) :");
   ok(solvable > 0, `${solvable} cases immédiatement explicables`);
 }
 
+/* ---------- 2b. Élagage de la chaîne : régression L3C7 ---------- */
+console.log("Élagage de la chaîne :");
+{
+  const g = "000000381610083450483500006001050943054030627030402815100800534090300168348005000".split("").map(Number);
+  const p = buildPlan(g, 24); // L3C7
+  ok(p && p.digit === 2, "repro L3C7 : conclusion = 2");
+  ok(p.chain.length === 2, `repro L3C7 : chaîne élaguée à 2 étapes (${p.chain.length})`);
+  ok(p.chain.every((s) => s.text.includes("**2**")), "repro L3C7 : toutes les étapes portent sur le 2");
+}
+
 /* ---------- 3. Leçons : cohérence interne ---------- */
 console.log("Leçons :");
 for (const L of LESSONS) {
