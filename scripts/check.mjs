@@ -4,6 +4,7 @@ import {
   PEERS, BOXES, candidatesFromGrid, allCands, conflictSet,
   findHiddenSingleFor, solveGrid, buildPlan, SAMPLES, cellName, rowOf, colOf,
   findXWingE, findSwordfishE, findSkyscraperE, findXYWingE, findRemotePairE,
+  findXYZWingE, findWWingE, findKiteE, findEmptyRectangleE,
   snyderNotes,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
@@ -49,7 +50,7 @@ console.log("Élagage de la chaîne :");
   const g = "000000381610083450483500006001050943054030627030402815100800534090300168348005000".split("").map(Number);
   const p = buildPlan(g, 24); // L3C7
   ok(p && p.digit === 2, "repro L3C7 : conclusion = 2");
-  ok(p.chain.length === 2, `repro L3C7 : chaîne élaguée à 2 étapes (${p.chain.length})`);
+  ok(p.chain.length === 1, `repro L3C7 : chaîne élaguée à 1 étape (${p.chain.length})`);
   ok(p.chain.every((s) => s.text.includes("**2**")), "repro L3C7 : toutes les étapes portent sur le 2");
 }
 
@@ -186,13 +187,21 @@ for (const L of LESSONS) {
   ok(remClash === 0, "les éliminations portent sur des candidats affichés");
 }
 
-/* ---------- 4. Techniques intermédiaires : détection sur motifs isolés ---------- */
-console.log("Techniques intermédiaires :");
+/* ---------- 4. Techniques intermédiaires et expertes : détection sur motifs isolés ---------- */
+console.log("Techniques intermédiaires et expertes :");
 {
   const S = (...d) => new Set(d);
   const empty = () => Array.from({ length: 81 }, () => new Set());
   const idx = (r, c) => r * 9 + c;
   const hit = (e, cell, d) => !!e && e.removals.some((x) => x.cell === cell && x.digits.includes(d));
+  const lessonById = (id) => LESSONS.find((l) => l.id === id);
+  // Cands synthétiques depuis les notes d'une leçon → appel DIRECT du finder
+  // (via findElim, un motif plus simple pourrait légitimement être détecté d'abord).
+  const fromNotes = (notes) => {
+    const g = empty();
+    for (const [k, arr] of Object.entries(notes)) g[Number(k)] = new Set(arr);
+    return g;
+  };
 
   // X-Wing : le 4 est confiné aux colonnes 2 et 6 sur les lignes 1 et 5.
   {
@@ -232,6 +241,23 @@ console.log("Techniques intermédiaires :");
     g[idx(0, 8)] = S(2, 5);
     const e = findRemotePairE(g, null);
     ok(e && e.kind === "remotePair" && hit(e, idx(0, 8), 2), "Remote Pairs retire le 2 en L1C9");
+  }
+  // Techniques expertes : chaque finder retrouve l'élimination de sa leçon.
+  {
+    const e = findXYZWingE(fromNotes(lessonById("xyz-wing").notes), null);
+    ok(e && e.kind === "xyzWing" && hit(e, idx(4, 4), 9), "XYZ-Wing retire le 9 en L5C5");
+  }
+  {
+    const e = findWWingE(fromNotes(lessonById("w-wing").notes), null);
+    ok(e && e.kind === "wWing" && hit(e, idx(5, 1), 4), "W-Wing retire le 4 en L6C2");
+  }
+  {
+    const e = findKiteE(fromNotes(lessonById("kite").notes), null);
+    ok(e && e.kind === "kite" && hit(e, idx(7, 4), 3), "2-String Kite retire le 3 en L8C5");
+  }
+  {
+    const e = findEmptyRectangleE(fromNotes(lessonById("empty-rectangle").notes), null);
+    ok(e && e.kind === "emptyRectangle" && hit(e, idx(4, 7), 6), "Empty Rectangle retire le 6 en L5C8");
   }
 }
 

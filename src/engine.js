@@ -422,11 +422,186 @@ export function findRemotePairE(cands, prefer) {
   return null;
 }
 
+/* ---------- Techniques expertes ---------- */
+// XYZ-Wing : pivot {x,y,z} à trois candidats, pinces {x,z} et {y,z} vues par le
+// pivot → un z apparaît forcément dans le trio (pivot compris) : on retire z des
+// cases qui voient les trois.
+export function findXYZWingE(cands, prefer) {
+  const tri = [], bi = [];
+  for (let i = 0; i < 81; i++) {
+    if (cands[i].size === 3) tri.push(i);
+    else if (cands[i].size === 2) bi.push(i);
+  }
+  for (const pivot of tri) {
+    const pincers = bi.filter((p) => PEERS[pivot].has(p) && [...cands[p]].every((d) => cands[pivot].has(d)));
+    for (let a = 0; a < pincers.length; a++) for (let b = a + 1; b < pincers.length; b++) {
+      const p1 = pincers[a], p2 = pincers[b];
+      const inter = [...cands[p1]].filter((d) => cands[p2].has(d));
+      if (inter.length !== 1) continue;
+      const z = inter[0];
+      if (new Set([...cands[p1], ...cands[p2]]).size !== 3) continue;
+      const removals = [];
+      for (let i = 0; i < 81; i++) {
+        if (i === pivot || i === p1 || i === p2) continue;
+        if (cands[i].has(z) && PEERS[pivot].has(i) && PEERS[p1].has(i) && PEERS[p2].has(i)) {
+          removals.push({ cell: i, digits: [z] });
+        }
+      }
+      if (!removals.length) continue;
+      if (prefer && !removals.some((r) => prefer.has(r.cell))) continue;
+      return {
+        kind: "xyzWing", pivot, pincers: [p1, p2], z,
+        cells: [pivot, p1, p2], digits: [z], removals,
+      };
+    }
+  }
+  return null;
+}
+
+// W-Wing : deux bivalues identiques {a,b} qui ne se voient pas, reliées par un
+// lien fort sur b (une unité où b n'a que 2 places, chacune voyant l'une des
+// deux) → l'une des deux vaut a : on retire a des cases voyant les deux.
+export function findWWingE(cands, prefer) {
+  const groups = {};
+  for (let i = 0; i < 81; i++) {
+    if (cands[i].size !== 2) continue;
+    const key = [...cands[i]].sort((x, y) => x - y).join(",");
+    (groups[key] || (groups[key] = [])).push(i);
+  }
+  for (const key of Object.keys(groups)) {
+    const nodes = groups[key];
+    if (nodes.length < 2) continue;
+    const [d1, d2] = key.split(",").map(Number);
+    for (let x = 0; x < nodes.length; x++) for (let y = x + 1; y < nodes.length; y++) {
+      const A = nodes[x], B = nodes[y];
+      if (PEERS[A].has(B)) continue;
+      for (const [a, b] of [[d1, d2], [d2, d1]]) {
+        for (const u of UNITS) {
+          const pos = u.cells.filter((i) => cands[i].has(b));
+          if (pos.length !== 2) continue;
+          if (pos.includes(A) || pos.includes(B)) continue;
+          const [e1, e2] = pos;
+          if (!(PEERS[e1].has(A) && PEERS[e2].has(B)) && !(PEERS[e1].has(B) && PEERS[e2].has(A))) continue;
+          const removals = [];
+          for (let i = 0; i < 81; i++) {
+            if (i === A || i === B) continue;
+            if (cands[i].has(a) && PEERS[A].has(i) && PEERS[B].has(i)) {
+              removals.push({ cell: i, digits: [a] });
+            }
+          }
+          if (!removals.length) continue;
+          if (prefer && !removals.some((r) => prefer.has(r.cell))) continue;
+          return {
+            kind: "wWing", a, b, bivalues: [A, B], link: [e1, e2], linkUnit: u,
+            cells: [A, B, e1, e2], digits: [a], removals,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// 2-String Kite : pour un chiffre, une ligne à 2 places et une colonne à
+// 2 places dont une place de chacune tombe dans le même bloc → l'une des deux
+// extrémités libres porte le chiffre : on le retire des cases voyant les deux.
+export function findKiteE(cands, prefer) {
+  for (let d = 1; d <= 9; d++) {
+    const rowPos = ROWS.map((cells) => cells.filter((i) => cands[i].has(d)));
+    const colPos = COLS.map((cells) => cells.filter((i) => cands[i].has(d)));
+    for (let r = 0; r < 9; r++) {
+      if (rowPos[r].length !== 2) continue;
+      for (let c = 0; c < 9; c++) {
+        if (colPos[c].length !== 2) continue;
+        for (const rp of rowPos[r]) for (const cp of colPos[c]) {
+          if (rp === cp || boxOf(rp) !== boxOf(cp)) continue;
+          const free1 = rowPos[r].find((i) => i !== rp);
+          const free2 = colPos[c].find((i) => i !== cp);
+          if (free1 === free2) continue;
+          const removals = [];
+          for (let i = 0; i < 81; i++) {
+            if (i === rp || i === cp || i === free1 || i === free2) continue;
+            if (cands[i].has(d) && PEERS[free1].has(i) && PEERS[free2].has(i)) {
+              removals.push({ cell: i, digits: [d] });
+            }
+          }
+          if (!removals.length) continue;
+          if (prefer && !removals.some((rm) => prefer.has(rm.cell))) continue;
+          return {
+            kind: "kite", digit: d, row: r, col: c, blockPair: [rp, cp],
+            ends: [free1, free2], cells: [rp, cp, free1, free2], digits: [d], removals,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Empty Rectangle : dans un bloc, tous les candidats d tiennent dans une ligne r
+// et une colonne c ; un lien fort sur d ailleurs, avec une extrémité alignée sur
+// c (resp. r) → l'autre extrémité interdit d au croisement avec r (resp. c).
+export function findEmptyRectangleE(cands, prefer) {
+  for (let b = 0; b < 9; b++) {
+    const boxRows = [...new Set(BOXES[b].map(rowOf))];
+    const boxCols = [...new Set(BOXES[b].map(colOf))];
+    for (let d = 1; d <= 9; d++) {
+      const pos = BOXES[b].filter((i) => cands[i].has(d));
+      if (pos.length < 2) continue;
+      for (const r of boxRows) for (const c of boxCols) {
+        if (pos.some((p) => rowOf(p) !== r && colOf(p) !== c)) continue;
+        // ER non trivial (sinon c'est un simple alignement, traité bien avant)
+        if (!pos.some((p) => rowOf(p) === r && colOf(p) !== c)) continue;
+        if (!pos.some((p) => colOf(p) === c && rowOf(p) !== r)) continue;
+        // Orientation 1 : lien fort dans une ligne hors bloc, une extrémité en colonne c
+        for (let r2 = 0; r2 < 9; r2++) {
+          if (boxRows.includes(r2)) continue;
+          const lp = ROWS[r2].filter((i) => cands[i].has(d));
+          if (lp.length !== 2) continue;
+          const X = lp.find((i) => colOf(i) === c);
+          if (X === undefined) continue;
+          const Y = lp.find((i) => i !== X);
+          if (boxCols.includes(colOf(Y))) continue;
+          const t = r * 9 + colOf(Y);
+          if (!cands[t].has(d)) continue;
+          if (prefer && !prefer.has(t)) continue;
+          return {
+            kind: "emptyRectangle", digit: d, box: b, erRow: r, erCol: c,
+            link: [X, Y], linkLine: { type: "row", index: r2, cells: ROWS[r2] },
+            cells: [...pos, X, Y], digits: [d], removals: [{ cell: t, digits: [d] }],
+          };
+        }
+        // Orientation 2 : lien fort dans une colonne hors bloc, une extrémité en ligne r
+        for (let c2 = 0; c2 < 9; c2++) {
+          if (boxCols.includes(c2)) continue;
+          const lp = COLS[c2].filter((i) => cands[i].has(d));
+          if (lp.length !== 2) continue;
+          const X = lp.find((i) => rowOf(i) === r);
+          if (X === undefined) continue;
+          const Y = lp.find((i) => i !== X);
+          if (boxRows.includes(rowOf(Y))) continue;
+          const t = rowOf(Y) * 9 + c;
+          if (!cands[t].has(d)) continue;
+          if (prefer && !prefer.has(t)) continue;
+          return {
+            kind: "emptyRectangle", digit: d, box: b, erRow: r, erCol: c,
+            link: [X, Y], linkLine: { type: "col", index: c2, cells: COLS[c2] },
+            cells: [...pos, X, Y], digits: [d], removals: [{ cell: t, digits: [d] }],
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 const findElim = (cands, prefer) =>
   findNakedPairE(cands, prefer) || findPointingE(cands, prefer) ||
   findClaimingE(cands, prefer) || findHiddenPairE(cands, prefer) ||
-  findXWingE(cands, prefer) || findSkyscraperE(cands, prefer) ||
-  findXYWingE(cands, prefer) || findSwordfishE(cands, prefer) ||
+  findXWingE(cands, prefer) || findXYWingE(cands, prefer) ||
+  findXYZWingE(cands, prefer) || findWWingE(cands, prefer) ||
+  findSwordfishE(cands, prefer) || findKiteE(cands, prefer) ||
+  findSkyscraperE(cands, prefer) || findEmptyRectangleE(cands, prefer) ||
   findRemotePairE(cands, prefer);
 function applyElim(cands, e) {
   for (const r of e.removals) for (const d of r.digits) cands[r.cell].delete(d);
@@ -472,6 +647,30 @@ function describeElim(e) {
     return {
       title: "XY-Wing", zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
       text: `**${cellName(e.pivot)}** (pivot) et ses pinces ${e.pincers.map(cellName).join(", ")} forment un XY-Wing : quelle que soit la valeur du pivot, l’une des pinces vaut **${e.c}**. Toute case voyant les deux pinces perd donc le ${e.c} : ${remTxt}.`,
+    };
+  }
+  if (e.kind === "xyzWing") {
+    return {
+      title: "XYZ-Wing", zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
+      text: `**${cellName(e.pivot)}** (pivot à trois candidats) et ses pinces ${e.pincers.map(cellName).join(", ")} forment un XYZ-Wing : quelle que soit la valeur du pivot, un **${e.z}** apparaît dans le trio — pivot compris. Toute case voyant les trois cases perd donc le ${e.z} : ${remTxt}.`,
+    };
+  }
+  if (e.kind === "wWing") {
+    return {
+      title: "W-Wing", zone: `la paire {${e.a}, ${e.b}}`, cells: involved,
+      text: `**${cellName(e.bivalues[0])}** et **${cellName(e.bivalues[1])}** portent la même paire {${e.a}, ${e.b}} sans se voir. Dans ${unitLabel(e.linkUnit)}, le **${e.b}** n’a que deux places (${e.link.map(cellName).join(", ")}), chacune voyant l’une des deux paires → l’une des deux vaut forcément **${e.a}** : toute case voyant les deux perd le ${e.a} : ${remTxt}.`,
+    };
+  }
+  if (e.kind === "kite") {
+    return {
+      title: "2-String Kite", zone: `le ${e.digit}`, cells: involved,
+      text: `Le **${e.digit}** n’a que deux places sur la ligne ${e.row + 1} et deux sur la colonne ${e.col + 1}, dont ${e.blockPair.map(cellName).join(" et ")} dans le même bloc : elles ne peuvent pas porter le ${e.digit} toutes les deux → l’une des extrémités libres (${e.ends.map(cellName).join(", ")}) le porte forcément. Toute case voyant ces deux extrémités perd le ${e.digit} : ${remTxt}.`,
+    };
+  }
+  if (e.kind === "emptyRectangle") {
+    return {
+      title: "Empty Rectangle", zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
+      text: `Dans le bloc **${BOX_NAMES[e.box]}**, tous les **${e.digit}** tiennent dans la ligne ${e.erRow + 1} et la colonne ${e.erCol + 1} — le reste du rectangle est vide. Avec le lien fort ${e.link.map(cellName).join("–")}, un ${e.digit} en ${cellName(e.removals[0].cell)} viderait ce bloc de toutes ses places pour le ${e.digit} : ${remTxt}.`,
     };
   }
   if (e.kind === "remotePair") {
@@ -589,7 +788,19 @@ function pruneChain(grid, chain, goal) {
       const base = e.lineType === "row" ? ROWS : COLS;
       e.lines.forEach((li) => base[li].forEach((c) => addNeed(c, e.digit)));
     }
-    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair, xyWing, remotePair…
+    else if (e.kind === "wWing") {
+      e.cells.forEach((c) => addNeed(c, 0));
+      e.linkUnit.cells.forEach((c) => addNeed(c, e.b));
+    }
+    else if (e.kind === "kite") {
+      ROWS[e.row].forEach((c) => addNeed(c, e.digit));
+      COLS[e.col].forEach((c) => addNeed(c, e.digit));
+    }
+    else if (e.kind === "emptyRectangle") {
+      BOXES[e.box].forEach((c) => addNeed(c, e.digit));
+      e.linkLine.cells.forEach((c) => addNeed(c, e.digit));
+    }
+    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair, xyWing, xyzWing, remotePair…
   }
   return kept;
 }
@@ -597,7 +808,8 @@ function pruneChain(grid, chain, goal) {
 /* ---------- Difficulté : base (type de conclusion) + poids des étapes élaguées ---------- */
 const ELIM_WEIGHTS = {
   pointing: 2, claiming: 2, nakedPair: 3, hiddenPair: 4,
-  xWing: 5, skyscraper: 6, xyWing: 6, swordfish: 6, remotePair: 7,
+  xWing: 5, skyscraper: 6, xyWing: 6, swordfish: 6,
+  xyzWing: 6, wWing: 6, kite: 7, emptyRectangle: 7, remotePair: 7,
 };
 const planDifficulty = (base, kept) =>
   base + kept.reduce((s, e) => s + (ELIM_WEIGHTS[e.kind] || 5), 0);
