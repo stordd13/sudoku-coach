@@ -395,7 +395,9 @@ export default function App() {
       if (p && (!solRef || p.digit === solRef[i])) plans.push(p);
     }
     if (!plans.length) { setPlan({ kind: "stuckAll" }); setLevel(0); return; }
-    const p = plans[Math.floor(Math.random() * plans.length)];
+    const min = Math.min(...plans.map((p) => p.difficulty));
+    const easiest = plans.filter((p) => p.difficulty === min);
+    const p = easiest[Math.floor(Math.random() * easiest.length)];
     setSel(p.target); setPlan(p); setLevel(0);
   }
   function revealAnyway(t) {
@@ -407,7 +409,7 @@ export default function App() {
       paras: [
         `Aucune des techniques enseignées ici (candidat unique, single caché, paires, alignements, X-Wing, XY-Wing, Swordfish, Skyscraper, Remote Pairs) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
         `La valeur vient de la résolution complète : **${cellName(t)} = ${d}**.`,
-        `Conseil : commence par les cases accessibles (bouton 🎲) — celle-ci se débloquera naturellement en chemin.`,
+        `Conseil : avance pas à pas (bouton 👣 Étape suivante) — celle-ci se débloquera naturellement en chemin.`,
       ],
       unitCells: [],
     });
@@ -742,7 +744,7 @@ export default function App() {
               ? "Touche une case, puis un chiffre du pavé. Retoucher le même chiffre l’efface."
               : noteMode
                 ? "Mode notes : les chiffres s’écrivent en petit dans les coins."
-                : "Sélectionne une case vide puis 🎯 pour une explication guidée."}
+                : "Sélectionne une case vide puis 🎯 pour une explication, ou 👣 pour la case la plus simple."}
           </div>
 
           {/* ---------- Pavé numérique ---------- */}
@@ -796,7 +798,7 @@ export default function App() {
             <div style={{ width: W, display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn variant="accent" grow onClick={hintForCell}>🎯 Expliquer cette case</Btn>
-                <Btn grow onClick={randomHint}>🎲 Case surprise</Btn>
+                <Btn grow onClick={randomHint}>👣 Étape suivante</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow active={noteMode} onClick={() => setNoteMode((m) => !m)}>✏️ Notes</Btn>
@@ -867,7 +869,7 @@ export default function App() {
                     à des techniques avancées).
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <Btn variant="accent" grow onClick={randomHint}>🎲 Une case accessible</Btn>
+                    <Btn variant="accent" grow onClick={randomHint}>👣 Étape suivante</Btn>
                     <Btn grow onClick={() => revealAnyway(plan.target)}>Révéler quand même</Btn>
                   </div>
                 </>

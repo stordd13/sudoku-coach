@@ -575,6 +575,14 @@ function pruneChain(grid, chain, goal) {
   return kept;
 }
 
+/* ---------- Difficulté : base (type de conclusion) + poids des étapes élaguées ---------- */
+const ELIM_WEIGHTS = {
+  pointing: 2, claiming: 2, nakedPair: 3, hiddenPair: 4,
+  xWing: 5, skyscraper: 6, xyWing: 6, swordfish: 6, remotePair: 7,
+};
+const planDifficulty = (base, kept) =>
+  base + kept.reduce((s, e) => s + (ELIM_WEIGHTS[e.kind] || 5), 0);
+
 export function buildPlan(grid, target) {
   if (grid[target] !== 0) return null;
   const baseCands = candidatesFromGrid(grid, target);
@@ -587,6 +595,7 @@ export function buildPlan(grid, target) {
       const kept = pruneChain(grid, chain, { type: "naked", target, digit: cs[0], baseCands });
       const plan = finalizeNaked(grid, target, cs[0], kept.map(describeElim), baseCands);
       plan.rawChain = kept;
+      plan.difficulty = planDifficulty(1, kept);
       return plan;
     }
     const hs = findHiddenSingleFor(grid, cands, target);
@@ -594,6 +603,7 @@ export function buildPlan(grid, target) {
       const kept = pruneChain(grid, chain, { type: "hidden", target, digit: hs.digit, unit: hs.unit });
       const plan = finalizeHidden(grid, target, hs.digit, hs.unit, kept.map(describeElim));
       plan.rawChain = kept;
+      plan.difficulty = planDifficulty(2, kept);
       return plan;
     }
     if (chain.length >= 4) return null;

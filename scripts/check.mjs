@@ -52,6 +52,22 @@ console.log("Élagage de la chaîne :");
   ok(p.chain.every((s) => s.text.includes("**2**")), "repro L3C7 : toutes les étapes portent sur le 2");
 }
 
+/* ---------- 2c. Difficulté : « Étape suivante » choisit la plus simple ---------- */
+console.log("Difficulté des plans :");
+{
+  const g = SAMPLES[0].split("").map(Number);
+  const plans = [];
+  for (let i = 0; i < 81; i++) {
+    if (g[i] !== 0) continue;
+    const p = buildPlan(g, i);
+    if (p) plans.push(p);
+  }
+  ok(plans.every((p) => Number.isFinite(p.difficulty)), "chaque plan porte une difficulté");
+  const min = Math.min(...plans.map((p) => p.difficulty));
+  ok(plans.every((p) => min <= p.difficulty), `la difficulté minimale (${min}) est ≤ à toutes les autres`);
+  ok(plans.some((p) => p.difficulty <= 2), "au moins un plan de difficulté 1 ou 2 en début de partie");
+}
+
 /* ---------- 3. Leçons : cohérence interne ---------- */
 console.log("Leçons :");
 for (const L of LESSONS) {
