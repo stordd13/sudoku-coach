@@ -234,12 +234,14 @@ export default function App() {
   const [msg, setMsg] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [solRef, setSolRef] = useState(null);
+  const [errorCells, setErrorCells] = useState(new Set());
   const [loaded, setLoaded] = useState(false);
 
   const histRef = useRef([]);
   const fileRef = useRef(null);
   const panelRef = useRef(null);
   const msgTimer = useRef(null);
+  const errTimer = useRef(null);
   const sampleIx = useRef(0);
 
   /* ----- messages ----- */
@@ -260,8 +262,20 @@ export default function App() {
     setGrid(h.grid); setNotes(h.notes); setPlan(null);
   }
 
+  /* ----- surlignage transitoire des erreurs (bouton Vérifier) ----- */
+  function clearErrors() {
+    if (errTimer.current) clearTimeout(errTimer.current);
+    setErrorCells((s) => (s.size ? new Set() : s));
+  }
+  function showErrors(cells) {
+    if (errTimer.current) clearTimeout(errTimer.current);
+    setErrorCells(new Set(cells));
+    errTimer.current = setTimeout(() => setErrorCells(new Set()), 4000);
+  }
+
   /* ----- saisie ----- */
   function padPress(d) {
+    clearErrors();
     if (sel === null) { flash("Touche d’abord une case de la grille."); return; }
     if (phase === "edit") {
       pushHist();
@@ -299,6 +313,7 @@ export default function App() {
     else if (isComplete(ng)) flash("🎉 Grille terminée — bravo !", "success");
   }
   function eraseSel() {
+    clearErrors();
     if (sel === null) { flash("Touche d’abord une case."); return; }
     if (phase === "play" && givens[sel]) { flash("Cette case fait partie de l’énoncé.", "warn"); return; }
     pushHist();
@@ -419,6 +434,7 @@ export default function App() {
     if (!plan || plan.kind !== "ok" || plan.target == null) return;
     const t = plan.target, d = plan.digit;
     if (grid[t] !== 0) { setPlan(null); return; }
+    clearErrors();
     pushHist();
     const ng = grid.slice(); const nn = notes.map((a) => a.slice());
     ng[t] = d; nn[t] = [];
@@ -431,6 +447,31 @@ export default function App() {
     else flash(`✓ ${cellName(t)} = ${d} — bien joué !`, "success");
   }
   function closePlan() { setPlan(null); setLevel(0); }
+
+  /* ----- vérification des erreurs à l'instant t ----- */
+  function checkErrors() {
+    if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
+    const placed = [];
+    grid.forEach((v, i) => { if (v && !givens[i]) placed.push(i); });
+    if (solRef) {
+      const wrong = placed.filter((i) => grid[i] !== solRef[i]);
+      if (!wrong.length) {
+        flash(`✅ Aucune erreur pour l’instant — ${placed.length} chiffre${placed.length > 1 ? "s" : ""} posé${placed.length > 1 ? "s" : ""}, continue !`, "success");
+        return;
+      }
+      showErrors(wrong);
+      flash(`❌ ${wrong.length} chiffre${wrong.length > 1 ? "s" : ""} erroné${wrong.length > 1 ? "s" : ""} — surligné${wrong.length > 1 ? "s" : ""} en rouge.`, "warn");
+    } else {
+      // Grille à solutions multiples : pas de référence unique, on vérifie les conflits.
+      const wrong = [...conflictSet(grid)].filter((i) => !givens[i]);
+      if (!wrong.length) {
+        flash(`✅ Aucun conflit pour l’instant — ${placed.length} chiffre${placed.length > 1 ? "s" : ""} posé${placed.length > 1 ? "s" : ""} (grille à plusieurs solutions : seule la cohérence est vérifiable).`, "success");
+        return;
+      }
+      showErrors(wrong);
+      flash(`❌ ${wrong.length} chiffre${wrong.length > 1 ? "s" : ""} en conflit — surligné${wrong.length > 1 ? "s" : ""} en rouge (grille à plusieurs solutions : seule la cohérence est vérifiable).`, "warn");
+    }
+  }
 
   /* ----- notes automatiques ----- */
   function autoNotes() {
@@ -603,6 +644,7 @@ export default function App() {
     if (planHL.chain.has(i)) st.boxShadow = `inset 0 0 0 2px ${C.yellow}`;
     if (i === sel) st.boxShadow = `inset 0 0 0 2px ${C.teal}`;
     if (planHL.target === i) st.boxShadow = `inset 0 0 0 3px ${C.yellow}`;
+    if (errorCells.has(i)) st.boxShadow = `inset 0 0 0 3px ${C.red}`;
     return st;
   }
 
@@ -803,6 +845,9 @@ export default function App() {
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow active={noteMode} onClick={() => setNoteMode((m) => !m)}>✏️ Notes</Btn>
                 <Btn grow onClick={autoNotes}>🗒️ Auto-notes</Btn>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn grow onClick={checkErrors}>🔍 Vérifier</Btn>
                 <Btn onClick={undo} title="Annuler">↩︎</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
