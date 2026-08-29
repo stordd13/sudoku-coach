@@ -360,9 +360,11 @@ export function findXYWingE(cands, prefer) {
         }
         if (!removals.length) continue;
         if (prefer && !removals.some((r) => prefer.has(r.cell))) continue;
+        // Pince 1 = celle du plus petit chiffre, pour un texte {x, y} lisible.
+        const [x, y, q1, q2] = o1 < o2 ? [o1, o2, p1, p2] : [o2, o1, p2, p1];
         return {
-          kind: "xyWing", pivot, pincers: [p1, p2], c,
-          cells: [pivot, p1, p2], digits: [c], removals,
+          kind: "xyWing", pivot, pincers: [q1, q2], c, x, y,
+          cells: [pivot, q1, q2], digits: [c], removals,
         };
       }
     }
@@ -449,9 +451,13 @@ export function findXYZWingE(cands, prefer) {
       }
       if (!removals.length) continue;
       if (prefer && !removals.some((r) => prefer.has(r.cell))) continue;
+      // Pince 1 = celle du plus petit chiffre, pour un texte {x, y, z} lisible.
+      const o1 = [...cands[p1]].find((d) => d !== z);
+      const o2 = [...cands[p2]].find((d) => d !== z);
+      const [x, y, q1, q2] = o1 < o2 ? [o1, o2, p1, p2] : [o2, o1, p2, p1];
       return {
-        kind: "xyzWing", pivot, pincers: [p1, p2], z,
-        cells: [pivot, p1, p2], digits: [z], removals,
+        kind: "xyzWing", pivot, pincers: [q1, q2], z, x, y,
+        cells: [pivot, q1, q2], digits: [z], removals,
       };
     }
   }
@@ -491,9 +497,11 @@ export function findWWingE(cands, prefer) {
           }
           if (!removals.length) continue;
           if (prefer && !removals.some((r) => prefer.has(r.cell))) continue;
+          // Orientation pour le texte : link[0] voit A, link[1] voit B.
+          const link = PEERS[e1].has(A) && PEERS[e2].has(B) ? [e1, e2] : [e2, e1];
           return {
-            kind: "wWing", a, b, bivalues: [A, B], link: [e1, e2], linkUnit: u,
-            cells: [A, B, e1, e2], digits: [a], removals,
+            kind: "wWing", a, b, bivalues: [A, B], link, linkUnit: u,
+            cells: [A, B, ...link], digits: [a], removals,
           };
         }
       }
@@ -740,7 +748,7 @@ const findElim = (cands, prefer, maxTier = 5) => {
 function applyElim(cands, e) {
   for (const r of e.removals) for (const d of r.digits) cands[r.cell].delete(d);
 }
-function describeElim(e) {
+export function describeElim(e) {
   const remTxt = e.removals.map((r) => `${cellName(r.cell)} −{${r.digits.join(", ")}}`).join(" · ");
   const involved = [...e.cells, ...e.removals.map((r) => r.cell)];
   if (e.kind === "nakedPair") {
@@ -780,19 +788,20 @@ function describeElim(e) {
   if (e.kind === "xyWing") {
     return {
       title: "XY-Wing", zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
-      text: `**${cellName(e.pivot)}** (pivot) et ses pinces ${e.pincers.map(cellName).join(", ")} forment un XY-Wing : quelle que soit la valeur du pivot, l’une des pinces vaut **${e.c}**. Toute case voyant les deux pinces perd donc le ${e.c} : ${remTxt}.`,
+      text: `Le pivot **${cellName(e.pivot)}** {${e.x}, ${e.y}} est relié aux pinces **${cellName(e.pincers[0])}** {${e.x}, ${e.c}} et **${cellName(e.pincers[1])}** {${e.y}, ${e.c}}. Si le pivot vaut ${e.x} → ${cellName(e.pincers[0])} = ${e.c} ; s’il vaut ${e.y} → ${cellName(e.pincers[1])} = ${e.c}. Dans les deux cas, un **${e.c}** apparaît dans l’une des pinces → toute case voyant les deux pinces le perd : ${remTxt}.`,
     };
   }
   if (e.kind === "xyzWing") {
     return {
       title: "XYZ-Wing", zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
-      text: `**${cellName(e.pivot)}** (pivot à trois candidats) et ses pinces ${e.pincers.map(cellName).join(", ")} forment un XYZ-Wing : quelle que soit la valeur du pivot, un **${e.z}** apparaît dans le trio — pivot compris. Toute case voyant les trois cases perd donc le ${e.z} : ${remTxt}.`,
+      text: `Le pivot **${cellName(e.pivot)}** {${e.x}, ${e.y}, ${e.z}} est relié aux pinces **${cellName(e.pincers[0])}** {${e.x}, ${e.z}} et **${cellName(e.pincers[1])}** {${e.y}, ${e.z}}. Si le pivot vaut ${e.x} → ${cellName(e.pincers[0])} = ${e.z} ; s’il vaut ${e.y} → ${cellName(e.pincers[1])} = ${e.z} ; s’il vaut ${e.z}, il est lui-même le ${e.z}. Dans les trois cas, un **${e.z}** apparaît dans le trio → seules les cases voyant **les trois** le perdent : ${remTxt}.`,
     };
   }
   if (e.kind === "wWing") {
+    const [A, B] = e.bivalues, [e1, e2] = e.link;
     return {
       title: "W-Wing", zone: `la paire {${e.a}, ${e.b}}`, cells: involved,
-      text: `**${cellName(e.bivalues[0])}** et **${cellName(e.bivalues[1])}** portent la même paire {${e.a}, ${e.b}} sans se voir. Dans ${unitLabel(e.linkUnit)}, le **${e.b}** n’a que deux places (${e.link.map(cellName).join(", ")}), chacune voyant l’une des deux paires → l’une des deux vaut forcément **${e.a}** : toute case voyant les deux perd le ${e.a} : ${remTxt}.`,
+      text: `**${cellName(A)}** et **${cellName(B)}** portent la même paire {${e.a}, ${e.b}} sans se voir. Dans ${unitLabel(e.linkUnit)}, le **${e.b}** n’a que deux places : ${cellName(e1)} (qui voit ${cellName(A)}) et ${cellName(e2)} (qui voit ${cellName(B)}) — l’une des deux est forcément un ${e.b}. Si ${cellName(e1)} = ${e.b} → ${cellName(A)} = ${e.a} ; si ${cellName(e2)} = ${e.b} → ${cellName(B)} = ${e.a}. Dans tous les cas, un **${e.a}** apparaît → toute case voyant ${cellName(A)} et ${cellName(B)} perd le ${e.a} : ${remTxt}.`,
     };
   }
   if (e.kind === "kite") {
@@ -802,9 +811,14 @@ function describeElim(e) {
     };
   }
   if (e.kind === "emptyRectangle") {
+    const t = e.removals[0].cell, [X, Y] = e.link;
+    const row = e.linkLine.type === "row";
+    const shareTxt = row ? "même colonne" : "même ligne";
+    const erLineX = row ? `la colonne ${e.erCol + 1}` : `la ligne ${e.erRow + 1}`;
+    const erLineT = row ? `la ligne ${e.erRow + 1}` : `la colonne ${e.erCol + 1}`;
     return {
       title: "Empty Rectangle", zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
-      text: `Dans le bloc **${BOX_NAMES[e.box]}**, tous les **${e.digit}** tiennent dans la ligne ${e.erRow + 1} et la colonne ${e.erCol + 1} — le reste du rectangle est vide. Avec le lien fort ${e.link.map(cellName).join("–")}, un ${e.digit} en ${cellName(e.removals[0].cell)} viderait ce bloc de toutes ses places pour le ${e.digit} : ${remTxt}.`,
+      text: `Sur ${unitLabel(e.linkLine)}, le **${e.digit}** n’a que deux places : ${cellName(X)} et ${cellName(Y)}. Dans le bloc **${BOX_NAMES[e.box]}**, tous les **${e.digit}** tiennent dans la ligne ${e.erRow + 1} et la colonne ${e.erCol + 1} — le reste du rectangle est vide. Si ${cellName(t)} était un ${e.digit}, ${cellName(Y)} perdrait le sien (${shareTxt}) → ${cellName(X)} = ${e.digit} → ${erLineX} se viderait, et ${cellName(t)} viderait lui-même ${erLineT} : le bloc n’aurait plus aucune place pour le ${e.digit} → ${remTxt}.`,
     };
   }
   if (e.kind === "coloring") {
