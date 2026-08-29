@@ -370,4 +370,52 @@ export const LESSONS = [
       "**L5C8** passe de {6, 9} à {9} → **L5C8 = 9**.",
     ],
   },
+  {
+    id: "coloring",
+    num: 16,
+    level: "advanced",
+    title: "Coloriage",
+    concept:
+      "On suit UN chiffre à travers ses liens conjugués (unités où il n'a que deux places) en coloriant les cases en alternance : une couleur est vraie, l'autre fausse. Si deux cases de la MÊME couleur se retrouvent dans une même zone, cette couleur est fausse partout — et l'autre est vraie partout.",
+    question: "Colorie les 5 de la chaîne… quel chiffre va en L8C3 ?",
+    hint: "Alterne ➊ / ➋ le long des liens. Deux cases ➊ ne partagent-elles pas le même bloc ?",
+    given: {},
+    // Le 5 de L1C2 garde 3 places au 5 dans le bloc haut-gauche : le bloc n'est
+    // pas un lien conjugué de la chaîne, c'est la zone où la couleur ➊ « wrap ».
+    notes: { 1: [2, 5], 11: [5, 8], 65: [3, 5], 69: [5, 6], 24: [2, 5], 18: [5, 9] },
+    removals: { 11: [5], 69: [5], 18: [5] },
+    unit: [...COLS[2], ...ROWS[7], ...COLS[6], ...ROWS[2]],
+    focus: [11, 65, 69, 24, 18],
+    target: 65,
+    answer: 5,
+    steps: [
+      "Chaîne de liens conjugués sur le **5** : colonne 3 {L2C3, L8C3} → ligne 8 {L8C3, L8C7} → colonne 7 {L8C7, L3C7} → ligne 3 {L3C7, L3C1}.",
+      "Colorie en alternance : L2C3 ➊, L8C3 ➋, L8C7 ➊, L3C7 ➋, L3C1 ➊. Une couleur est entièrement vraie, l'autre entièrement fausse.",
+      "Or **L2C3 ➊** et **L3C1 ➊** partagent le bloc haut-gauche : la couleur ➊ mettrait deux 5 dans le même bloc → ➊ est fausse partout : L2C3, L8C7 et L3C1 perdent leur 5.",
+      "La couleur ➋ est donc vraie : **L8C3 = 5** (et L3C7 = 5).",
+    ],
+  },
+  {
+    id: "sue-de-coq",
+    num: 17,
+    level: "advanced",
+    title: "Sue de Coq",
+    concept:
+      "Un comptage serré à cheval entre une ligne et un bloc : deux cases d'intersection dont les candidats viennent d'un pool de quatre chiffres, plus une bivalue dans la ligne et une bivalue dans le bloc qui se partagent ce pool sans se chevaucher. Le compte est juste-juste — chaque chiffre du pool a sa place réservée, et on nettoie tout autour.",
+    question: "Quatre chiffres {1, 2, 5, 7} pour quatre cases… quel chiffre va en L1C5 ?",
+    hint: "L1C8 prend un chiffre de {1, 2}, L3C1 un de {5, 7}. Que reste-t-il pour les deux cases d'intersection L1C1 et L1C2 ?",
+    given: {},
+    notes: { 0: [1, 2, 5], 1: [2, 5, 7], 7: [1, 2], 18: [5, 7], 4: [1, 2, 4], 10: [5, 8, 9] },
+    removals: { 4: [1, 2], 10: [5] },
+    unit: [...ROWS[0], ...BOXES[0]],
+    focus: [0, 1, 7, 18],
+    target: 4,
+    answer: 4,
+    steps: [
+      "Le pool {1, 2, 5, 7} : **L1C1** {1, 2, 5} et **L1C2** {2, 5, 7} (intersection ligne 1 ∩ bloc), **L1C8** {1, 2} dans la ligne, **L3C1** {5, 7} dans le bloc.",
+      "L1C8 prend un chiffre de {1, 2} — l'intersection, qui la voit, ne peut garder que l'autre. L3C1 prend un chiffre de {5, 7} — même chose. Les deux cases d'intersection contiennent donc exactement un chiffre de {1, 2} et un de {5, 7}.",
+      "Bilan : le 1 et le 2 sont entièrement casés dans la ligne 1 (L1C8 + intersection) → on les barre ailleurs dans la ligne : L1C5 −{1, 2}. Et le 5 et le 7 sont casés dans le bloc → L2C2 −{5}.",
+      "**L1C5** passe de {1, 2, 4} à {4} → **L1C5 = 4**.",
+    ],
+  },
 ];

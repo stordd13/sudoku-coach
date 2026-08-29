@@ -1,10 +1,11 @@
 /* Vérifications automatiques : moteur + leçons + exemples.
    Lancer : npm run check */
 import {
-  PEERS, BOXES, candidatesFromGrid, allCands, conflictSet,
+  PEERS, BOXES, COLS, candidatesFromGrid, allCands, conflictSet,
   findHiddenSingleFor, solveGrid, buildPlan, SAMPLES, cellName, rowOf, colOf,
   findXWingE, findSwordfishE, findSkyscraperE, findXYWingE, findRemotePairE,
   findXYZWingE, findWWingE, findKiteE, findEmptyRectangleE,
+  findColoringE, findSueDeCoqE,
   snyderNotes,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
@@ -170,6 +171,16 @@ for (const L of LESSONS) {
     const after = before.filter((d) => !rem.includes(d));
     ok(after.length === 1 && after[0] === L.answer && rem.every((d) => pair.includes(d)),
       `après Remote Pairs, ${cellName(L.target)} = ${L.answer}`);
+  } else if (L.id === "coloring") {
+    // Le target garde {3, 5} : la conclusion vient d'un single caché en colonne 3.
+    for (const c of [11, 69, 18])
+      ok((L.removals[c] || []).includes(5), `le nettoyage retire le 5 de ${cellName(c)} (couleur ➊)`);
+    const left = COLS[2].filter((i) => {
+      const shown = (L.notes[i] || []).filter((d) => !(L.removals[i] || []).includes(d));
+      return shown.includes(5);
+    });
+    ok(left.length === 1 && left[0] === L.target,
+      "après coloriage, le 5 n'a plus qu'une place en colonne 3 → L8C3 = 5");
   } else {
     // paires nue / pointante / claiming : notes[target] − removals[target] = [answer]
     const before = L.notes[L.target] || [];
@@ -258,6 +269,17 @@ console.log("Techniques intermédiaires et expertes :");
   {
     const e = findEmptyRectangleE(fromNotes(lessonById("empty-rectangle").notes), null);
     ok(e && e.kind === "emptyRectangle" && hit(e, idx(4, 7), 6), "Empty Rectangle retire le 6 en L5C8");
+  }
+  {
+    const e = findColoringE(fromNotes(lessonById("coloring").notes), null);
+    ok(e && e.kind === "coloring" && e.rule === 2
+      && hit(e, idx(1, 2), 5) && hit(e, idx(7, 6), 5) && hit(e, idx(2, 0), 5),
+      "Coloriage (wrap) retire le 5 des trois cases ➊");
+  }
+  {
+    const e = findSueDeCoqE(fromNotes(lessonById("sue-de-coq").notes), null);
+    ok(e && e.kind === "sueDeCoq" && hit(e, idx(0, 4), 1) && hit(e, idx(0, 4), 2) && hit(e, idx(1, 1), 5),
+      "Sue de Coq nettoie L1C5 −{1, 2} et L2C2 −{5}");
   }
 }
 

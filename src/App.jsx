@@ -425,7 +425,7 @@ export default function App() {
       kind: "ok", target: t, digit: d, chain: [], hint1: "", hint2: "",
       tech: "Au-delà des techniques classiques",
       paras: [
-        `Aucune des techniques enseignées ici (candidat unique, single caché, paires, alignements, X-Wing, XY-Wing, XYZ-Wing, W-Wing, Swordfish, 2-String Kite, Skyscraper, Empty Rectangle, Remote Pairs) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
+        `Aucune des techniques enseignées ici (candidat unique, single caché, paires, alignements, X-Wing, XY-Wing, XYZ-Wing, W-Wing, Swordfish, 2-String Kite, Skyscraper, Empty Rectangle, Remote Pairs, coloriage, Sue de Coq) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
         `La valeur vient de la résolution complète : **${cellName(t)} = ${d}**.`,
         `Conseil : avance pas à pas (bouton 👣 Étape suivante) — celle-ci se débloquera naturellement en chemin.`,
       ],
@@ -907,8 +907,8 @@ export default function App() {
                   <p style={pStyle}>
                     Plus aucune case n’est déductible avec les techniques du coach (candidat unique,
                     singles cachés, paires, alignements, X-Wing, XY-Wing, XYZ-Wing, W-Wing, Swordfish,
-                    2-String Kite, Skyscraper, Empty Rectangle, Remote Pairs). La suite demande des
-                    techniques avancées — chaînes, coloriage…
+                    2-String Kite, Skyscraper, Empty Rectangle, Remote Pairs, coloriage, Sue de Coq).
+                    La suite demande des chaînes de forçage — au-delà du programme du coach.
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="primary" grow onClick={solveAll}>Tout résoudre</Btn>
@@ -922,7 +922,7 @@ export default function App() {
                   <p style={pStyle}>
                     La case <strong>{cellName(plan.target)}</strong> n’est pas déductible pour l’instant
                     avec les techniques du coach : il faut d’abord remplir d’autres cases (ou recourir
-                    à des techniques avancées).
+                    à des chaînes de forçage).
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="accent" grow onClick={randomHint}>👣 Étape suivante</Btn>

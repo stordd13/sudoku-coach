@@ -595,6 +595,127 @@ export function findEmptyRectangleE(cands, prefer) {
   return null;
 }
 
+// Coloriage : pour un chiffre, on suit les liens conjugués (unités où il n'a que
+// 2 places) en coloriant les cases en alternance. Règle 1 : une case externe qui
+// voit les deux couleurs perd le chiffre. Règle 2 (« wrap ») : deux cases de même
+// couleur dans une même unité → cette couleur est fausse partout.
+export function findColoringE(cands, prefer) {
+  for (let d = 1; d <= 9; d++) {
+    const adj = new Map();
+    const addEdge = (a, b, u) => {
+      if (!adj.has(a)) adj.set(a, []);
+      adj.get(a).push({ to: b, unit: u });
+    };
+    for (const u of UNITS) {
+      const pos = u.cells.filter((i) => cands[i].has(d));
+      if (pos.length === 2) { addEdge(pos[0], pos[1], u); addEdge(pos[1], pos[0], u); }
+    }
+    if (!adj.size) continue;
+    const color = new Map();
+    for (let start = 0; start < 81; start++) {
+      if (!adj.has(start) || color.has(start)) continue;
+      color.set(start, 0);
+      const comp = [start], queue = [start], linkUnits = [];
+      const seenUnits = new Set();
+      let odd = false;
+      while (queue.length) {
+        const cur = queue.shift();
+        for (const { to, unit } of adj.get(cur)) {
+          if (!seenUnits.has(unit)) { seenUnits.add(unit); linkUnits.push(unit); }
+          if (!color.has(to)) { color.set(to, color.get(cur) ^ 1); comp.push(to); queue.push(to); }
+          else if (color.get(to) === color.get(cur)) odd = true;
+        }
+      }
+      // Cycle impair = position contradictoire (n'arrive pas sur une grille saine)
+      if (odd || comp.length < 2) continue;
+      const colors = [comp.filter((c) => color.get(c) === 0), comp.filter((c) => color.get(c) === 1)];
+      const compSet = new Set(comp);
+      // Règle 1 : case externe voyant les deux couleurs
+      const removals = [];
+      for (let i = 0; i < 81; i++) {
+        if (compSet.has(i) || !cands[i].has(d)) continue;
+        if (colors[0].some((c) => PEERS[i].has(c)) && colors[1].some((c) => PEERS[i].has(c))) {
+          removals.push({ cell: i, digits: [d] });
+        }
+      }
+      if (removals.length && (!prefer || removals.some((r) => prefer.has(r.cell)))) {
+        return {
+          kind: "coloring", digit: d, rule: 1, chainCells: comp, colors, linkUnits,
+          cells: comp, digits: [d], removals,
+        };
+      }
+      // Règle 2 (« wrap ») : deux cases de même couleur dans une même unité
+      for (const k of [0, 1]) {
+        for (const u of UNITS) {
+          const inU = colors[k].filter((c) => u.cells.includes(c));
+          if (inU.length < 2) continue;
+          const wrapRem = colors[k].map((c) => ({ cell: c, digits: [d] }));
+          if (prefer && !wrapRem.some((r) => prefer.has(r.cell))) continue;
+          return {
+            kind: "coloring", digit: d, rule: 2, chainCells: comp, colors,
+            wrap: inU.slice(0, 2), wrapUnit: u, linkUnits,
+            cells: comp, digits: [d], removals: wrapRem,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Sue de Coq (forme classique restreinte) : deux cases d'intersection ligne∩bloc
+// puisant dans un pool de 4 chiffres, une bivalue dans la ligne et une dans le
+// bloc se partageant le pool sans se chevaucher → le compte est juste-juste :
+// la paire ligne se nettoie du reste de la ligne, la paire bloc du reste du bloc.
+export function findSueDeCoqE(cands, prefer) {
+  const lines = [
+    ...ROWS.map((cells, i) => ({ type: "row", index: i, cells })),
+    ...COLS.map((cells, i) => ({ type: "col", index: i, cells })),
+  ];
+  for (const line of lines) {
+    const boxes = [...new Set(line.cells.map(boxOf))];
+    for (const b of boxes) {
+      const inter = line.cells.filter((i) => boxOf(i) === b);
+      const active = inter.filter((i) => cands[i].size > 0);
+      if (active.length !== 2) continue;
+      const [i1, i2] = active;
+      if (cands[i1].size < 2 || cands[i2].size < 2) continue;
+      const S = new Set([...cands[i1], ...cands[i2]]);
+      if (S.size !== 4) continue;
+      for (const lineBi of line.cells) {
+        if (boxOf(lineBi) === b || cands[lineBi].size !== 2) continue;
+        if (![...cands[lineBi]].every((d) => S.has(d))) continue;
+        for (const boxBi of BOXES[b]) {
+          if (line.cells.includes(boxBi) || cands[boxBi].size !== 2) continue;
+          if (![...cands[boxBi]].every((d) => S.has(d))) continue;
+          if ([...cands[lineBi]].some((d) => cands[boxBi].has(d))) continue;
+          const pairLine = [...cands[lineBi]].sort((x, y) => x - y);
+          const pairBox = [...cands[boxBi]].sort((x, y) => x - y);
+          const removals = [];
+          for (const j of line.cells) {
+            if (inter.includes(j) || j === lineBi) continue;
+            const rem = pairLine.filter((d) => cands[j].has(d));
+            if (rem.length) removals.push({ cell: j, digits: rem });
+          }
+          for (const j of BOXES[b]) {
+            if (inter.includes(j) || j === boxBi) continue;
+            const rem = pairBox.filter((d) => cands[j].has(d));
+            if (rem.length) removals.push({ cell: j, digits: rem });
+          }
+          if (!removals.length) continue;
+          if (prefer && !removals.some((r) => prefer.has(r.cell))) continue;
+          return {
+            kind: "sueDeCoq", line, box: b, inter: active, lineBi, boxBi,
+            pairLine, pairBox, S: [...S].sort((x, y) => x - y),
+            cells: [i1, i2, lineBi, boxBi], digits: [...S].sort((x, y) => x - y), removals,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 const findElim = (cands, prefer) =>
   findNakedPairE(cands, prefer) || findPointingE(cands, prefer) ||
   findClaimingE(cands, prefer) || findHiddenPairE(cands, prefer) ||
@@ -602,7 +723,8 @@ const findElim = (cands, prefer) =>
   findXYZWingE(cands, prefer) || findWWingE(cands, prefer) ||
   findSwordfishE(cands, prefer) || findKiteE(cands, prefer) ||
   findSkyscraperE(cands, prefer) || findEmptyRectangleE(cands, prefer) ||
-  findRemotePairE(cands, prefer);
+  findRemotePairE(cands, prefer) || findColoringE(cands, prefer) ||
+  findSueDeCoqE(cands, prefer);
 function applyElim(cands, e) {
   for (const r of e.removals) for (const d of r.digits) cands[r.cell].delete(d);
 }
@@ -671,6 +793,25 @@ function describeElim(e) {
     return {
       title: "Empty Rectangle", zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
       text: `Dans le bloc **${BOX_NAMES[e.box]}**, tous les **${e.digit}** tiennent dans la ligne ${e.erRow + 1} et la colonne ${e.erCol + 1} — le reste du rectangle est vide. Avec le lien fort ${e.link.map(cellName).join("–")}, un ${e.digit} en ${cellName(e.removals[0].cell)} viderait ce bloc de toutes ses places pour le ${e.digit} : ${remTxt}.`,
+    };
+  }
+  if (e.kind === "coloring") {
+    const chainTxt = e.chainCells.map(cellName).join(", ");
+    if (e.rule === 2) {
+      return {
+        title: "Coloriage", zone: `le ${e.digit}`, cells: involved,
+        text: `En suivant les liens conjugués du **${e.digit}** (${chainTxt}), on colorie les cases en deux couleurs alternées : l’une est entièrement vraie, l’autre entièrement fausse. Or ${e.wrap.map(cellName).join(" et ")} partagent ${unitLabel(e.wrapUnit)} avec la même couleur : cette couleur est fausse partout → ${remTxt}.`,
+      };
+    }
+    return {
+      title: "Coloriage", zone: `le ${e.digit}`, cells: involved,
+      text: `En suivant les liens conjugués du **${e.digit}** (${chainTxt}), on colorie les cases en deux couleurs alternées — l’une des deux est forcément vraie. Toute case extérieure voyant les deux couleurs ne peut donc pas porter le ${e.digit} : ${remTxt}.`,
+    };
+  }
+  if (e.kind === "sueDeCoq") {
+    return {
+      title: "Sue de Coq", zone: unitLabel(e.line), cells: involved,
+      text: `**${e.inter.map(cellName).join("** et **")}** (intersection de ${unitLabel(e.line)} et du bloc ${BOX_NAMES[e.box]}) puisent dans le pool {${listD(e.S)}}. **${cellName(e.lineBi)}** {${listD(e.pairLine)}} réserve sa paire côté ligne, **${cellName(e.boxBi)}** {${listD(e.pairBox)}} la sienne côté bloc : chaque chiffre du pool a sa place → on retire {${listD(e.pairLine)}} du reste de ${unitLabel(e.line)} et {${listD(e.pairBox)}} du reste du bloc : ${remTxt}.`,
     };
   }
   if (e.kind === "remotePair") {
@@ -800,7 +941,10 @@ function pruneChain(grid, chain, goal) {
       BOXES[e.box].forEach((c) => addNeed(c, e.digit));
       e.linkLine.cells.forEach((c) => addNeed(c, e.digit));
     }
-    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair, xyWing, xyzWing, remotePair…
+    else if (e.kind === "coloring") {
+      e.linkUnits.forEach((u) => u.cells.forEach((c) => addNeed(c, e.digit)));
+    }
+    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair, xyWing, xyzWing, sueDeCoq, remotePair…
   }
   return kept;
 }
@@ -810,6 +954,7 @@ const ELIM_WEIGHTS = {
   pointing: 2, claiming: 2, nakedPair: 3, hiddenPair: 4,
   xWing: 5, skyscraper: 6, xyWing: 6, swordfish: 6,
   xyzWing: 6, wWing: 6, kite: 7, emptyRectangle: 7, remotePair: 7,
+  coloring: 8, sueDeCoq: 8,
 };
 const planDifficulty = (base, kept) =>
   base + kept.reduce((s, e) => s + (ELIM_WEIGHTS[e.kind] || 5), 0);
