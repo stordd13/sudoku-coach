@@ -7,6 +7,7 @@ import {
   findXYZWingE, findWWingE, findKiteE, findEmptyRectangleE,
   findColoringE, findSueDeCoqE,
   snyderNotes,
+  makeRng, generateFullGrid, solveHumanly, generatePuzzle, isComplete,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 
@@ -280,6 +281,43 @@ console.log("Techniques intermédiaires et expertes :");
     const e = findSueDeCoqE(fromNotes(lessonById("sue-de-coq").notes), null);
     ok(e && e.kind === "sueDeCoq" && hit(e, idx(0, 4), 1) && hit(e, idx(0, 4), 2) && hit(e, idx(1, 1), 5),
       "Sue de Coq nettoie L1C5 −{1, 2} et L2C2 −{5}");
+  }
+}
+
+/* ---------- 5. Génération : grille pleine, gradation, puzzles ---------- */
+console.log("Génération :");
+{
+  const full = generateFullGrid(makeRng(42));
+  ok(full.length === 81 && full.every((v) => v >= 1 && v <= 9), "grille pleine : 81 chiffres");
+  ok(isComplete(full), "grille pleine : complète et sans conflit");
+
+  SAMPLES.forEach((s, i) => {
+    const r = solveHumanly(s.split("").map(Number));
+    ok(r.solved, `solveHumanly résout SAMPLES[${i}] (maxTier=${r.maxTier})`);
+  });
+
+  // Seeds fixes : la génération est déterministe tant que moteur et RNG ne
+  // changent pas. Si un seed tombe sur un fallback après une évolution du
+  // moteur, en choisir un autre.
+  for (const lvl of [1, 2, 3]) {
+    const t0 = Date.now();
+    const p = generatePuzzle(lvl, makeRng(1000 + lvl));
+    const dt = Date.now() - t0;
+    const g = p.grid.split("").map(Number);
+    ok(solveGrid(g).count === 1, `niveau ${lvl} : solution unique`);
+    ok(p.givens === g.filter((v) => v !== 0).length && p.givens >= 22 && p.givens <= 45,
+      `niveau ${lvl} : ${p.givens} givens dans [22, 45]`);
+    ok(p.level === lvl, `niveau ${lvl} : niveau atteint (réel=${p.level})`);
+    const r = solveHumanly(g);
+    ok(r.solved && Math.max(1, r.maxTier) === p.level, `niveau ${lvl} : re-grade conforme (maxTier=${r.maxTier})`);
+    ok(dt < 3000, `niveau ${lvl} : généré en ${dt} ms (< 3000)`);
+  }
+
+  // Niveaux 4 et 5 : log informatif (décision « Diabolique » selon les temps).
+  for (const lvl of [4, 5]) {
+    const t0 = Date.now();
+    const p = generatePuzzle(lvl, makeRng(9000 + lvl));
+    console.log(`  ℹ niveau ${lvl} : ${Date.now() - t0} ms, grade réel ${p.level}, ${p.givens} givens`);
   }
 }
 

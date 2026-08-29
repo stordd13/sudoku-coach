@@ -990,3 +990,164 @@ export function buildPlan(grid, target) {
   }
   return null;
 }
+
+/* ================================================================
+   GÉNÉRATION — grille pleine, gradation « humaine », creusage
+   ================================================================ */
+
+// RNG déterministe (mulberry32) pour des tests reproductibles.
+export function makeRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+export function generateFullGrid(rng = Math.random) {
+  const g = Array(81).fill(0);
+  function fill(i) {
+    if (i === 81) return true;
+    const cs = shuffle(candidatesFromGrid(g, i), rng);
+    for (const d of cs) {
+      g[i] = d;
+      if (fill(i + 1)) return true;
+      g[i] = 0;
+    }
+    return false;
+  }
+  fill(0);
+  return g;
+}
+
+/* Paliers de difficulté (gradation) :
+   1 = singles · 2 = alignements · 3 = paires · 4 = poissons/ailes · 5 = coloriage/Sue de Coq */
+const TIER_OF_KIND = {
+  pointing: 2, claiming: 2, nakedPair: 3, hiddenPair: 3,
+  xWing: 4, xyWing: 4, xyzWing: 4, wWing: 4, swordfish: 4,
+  kite: 4, skyscraper: 4, emptyRectangle: 4, remotePair: 4,
+  coloring: 5, sueDeCoq: 5,
+};
+const FINDERS_BY_TIER = [
+  [findPointingE, findClaimingE],
+  [findNakedPairE, findHiddenPairE],
+  [findXWingE, findXYWingE, findXYZWingE, findWWingE, findSwordfishE,
+    findKiteE, findSkyscraperE, findEmptyRectangleE, findRemotePairE],
+  [findColoringE, findSueDeCoqE],
+];
+// Contrairement à findElim (ordre pédagogique), la gradation cherche tier par
+// tier ascendant : une grille « alignements » ne doit pas être gradée « paires »
+// juste parce qu'une paire nue se présentait en premier.
+function findElimTiered(cands, cap) {
+  for (let t = 0; t < FINDERS_BY_TIER.length; t++) {
+    if (t + 2 > cap) return null;
+    for (const f of FINDERS_BY_TIER[t]) {
+      const e = f(cands, null);
+      if (e) return e;
+    }
+  }
+  return null;
+}
+
+// Simule un humain : singles jusqu'au point fixe, sinon une élimination (du
+// palier le plus bas possible, jamais au-delà de cap), et on recommence.
+export function solveHumanly(grid, cap = 5) {
+  const g = grid.slice();
+  const cands = allCands(g); // persistants : les éliminations s'y accumulent
+  const counts = {};
+  let maxTier = 0;
+  const place = (i, d) => {
+    g[i] = d;
+    cands[i] = new Set();
+    PEERS[i].forEach((p) => cands[p].delete(d));
+  };
+  for (let iter = 0; iter < 2000; iter++) {
+    // 1. Singles jusqu'au point fixe
+    let placed = true;
+    while (placed) {
+      placed = false;
+      for (let i = 0; i < 81; i++) {
+        if (g[i] !== 0) continue;
+        if (cands[i].size === 0) return { solved: false, maxTier, counts };
+        if (cands[i].size === 1) {
+          place(i, [...cands[i]][0]);
+          counts.single = (counts.single || 0) + 1;
+          maxTier = Math.max(maxTier, 1);
+          placed = true;
+        }
+      }
+      for (let i = 0; i < 81; i++) {
+        if (g[i] !== 0) continue;
+        const hs = findHiddenSingleFor(g, cands, i);
+        if (hs) {
+          place(i, hs.digit);
+          counts.hiddenSingle = (counts.hiddenSingle || 0) + 1;
+          maxTier = Math.max(maxTier, 1);
+          placed = true;
+        }
+      }
+    }
+    if (!g.some((v) => v === 0)) return { solved: true, maxTier, counts };
+    // 2. Une élimination du palier le plus bas possible
+    const e = findElimTiered(cands, cap);
+    if (!e) return { solved: false, maxTier, counts };
+    applyElim(cands, e);
+    counts[e.kind] = (counts[e.kind] || 0) + 1;
+    maxTier = Math.max(maxTier, TIER_OF_KIND[e.kind]);
+  }
+  return { solved: false, maxTier, counts };
+}
+
+/* Niveaux 1-4 : Facile / Moyen / Difficile / Expert (5 : Diabolique).
+   Grille pleine → creusage par paires symétriques (unicité obligatoire ; pour
+   les niveaux 1-3, on ne retire une paire que si la grille reste résoluble
+   sans dépasser le palier visé) → acceptée si le grade tombe juste. */
+export function generatePuzzle(level, rng = Math.random) {
+  const deadline = Date.now() + 3000;
+  let best = null;
+  // Le vrai plafond est la deadline : une tentative gardée (niveaux 1-3) ne
+  // coûte que ~10 ms, autant en tenter beaucoup plutôt que s'arrêter à 40.
+  for (let attempt = 0; attempt < 400 && Date.now() < deadline; attempt++) {
+    const full = generateFullGrid(rng);
+    const g = full.slice();
+    const pairs = shuffle(
+      [...Array.from({ length: 40 }, (_, i) => [i, 80 - i]), [40]], rng
+    );
+    const guarded = level <= 3;
+    let lastGrade = null;
+    for (const pair of pairs) {
+      const saved = pair.map((i) => g[i]);
+      pair.forEach((i) => { g[i] = 0; });
+      const undo = () => pair.forEach((i, k) => { g[i] = saved[k]; });
+      if (solveGrid(g).count !== 1) { undo(); continue; }
+      if (guarded) {
+        const r = solveHumanly(g, level);
+        if (!r.solved) { undo(); continue; }
+        lastGrade = r;
+      }
+    }
+    const r = guarded && lastGrade ? lastGrade : solveHumanly(g, 5);
+    const grade = r && r.solved ? Math.max(1, r.maxTier) : 5;
+    const givens = g.filter((v) => v !== 0).length;
+    const okRange = givens >= 22 && givens <= 45;
+    if (grade === level && okRange) {
+      return { grid: g.join(""), solution: full.join(""), level, givens };
+    }
+    const score = Math.abs(grade - level) * 10 + (okRange ? 0 : 5);
+    if (!best || score < best.score) {
+      best = { grid: g.join(""), solution: full.join(""), level: grade, givens, score };
+    }
+  }
+  delete best.score;
+  return best; // meilleure grille obtenue, avec son niveau réel
+}
