@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, SAMPLES,
-  snyderNotes,
+  snyderNotes, generatePuzzle,
 } from "./engine.js";
 import { LESSONS } from "./lessons.js";
 
@@ -19,6 +19,16 @@ const NUMFONT = `'Avenir Next', 'Futura', 'Century Gothic', -apple-system, sans-
 const DISPLAYFONT = `'Futura', 'Century Gothic', 'Trebuchet MS', sans-serif`;
 const W = "min(94vw, 430px)";
 const STORAGE_KEY = "sudoku-coach-v1";
+
+/* ---------- Niveaux de difficulté (générateur) ---------- */
+const LEVELS = {
+  1: { name: "Facile", desc: "Candidats uniques et singles cachés" },
+  2: { name: "Moyen", desc: "+ alignements (paires pointantes, réductions bloc/ligne)" },
+  3: { name: "Difficile", desc: "+ paires nues et paires cachées" },
+  4: { name: "Expert", desc: "+ X-Wing, XY-Wing, Skyscraper, Swordfish…" },
+  5: { name: "Diabolique", desc: "Coloriage, Sue de Coq… voire au-delà du coach" },
+};
+const MAX_LEVEL = 5;
 
 /* ---------- Petits composants UI ---------- */
 function Rich({ text }) {
@@ -57,6 +67,25 @@ function LinkBtn({ children, onClick }) {
     <button type="button" onClick={onClick}
       style={{ background: "none", border: "none", color: "#5A6763", textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: 4, fontFamily: "inherit" }}>
       {children}
+    </button>
+  );
+}
+function Card({ emoji, title, sub, onClick, accent }) {
+  return (
+    <button type="button" onClick={onClick} style={{
+      width: "100%", textAlign: "left", background: "#fff", color: C.ink,
+      border: `1px solid ${accent ? C.teal : "#E2E7E5"}`, borderRadius: 14,
+      padding: "14px 16px", display: "flex", alignItems: "center", gap: 14,
+      cursor: "pointer", fontFamily: "inherit",
+      boxShadow: accent ? `0 8px 24px rgba(18,118,111,0.16)` : "0 8px 24px rgba(31,39,46,0.08)",
+      WebkitTapHighlightColor: "transparent",
+    }}>
+      <span style={{ fontSize: 26, lineHeight: 1 }}>{emoji}</span>
+      <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <span style={{ fontWeight: 800, fontSize: 15.5 }}>{title}</span>
+        {sub ? <span style={{ fontSize: 12.5, color: "#5A6763", lineHeight: 1.4 }}>{sub}</span> : null}
+      </span>
+      <span style={{ marginLeft: "auto", color: C.gray, fontSize: 16 }}>›</span>
     </button>
   );
 }
@@ -226,10 +255,13 @@ function LearnView() {
    ================================================================ */
 export default function App() {
   const [tab, setTab] = useState("play");
+  const [screen, setScreen] = useState("home"); // 'home' | 'levels' | 'board'
   const [grid, setGrid] = useState(Array(81).fill(0));
   const [givens, setGivens] = useState(Array(81).fill(false));
   const [notes, setNotes] = useState(Array.from({ length: 81 }, () => []));
   const [phase, setPhase] = useState("edit"); // 'edit' | 'play'
+  const [gameLevel, setGameLevel] = useState(null); // 1-4 (grille générée) | null (scan/manuel)
+  const [generating, setGenerating] = useState(false);
   const [sel, setSel] = useState(null);
   const [noteMode, setNoteMode] = useState(false);
   const [plan, setPlan] = useState(null);
@@ -326,6 +358,28 @@ export default function App() {
   }
 
   /* ----- cycle de vie de la grille ----- */
+  function newGame(lvl) {
+    setScreen("board"); setGenerating(true);
+    setPlan(null); setSel(null); setNoteMode(false); clearErrors();
+    // setTimeout : laisse React peindre l'overlay avant l'appel synchrone.
+    setTimeout(() => {
+      try {
+        const p = generatePuzzle(lvl);
+        const g = p.grid.split("").map(Number);
+        setGrid(g);
+        setGivens(g.map((v) => v !== 0));
+        setNotes(Array.from({ length: 81 }, () => []));
+        setSolRef(p.solution.split("").map(Number));
+        setPhase("play");
+        setGameLevel(p.level);
+        histRef.current = [];
+        if (p.level === lvl) flash(`🎲 Grille ${LEVELS[p.level].name} — à toi de jouer ✏️`, "success");
+        else flash(`Le niveau ${LEVELS[lvl].name} n'est pas sorti cette fois — voici une grille ${LEVELS[p.level].name}.`, "warn");
+      } finally {
+        setGenerating(false);
+      }
+    }, 50);
+  }
   function startPlay() {
     const filled = grid.filter((v) => v).length;
     if (filled < 8) { flash("Ajoute d’abord les chiffres de départ (ou charge un exemple).", "warn"); return; }
@@ -335,6 +389,7 @@ export default function App() {
     setSolRef(solution);
     setGivens(grid.map((v) => v !== 0));
     setPhase("play");
+    setGameLevel(null);
     histRef.current = [];
     setPlan(null); setNoteMode(false);
     if (count > 1) flash("⚠️ Cette grille a plusieurs solutions — les déductions logiques seront limitées.", "warn");
@@ -342,7 +397,7 @@ export default function App() {
   }
   function backToEdit() {
     setPhase("edit"); setGivens(Array(81).fill(false));
-    setSolRef(null); setPlan(null); setNoteMode(false);
+    setSolRef(null); setPlan(null); setNoteMode(false); setGameLevel(null);
     flash("Mode saisie : modifie librement, puis « Commencer ».");
   }
   function clearAll() {
@@ -350,7 +405,7 @@ export default function App() {
     setGrid(Array(81).fill(0));
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
-    setPhase("edit"); setSolRef(null); setPlan(null); setSel(null);
+    setPhase("edit"); setSolRef(null); setPlan(null); setSel(null); setGameLevel(null);
   }
   function restartPuzzle() {
     pushHist();
@@ -518,6 +573,7 @@ export default function App() {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!file) return;
+    setScreen("board"); // le scan peut être lancé depuis l'accueil
     setScanning(true);
     try {
       const b64 = await fileToJpegBase64(file, 1150);
@@ -539,7 +595,7 @@ export default function App() {
       setGrid(ng);
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
-      setPhase("edit"); setSolRef(null); setPlan(null); setSel(null);
+      setPhase("edit"); setSolRef(null); setPlan(null); setSel(null); setGameLevel(null);
       flash(`📷 ${filledCount} chiffres lus. Vérifie la grille (corrige au besoin) puis « Commencer ».`, "success");
     } catch (err) {
       flash("Scan impossible : cadre bien la grille, à plat, avec une lumière franche — puis réessaie.", "warn");
@@ -568,6 +624,7 @@ export default function App() {
             const { solution } = solveGrid(gb);
             if (solution) { setSolRef(solution); setPhase("play"); }
           }
+          if (s.level >= 1 && s.level <= 5) setGameLevel(s.level);
         }
       }
     } catch (e) { /* première visite ou stockage indisponible */ }
@@ -577,16 +634,16 @@ export default function App() {
     if (!loaded) return;
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ grid, givens, notes, phase }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ grid, givens, notes, phase, level: gameLevel }));
       } catch (e) { /* best-effort */ }
     }, 400);
     return () => clearTimeout(t);
-  }, [grid, givens, notes, phase, loaded]);
+  }, [grid, givens, notes, phase, gameLevel, loaded]);
 
   /* ----- clavier (desktop) ----- */
   useEffect(() => {
     function onKey(e) {
-      if (tab !== "play") return;
+      if (tab !== "play" || screen !== "board") return;
       if (e.metaKey || e.ctrlKey) return;
       if (e.key >= "1" && e.key <= "9") padPress(parseInt(e.key, 10));
       else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") { e.preventDefault(); eraseSel(); }
@@ -617,6 +674,7 @@ export default function App() {
 
   /* ----- dérivés ----- */
   const conflicts = useMemo(() => conflictSet(grid), [grid]);
+  const won = useMemo(() => phase === "play" && isComplete(grid), [phase, grid]);
   const counts = useMemo(() => {
     const m = {};
     grid.forEach((v) => { if (v) m[v] = (m[v] || 0) + 1; });
@@ -710,7 +768,39 @@ export default function App() {
         ))}
       </div>
 
-      {tab === "learn" ? <LearnView /> : (
+      {tab === "learn" ? <LearnView /> : screen === "home" ? (
+        <>
+          {/* ---------- Accueil ---------- */}
+          <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+            {phase === "play" && !won && (
+              <Card accent emoji="▶︎" title="Reprendre la partie"
+                sub={`${gameLevel ? `Niveau ${LEVELS[gameLevel].name} · ` : ""}${grid.filter((v) => !v).length} cases restantes`}
+                onClick={() => setScreen("board")} />
+            )}
+            <Card emoji="🎲" title="Jouer" sub="Une nouvelle grille, de Facile à Diabolique"
+              onClick={() => setScreen("levels")} />
+            <Card emoji="📷" title="Scanner" sub="Photographie une grille de magazine ou de journal"
+              onClick={() => fileRef.current && fileRef.current.click()} />
+            <Card emoji="📚" title="Apprendre" sub={`${LESSONS.length} leçons, des bases aux techniques expertes`}
+              onClick={() => setTab("learn")} />
+          </div>
+          <LinkBtn onClick={() => { if (phase === "play") clearAll(); setScreen("board"); }}>
+            ✏️ Saisir une grille à la main
+          </LinkBtn>
+        </>
+      ) : screen === "levels" ? (
+        <>
+          {/* ---------- Choix de difficulté ---------- */}
+          <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>Choisis ta difficulté</div>
+            {Object.entries(LEVELS).map(([n, l], i) => (
+              <Card key={n} emoji={["🟢", "🟡", "🟠", "🔴", "🟣"][i] || "🎲"} title={l.name} sub={l.desc}
+                onClick={() => newGame(Number(n))} />
+            ))}
+          </div>
+          <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
+        </>
+      ) : (
         <>
           {/* ---------- Message / bannière ---------- */}
           {msg ? (
@@ -727,6 +817,19 @@ export default function App() {
               border: "1px dashed #B9C4C0", borderRadius: 10, padding: "8px 12px", textAlign: "center",
             }}>
               Mode saisie — remplis ou scanne la grille, puis « Commencer ».
+            </div>
+          ) : null}
+
+          {/* ---------- Badge de niveau ---------- */}
+          {phase === "play" && gameLevel ? (
+            <div style={{ width: W, display: "flex" }}>
+              <span style={{
+                fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
+                color: "#5A6763", background: "#EFF2F1", border: "1px solid #E2E7E5",
+                borderRadius: 999, padding: "3px 10px",
+              }}>
+                🎲 Niveau · {LEVELS[gameLevel].name}
+              </span>
             </div>
           ) : null}
 
@@ -775,7 +878,7 @@ export default function App() {
                 );
               })}
             </div>
-            {scanning && (
+            {(scanning || generating) && (
               <div style={{
                 position: "absolute", inset: 0, background: "rgba(241,244,243,0.85)",
                 borderRadius: 10, display: "flex", flexDirection: "column",
@@ -785,7 +888,9 @@ export default function App() {
                   width: 34, height: 34, border: "3px solid #C9D1CE", borderTopColor: C.teal,
                   borderRadius: "50%", animation: "scspin .9s linear infinite",
                 }} />
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#2B4A44" }}>Lecture de la photo…</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#2B4A44" }}>
+                  {scanning ? "Lecture de la photo…" : "Génération de la grille…"}
+                </div>
               </div>
             )}
           </div>
@@ -840,6 +945,7 @@ export default function App() {
                 <Btn variant="accent" grow onClick={() => fileRef.current && fileRef.current.click()} disabled={scanning}>📷 Scanner</Btn>
               </div>
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
+                <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
                 <LinkBtn onClick={loadSample}>Charger un exemple</LinkBtn>
                 <LinkBtn onClick={clearAll}>Tout vider</LinkBtn>
                 <LinkBtn onClick={undo}>Annuler</LinkBtn>
@@ -865,13 +971,44 @@ export default function App() {
                 <Btn grow onClick={solveAll}>✅ Tout résoudre</Btn>
               </div>
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
+                <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
                 <LinkBtn onClick={backToEdit}>Modifier la grille</LinkBtn>
                 <LinkBtn onClick={restartPuzzle}>Recommencer</LinkBtn>
               </div>
             </div>
           )}
 
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPhoto} />
+          {/* ---------- Panneau fin de partie ---------- */}
+          {won && (
+            <section style={{
+              width: W, background: "#FFFFFF", borderRadius: 14,
+              border: "1px solid #E2E7E5", borderTop: `5px solid ${C.teal}`,
+              boxShadow: "0 12px 32px rgba(31,39,46,0.12)",
+              padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 9,
+            }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>🎉 Grille terminée — bravo !</div>
+              {gameLevel ? (
+                <>
+                  <p style={pStyle}>Tu viens de boucler une grille {LEVELS[gameLevel].name}. On enchaîne ?</p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Btn variant="accent" grow onClick={() => newGame(gameLevel)}>
+                      🎲 Nouvelle grille ({LEVELS[gameLevel].name})
+                    </Btn>
+                    {gameLevel < MAX_LEVEL && (
+                      <Btn variant="primary" grow onClick={() => newGame(gameLevel + 1)}>
+                        ⬆️ Niveau supérieur
+                      </Btn>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn variant="accent" grow onClick={() => setScreen("levels")}>🎲 Nouvelle grille</Btn>
+                  <Btn grow onClick={() => setScreen("home")}>Accueil</Btn>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ---------- Panneau Coach ---------- */}
           {plan && (
@@ -995,6 +1132,10 @@ export default function App() {
 
           <div style={{ fontSize: 11, color: "#98A29D" }}>Sauvegarde automatique sur cet appareil.</div>
         </>
+      )}
+
+      {tab !== "learn" && (
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPhoto} />
       )}
     </div>
   );
