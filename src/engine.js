@@ -716,15 +716,27 @@ export function findSueDeCoqE(cands, prefer) {
   return null;
 }
 
-const findElim = (cands, prefer) =>
-  findNakedPairE(cands, prefer) || findPointingE(cands, prefer) ||
-  findClaimingE(cands, prefer) || findHiddenPairE(cands, prefer) ||
-  findXWingE(cands, prefer) || findXYWingE(cands, prefer) ||
-  findXYZWingE(cands, prefer) || findWWingE(cands, prefer) ||
-  findSwordfishE(cands, prefer) || findKiteE(cands, prefer) ||
-  findSkyscraperE(cands, prefer) || findEmptyRectangleE(cands, prefer) ||
-  findRemotePairE(cands, prefer) || findColoringE(cands, prefer) ||
-  findSueDeCoqE(cands, prefer);
+// ⚠️ L'ordre est un contrat : ordre pédagogique de findElim, ET source de
+// l'ordre intra-palier de FINDERS_BY_TIER (gradation → déterminisme des seeds
+// de génération). Ne pas réordonner.
+const ELIM_FINDERS = [
+  [findNakedPairE, "nakedPair"], [findPointingE, "pointing"],
+  [findClaimingE, "claiming"], [findHiddenPairE, "hiddenPair"],
+  [findXWingE, "xWing"], [findXYWingE, "xyWing"],
+  [findXYZWingE, "xyzWing"], [findWWingE, "wWing"],
+  [findSwordfishE, "swordfish"], [findKiteE, "kite"],
+  [findSkyscraperE, "skyscraper"], [findEmptyRectangleE, "emptyRectangle"],
+  [findRemotePairE, "remotePair"], [findColoringE, "coloring"],
+  [findSueDeCoqE, "sueDeCoq"],
+];
+const findElim = (cands, prefer, maxTier = 5) => {
+  for (const [f, kind] of ELIM_FINDERS) {
+    if (TIER_OF_KIND[kind] > maxTier) continue;
+    const e = f(cands, prefer);
+    if (e) return e;
+  }
+  return null;
+};
 function applyElim(cands, e) {
   for (const r of e.removals) for (const d of r.digits) cands[r.cell].delete(d);
 }
@@ -962,31 +974,36 @@ const planDifficulty = (base, kept) =>
 export function buildPlan(grid, target) {
   if (grid[target] !== 0) return null;
   const baseCands = candidatesFromGrid(grid, target);
-  const cands = allCands(grid);
   const prefer = new Set([...PEERS[target], target]);
-  const chain = [];
-  for (let k = 0; k < 8; k++) {
-    const cs = [...cands[target]];
-    if (cs.length === 1) {
-      const kept = pruneChain(grid, chain, { type: "naked", target, digit: cs[0], baseCands });
-      const plan = finalizeNaked(grid, target, cs[0], kept.map(describeElim), baseCands);
-      plan.rawChain = kept;
-      plan.difficulty = planDifficulty(1, kept);
-      return plan;
+  // Recherche par paliers : une preuve SIMPLE vaut mieux qu'une preuve COURTE.
+  // On retente la recherche complète avec un plafond de technique croissant ;
+  // la première preuve aboutie est donc celle du palier minimal nécessaire.
+  for (const maxTier of [2, 3, 4, 5]) {
+    const cands = allCands(grid);
+    const chain = [];
+    for (let k = 0; k < 8; k++) {
+      const cs = [...cands[target]];
+      if (cs.length === 1) {
+        const kept = pruneChain(grid, chain, { type: "naked", target, digit: cs[0], baseCands });
+        const plan = finalizeNaked(grid, target, cs[0], kept.map(describeElim), baseCands);
+        plan.rawChain = kept;
+        plan.difficulty = planDifficulty(1, kept);
+        return plan;
+      }
+      const hs = findHiddenSingleFor(grid, cands, target);
+      if (hs) {
+        const kept = pruneChain(grid, chain, { type: "hidden", target, digit: hs.digit, unit: hs.unit });
+        const plan = finalizeHidden(grid, target, hs.digit, hs.unit, kept.map(describeElim));
+        plan.rawChain = kept;
+        plan.difficulty = planDifficulty(2, kept);
+        return plan;
+      }
+      if (chain.length >= 4) break; // palier suivant
+      const e = findElim(cands, prefer, maxTier) || findElim(cands, null, maxTier);
+      if (!e) break; // palier suivant
+      applyElim(cands, e);
+      chain.push(e); // objets bruts — describeElim n'est appelé qu'après élagage
     }
-    const hs = findHiddenSingleFor(grid, cands, target);
-    if (hs) {
-      const kept = pruneChain(grid, chain, { type: "hidden", target, digit: hs.digit, unit: hs.unit });
-      const plan = finalizeHidden(grid, target, hs.digit, hs.unit, kept.map(describeElim));
-      plan.rawChain = kept;
-      plan.difficulty = planDifficulty(2, kept);
-      return plan;
-    }
-    if (chain.length >= 4) return null;
-    const e = findElim(cands, prefer) || findElim(cands, null);
-    if (!e) return null;
-    applyElim(cands, e);
-    chain.push(e); // objets bruts — describeElim n'est appelé qu'après élagage
   }
   return null;
 }
@@ -1038,13 +1055,11 @@ const TIER_OF_KIND = {
   kite: 4, skyscraper: 4, emptyRectangle: 4, remotePair: 4,
   coloring: 5, sueDeCoq: 5,
 };
-const FINDERS_BY_TIER = [
-  [findPointingE, findClaimingE],
-  [findNakedPairE, findHiddenPairE],
-  [findXWingE, findXYWingE, findXYZWingE, findWWingE, findSwordfishE,
-    findKiteE, findSkyscraperE, findEmptyRectangleE, findRemotePairE],
-  [findColoringE, findSueDeCoqE],
-];
+// Dérivé de ELIM_FINDERS : mêmes finders, groupés par palier (l'ordre
+// intra-palier suit l'ordre pédagogique — contrat de déterminisme, cf. supra).
+const FINDERS_BY_TIER = [2, 3, 4, 5].map((t) =>
+  ELIM_FINDERS.filter(([, kind]) => TIER_OF_KIND[kind] === t).map(([f]) => f)
+);
 // Contrairement à findElim (ordre pédagogique), la gradation cherche tier par
 // tier ascendant : une grille « alignements » ne doit pas être gradée « paires »
 // juste parce qu'une paire nue se présentait en premier.

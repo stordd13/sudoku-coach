@@ -46,14 +46,27 @@ console.log("Moteur (buildPlan sur l'exemple 1) :");
   ok(solvable > 0, `${solvable} cases immédiatement explicables`);
 }
 
-/* ---------- 2b. Élagage de la chaîne : régression L3C7 ---------- */
-console.log("Élagage de la chaîne :");
+/* ---------- 2b. Preuves par paliers : le plus SIMPLE avant le plus COURT ---------- */
+console.log("Preuves par paliers :");
 {
   const g = "000000381610083450483500006001050943054030627030402815100800534090300168348005000".split("").map(Number);
   const p = buildPlan(g, 24); // L3C7
   ok(p && p.digit === 2, "repro L3C7 : conclusion = 2");
-  ok(p.chain.length === 1, `repro L3C7 : chaîne élaguée à 1 étape (${p.chain.length})`);
+  ok(p.chain.length === 2 && p.chain.every((s) => s.title === "Paire pointante"),
+    "repro L3C7 : preuve par 2 paires pointantes (techniques simples d'abord)");
   ok(p.chain.every((s) => s.text.includes("**2**")), "repro L3C7 : toutes les étapes portent sur le 2");
+
+  // Palier minimal, pas d'escalade : tier 3 suffit → pas de technique tier 4.
+  const g0 = SAMPLES[0].split("").map(Number);
+  const p30 = buildPlan(g0, 30); // L4C4
+  ok(p30 && p30.digit === 7 && p30.chain.length === 1 && p30.chain[0].title === "Duo caché",
+    "L4C4 : preuve tier 3 (duo caché), pas d'escalade");
+
+  // Et inversement : quand le tier 4 est réellement nécessaire, on l'atteint.
+  const p17 = buildPlan(g, 17); // L2C9
+  ok(p17 && p17.digit === 9
+    && p17.chain.map((s) => s.title).join("|") === "Paire pointante|2-String Kite",
+    "repro L2C9 : preuve tier 4 (pointante puis kite) quand rien de plus simple n'existe");
 }
 
 /* ---------- 2c. Difficulté : « Étape suivante » choisit la plus simple ---------- */
