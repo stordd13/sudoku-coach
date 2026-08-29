@@ -79,6 +79,21 @@ export function conflictSet(grid) {
 }
 export const isComplete = (g) => !g.some((v) => v === 0) && conflictSet(g).size === 0;
 
+/* ---------- Notation Snyder : un chiffre n'est noté que là où il n'a
+   que 2 places possibles dans un bloc ---------- */
+export function snyderNotes(grid) {
+  const notes = Array.from({ length: 81 }, () => []);
+  for (let b = 0; b < 9; b++) {
+    for (let d = 1; d <= 9; d++) {
+      if (BOXES[b].some((i) => grid[i] === d)) continue;
+      const spots = BOXES[b].filter((i) => grid[i] === 0 && candidatesFromGrid(grid, i).includes(d));
+      if (spots.length === 2) spots.forEach((i) => notes[i].push(d));
+    }
+  }
+  notes.forEach((a) => a.sort((x, y) => x - y));
+  return notes;
+}
+
 /* ---------- Résolution (backtracking + comptage de solutions) ---------- */
 export function solveGrid(grid) {
   const g = grid.slice();

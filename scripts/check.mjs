@@ -4,6 +4,7 @@ import {
   PEERS, BOXES, candidatesFromGrid, allCands, conflictSet,
   findHiddenSingleFor, solveGrid, buildPlan, SAMPLES, cellName, rowOf, colOf,
   findXWingE, findSwordfishE, findSkyscraperE, findXYWingE, findRemotePairE,
+  snyderNotes,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 
@@ -66,6 +67,28 @@ console.log("Difficulté des plans :");
   const min = Math.min(...plans.map((p) => p.difficulty));
   ok(plans.every((p) => min <= p.difficulty), `la difficulté minimale (${min}) est ≤ à toutes les autres`);
   ok(plans.some((p) => p.difficulty <= 2), "au moins un plan de difficulté 1 ou 2 en début de partie");
+}
+
+/* ---------- 2d. Notation Snyder ---------- */
+console.log("Notation Snyder :");
+{
+  const g = SAMPLES[0].split("").map(Number);
+  const notes = snyderNotes(g);
+  let noted = 0, badCount = 0, badCand = 0, badPlaced = 0;
+  for (let b = 0; b < 9; b++) {
+    for (let d = 1; d <= 9; d++) {
+      const spots = BOXES[b].filter((i) => notes[i].includes(d));
+      if (!spots.length) continue;
+      noted++;
+      if (spots.length !== 2) badCount++;
+      if (spots.some((i) => g[i] !== 0 || !candidatesFromGrid(g, i).includes(d))) badCand++;
+      if (BOXES[b].some((i) => g[i] === d)) badPlaced++;
+    }
+  }
+  ok(noted > 0, `des chiffres sont notés (${noted} couples bloc/chiffre)`);
+  ok(badCount === 0, "chaque chiffre noté apparaît exactement 2 fois dans son bloc");
+  ok(badCand === 0, "chaque occurrence est un candidat valide d'une case vide");
+  ok(badPlaced === 0, "aucun chiffre noté n'est déjà posé dans le bloc");
 }
 
 /* ---------- 3. Leçons : cohérence interne ---------- */

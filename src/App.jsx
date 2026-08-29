@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, SAMPLES,
+  snyderNotes,
 } from "./engine.js";
 import { LESSONS } from "./lessons.js";
 
@@ -482,6 +483,12 @@ export default function App() {
     setNotes(nn);
     flash("🗒️ Candidats calculés et notés dans chaque case vide.");
   }
+  function snyderMode() {
+    if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
+    pushHist();
+    setNotes(snyderNotes(grid));
+    flash("✍️ Notation Snyder : notés uniquement les chiffres qui n’ont que 2 places possibles dans un bloc.");
+  }
 
   /* ----- OCR photo (via /api/ocr sur Vercel) ----- */
   function fileToJpegBase64(file, maxDim) {
@@ -845,6 +852,7 @@ export default function App() {
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow active={noteMode} onClick={() => setNoteMode((m) => !m)}>✏️ Notes</Btn>
                 <Btn grow onClick={autoNotes}>🗒️ Auto-notes</Btn>
+                <Btn grow onClick={snyderMode}>✍️ Snyder</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow onClick={checkErrors}>🔍 Vérifier</Btn>
