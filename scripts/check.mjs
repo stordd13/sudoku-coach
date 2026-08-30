@@ -389,13 +389,15 @@ console.log("Exercices par technique :");
   const COMMON = ["nakedSingle", "hiddenSingle", "pointing", "claiming", "nakedPair", "hiddenPair"];
   for (const kind of COMMON) {
     const times = [];
+    let raw = 0;
     for (const seed of [11, 22, 33]) {
       const t0 = Date.now();
       const ex = findTechniqueExercise(kind, { timeBoxMs: 4000, rng: makeRng(seed) });
       times.push(Date.now() - t0);
+      if (ex && !ex.workedNotes) raw++;
       ok(checkExercise(kind, ex), `${kind} (seed ${seed}) : exercice trouvé dans le time-box`);
     }
-    console.log(`  ℹ ${kind} : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms (n=${times.length})`);
+    console.log(`  ℹ ${kind} : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms, notes brutes ${raw}/3`);
   }
   {
     const t0 = Date.now();

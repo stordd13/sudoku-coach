@@ -304,6 +304,11 @@ function LearnView() {
           Petits chiffres = tous les candidats encore possibles de la case.
         </div>
       )}
+      {isExo && exo.workedNotes && (
+        <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
+          Partie en cours : ces notes ont déjà été affinées par des techniques précédentes.
+        </div>
+      )}
 
       <div style={{
         width: W, background: "#fff", border: "1px solid #E2E7E5",

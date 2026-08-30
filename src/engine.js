@@ -1325,26 +1325,51 @@ function exerciseFromSingle(kind, g) {
   return null;
 }
 
+// Part du time-box réservée aux captures « brutes » (l'élim visée est la
+// première de la résolution : notes affichées ≡ candidats bruts de la grille).
+// Mesuré sur 1000 grilles : l'Empty Rectangle n'apparaît jamais en premier → 0.
+const RAW_FRACTION_BY_KIND = { emptyRectangle: 0 };
+function isRawCapture(step) {
+  for (let i = 0; i < 81; i++) {
+    if (step.values[i] !== 0) continue;
+    const raw = candidatesFromGrid(step.values, i);
+    const shown = step.cands[i];
+    if (raw.length !== shown.length || raw.some((d, k) => shown[k] !== d)) return false;
+  }
+  return true;
+}
+
 // Cherche, dans le time-box, un état de grille réelle où la technique demandée
 // est LA prochaine étape (les singles sont épuisés, rien de plus simple ne
-// s'applique au même moment). null si la configuration est trop rare.
+// s'applique au même moment). Pendant les 2 premiers tiers du time-box, seules
+// les captures brutes sont acceptées ; au-delà, la première capture
+// « travaillée » rencontrée est servie en repli avec workedNotes: true.
+// null si la configuration est trop rare.
 export function findTechniqueExercise(kind, { timeBoxMs = 4000, rng = Math.random } = {}) {
   const deadline = Date.now() + timeBoxMs;
+  const frac = RAW_FRACTION_BY_KIND[kind] !== undefined ? RAW_FRACTION_BY_KIND[kind] : 2 / 3;
+  const rawDeadline = Date.now() + timeBoxMs * frac;
   const isSingle = kind === "nakedSingle" || kind === "hiddenSingle";
+  let worked = null; // première capture travaillée, servie en repli
   while (Date.now() < deadline) {
+    if (worked && Date.now() >= rawDeadline) return worked;
     const g = digUnguarded(generateFullGrid(rng), rng);
     if (isSingle) {
       const ex = exerciseFromSingle(kind, g);
-      if (ex) return ex;
+      if (ex) return ex; // l'état initial est brut par construction
       continue;
     }
     let found = null;
     solveHumanlySteps(g, (step) => {
       if (step.type !== "elim" || step.e.kind !== kind) return false;
-      found = exerciseFromElim(kind, step);
-      return true;
+      if (isRawCapture(step)) { found = exerciseFromElim(kind, step); return true; }
+      if (!worked) {
+        worked = exerciseFromElim(kind, step);
+        worked.workedNotes = true;
+      }
+      return true; // les élims s'accumulent : cette grille ne redeviendra pas brute
     });
     if (found) return found;
   }
-  return null;
+  return worked;
 }
