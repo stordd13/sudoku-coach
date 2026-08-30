@@ -12,6 +12,7 @@ import {
   randomTransform, transformPosition, buildConstructiveExercise,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
+import { getExercise, KIND_BY_LESSON } from "../src/exercises.js";
 
 let failures = 0;
 const ok = (cond, label) => {
@@ -413,14 +414,6 @@ console.log("Exercices par technique :");
 /* ---------- 7. Transformations : symétries du sudoku ---------- */
 console.log("Transformations :");
 {
-  const KINDS = {
-    "naked-single": "nakedSingle", "hidden-single": "hiddenSingle",
-    "naked-pair": "nakedPair", "pointing-pair": "pointing", "claiming": "claiming",
-    "hidden-pair": "hiddenPair", "x-wing": "xWing", "xy-wing": "xyWing",
-    "swordfish": "swordfish", "skyscraper": "skyscraper", "remote-pairs": "remotePair",
-    "xyz-wing": "xyzWing", "w-wing": "wWing", "kite": "kite",
-    "empty-rectangle": "emptyRectangle", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
-  };
   const posOf = (L) => ({
     given: L.given, notes: L.notes, removals: L.removals,
     unit: L.unit, focus: L.focus, target: L.target, answer: L.answer,
@@ -437,7 +430,7 @@ console.log("Transformations :");
     transpose: false,
   };
   for (const L of LESSONS) {
-    const kind = KINDS[L.id];
+    const kind = KIND_BY_LESSON[L.id];
     const pos = posOf(L);
     ok(JSON.stringify(transformPosition(pos, identity)) === JSON.stringify(pos),
       `[${L.num}] ${L.title} : transformation identité = no-op`);
@@ -494,6 +487,24 @@ for (const kind of ["xWing", "swordfish", "skyscraper", "kite", "remotePair"]) {
     }
   }
   console.log(`  ℹ ${kind} (constructif) : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms (n=3)`);
+}
+
+/* ---------- 9. Acceptation : un exercice garanti pour chacune des 17 techniques ---------- */
+console.log("Acceptation getExercise (17 techniques × 5 appels) :");
+for (const kind of Object.values(KIND_BY_LESSON)) {
+  const times = [], sources = {};
+  let allOk = true;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const t0 = Date.now();
+    const ex = getExercise(kind, { budgetMs: 1500, rng: makeRng(7000 + seed) });
+    const dt = Date.now() - t0;
+    times.push(dt);
+    if (!checkExercise(kind, ex) || dt >= 4000) allOk = false;
+    if (ex) sources[ex.source] = (sources[ex.source] || 0) + 1;
+  }
+  ok(allOk, `${kind} : 5/5 exercices, chacun en < 4 s`);
+  const src = Object.entries(sources).map(([s, n]) => `${s}×${n}`).join(" ");
+  console.log(`  ℹ ${kind} : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms — ${src}`);
 }
 
 console.log(failures === 0 ? "\nTOUT EST OK ✓" : `\n${failures} ÉCHEC(S) ✗`);

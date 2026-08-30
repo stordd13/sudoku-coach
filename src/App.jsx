@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, SAMPLES,
-  snyderNotes, generatePuzzle, findTechniqueExercise, completedUnits,
+  snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
+import { getExercise, KIND_BY_LESSON } from "./exercises.js";
 import { LESSONS } from "./lessons.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ---------- */
@@ -154,15 +155,7 @@ function LessonBoard({ lesson, revealed }) {
     </div>
   );
 }
-/* ----- Exercices « grille réelle » : mapping leçon → moteur, cache ----- */
-const KIND_BY_LESSON = {
-  "naked-single": "nakedSingle", "hidden-single": "hiddenSingle",
-  "naked-pair": "nakedPair", "pointing-pair": "pointing", "claiming": "claiming",
-  "hidden-pair": "hiddenPair", "x-wing": "xWing", "xy-wing": "xyWing",
-  "swordfish": "swordfish", "skyscraper": "skyscraper", "remote-pairs": "remotePair",
-  "xyz-wing": "xyzWing", "w-wing": "wWing", "kite": "kite",
-  "empty-rectangle": "emptyRectangle", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
-};
+/* ----- Exercices : libellés FR et cache local ----- */
 const EXO_NAME_BY_ID = {
   "naked-single": "le candidat unique", "hidden-single": "le single caché",
   "naked-pair": "la paire nue", "pointing-pair": "la paire pointante",
@@ -173,7 +166,7 @@ const EXO_NAME_BY_ID = {
   "empty-rectangle": "l’Empty Rectangle", "coloring": "le coloriage",
   "sue-de-coq": "le Sue de Coq",
 };
-const EXO_CACHE_KEY = "sudoku-coach-exos-v1";
+const EXO_CACHE_KEY = "sudoku-coach-exos-v2"; // v2 : + champs source/workedNotes
 function loadExoCache() {
   try {
     const c = JSON.parse(localStorage.getItem(EXO_CACHE_KEY) || "{}");
@@ -188,24 +181,24 @@ function LearnView() {
   const [ix, setIx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [showHint, setShowHint] = useState(false);
-  const [exo, setExo] = useState(null); // null | "searching" | "notFound" | exercice
-  const refillRef = useRef(false);
+  const [exo, setExo] = useState(null); // null | "searching" | exercice
+  const refillRef = useRef(new Set()); // kinds en cours de refill (anti-cumul)
   const L = LESSONS[ix];
   const isExo = exo !== null && typeof exo === "object";
   useEffect(() => { setRevealed(false); setShowHint(false); setExo(null); }, [ix]);
 
-  // Reremplit le cache en tranches de 250 ms pour ne pas geler l'interface
+  // Reremplit le cache en tranches courtes pour ne pas geler l'interface
   // pendant que l'utilisateur travaille l'exercice servi.
   function refillCache(kind) {
-    if (refillRef.current) return;
-    refillRef.current = true;
+    if (refillRef.current.has(kind)) return;
+    refillRef.current.add(kind);
     let budget = 3000;
     const tick = () => {
       const cache = loadExoCache();
       const list = cache[kind] || [];
-      if (list.length >= 3 || budget <= 0) { refillRef.current = false; return; }
-      budget -= 250;
-      const ex = findTechniqueExercise(kind, { timeBoxMs: 250 });
+      if (list.length >= 3 || budget <= 0) { refillRef.current.delete(kind); return; }
+      budget -= 600;
+      const ex = getExercise(kind, { budgetMs: 600 });
       if (ex) { list.push(ex); cache[kind] = list; saveExoCache(cache); }
       setTimeout(tick, 300);
     };
@@ -228,10 +221,10 @@ function LearnView() {
     setExo("searching");
     // setTimeout : laisse React peindre l'overlay avant la recherche synchrone.
     setTimeout(() => {
-      const ex = findTechniqueExercise(kind);
+      const ex = getExercise(kind); // jamais null : repli transformation
       setRevealed(false); setShowHint(false);
-      if (ex) { setExo(ex); refillCache(kind); }
-      else setExo("notFound");
+      setExo(ex);
+      if (ex) refillCache(kind);
     }, 50);
   }
   function backToGuided() { setExo(null); setRevealed(false); setShowHint(false); }
@@ -304,9 +297,12 @@ function LearnView() {
           Petits chiffres = tous les candidats encore possibles de la case.
         </div>
       )}
-      {isExo && exo.workedNotes && (
+      {isExo && (
         <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
-          Partie en cours : ces notes ont déjà été affinées par des techniques précédentes.
+          {exo.source === "transform" ? "Position d’entraînement." : "Grille réelle."}
+          {exo.workedNotes
+            ? " Partie en cours : ces notes ont déjà été affinées par des techniques précédentes."
+            : ""}
         </div>
       )}
 
@@ -317,11 +313,6 @@ function LearnView() {
         boxShadow: "0 8px 24px rgba(31,39,46,0.08)",
       }}>
         <div style={{ fontWeight: 700, fontSize: 14.5 }}>🎓 {question}</div>
-        {exo === "notFound" && (
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#8A5A16" }}>
-            Cette configuration est rare sur une grille réelle — réessaie 🍀
-          </p>
-        )}
         {showHint && !revealed && (
           <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#5A6763" }}>💡 <Rich text={hint} /></p>
         )}
@@ -370,9 +361,11 @@ function LearnView() {
                 </div>
               </div>
             )}
-            <div style={{ fontSize: 11.5, color: C.gray }}>
-              Sur une grille réelle, le motif peut apparaître à plusieurs endroits — en voici un.
-            </div>
+            {exo.source !== "transform" && (
+              <div style={{ fontSize: 11.5, color: C.gray }}>
+                Sur une grille réelle, le motif peut apparaître à plusieurs endroits — en voici un.
+              </div>
+            )}
           </>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
@@ -385,7 +378,7 @@ function LearnView() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Btn grow onClick={newExercise} disabled={exo === "searching"}>
-            {exo === "notFound" ? "🎲 Réessayer" : "🎲 Nouvel exemple (grille réelle)"}
+            🎲 Nouvel exemple
           </Btn>
         </div>
       </div>
