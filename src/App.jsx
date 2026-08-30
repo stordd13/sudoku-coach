@@ -671,14 +671,27 @@ export default function App() {
     }
   }
 
-  /* ----- notes automatiques ----- */
+  /* ----- notes automatiques (bascule : efface s'il y a des notes, sinon calcule) ----- */
   function autoNotes() {
     if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
     pushHist();
+    if (notes.some((a) => a.length)) {
+      setNotes(Array.from({ length: 81 }, () => []));
+      flash("Notes effacées — rappuie pour les recalculer.");
+      return;
+    }
     const nn = notes.map((a) => a.slice());
-    for (let i = 0; i < 81; i++) if (grid[i] === 0) nn[i] = candidatesFromGrid(grid, i);
+    let singles = 0;
+    for (let i = 0; i < 81; i++) {
+      if (grid[i] === 0) {
+        nn[i] = candidatesFromGrid(grid, i);
+        if (nn[i].length === 1) singles++;
+      }
+    }
     setNotes(nn);
-    flash("🗒️ Candidats calculés et notés dans chaque case vide.");
+    flash(singles
+      ? "🗒️ Candidats calculés et notés dans chaque case vide. Les cases à candidat unique sont résolubles immédiatement 😉"
+      : "🗒️ Candidats calculés et notés dans chaque case vide.");
   }
   function snyderMode() {
     if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
@@ -820,6 +833,7 @@ export default function App() {
     grid.forEach((v) => { if (v) m[v] = (m[v] || 0) + 1; });
     return m;
   }, [grid]);
+  const hasNotes = useMemo(() => notes.some((a) => a.length), [notes]);
   const planHL = useMemo(() => {
     const res = { unit: new Set(), chain: new Set(), target: null };
     if (!plan) return res;
@@ -1041,6 +1055,11 @@ export default function App() {
               : noteMode
                 ? "Mode notes : les chiffres s’écrivent en petit dans les coins."
                 : "Sélectionne une case vide puis 🎯 pour une explication, ou 👣 pour la case la plus simple."}
+            {phase === "play" && (
+              <div style={{ marginTop: 2 }}>
+                Sous chaque chiffre du pavé : combien il en reste à placer — grisé ✓ quand les 9 sont posés.
+              </div>
+            )}
           </div>
 
           {/* ---------- Pavé numérique ---------- */}
@@ -1099,7 +1118,7 @@ export default function App() {
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow active={noteMode} onClick={() => setNoteMode((m) => !m)}>✏️ Notes</Btn>
-                <Btn grow onClick={autoNotes}>🗒️ Auto-notes</Btn>
+                <Btn grow active={hasNotes} onClick={autoNotes}>🗒️ Auto-notes</Btn>
                 <Btn grow onClick={snyderMode}>✍️ Snyder</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
