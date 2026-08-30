@@ -9,6 +9,7 @@ import {
   snyderNotes,
   makeRng, generateFullGrid, solveHumanly, generatePuzzle, isComplete,
   findTechniqueExercise, ELIM_FINDER_BY_KIND, completedUnits,
+  randomTransform, transformPosition,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 
@@ -404,6 +405,74 @@ console.log("Exercices par technique :");
     const ex = findTechniqueExercise("xWing", { timeBoxMs: 8000, rng: makeRng(7) });
     ok(checkExercise("xWing", ex), "xWing : exercice trouvé (time-box 8 s)");
     console.log(`  ℹ xWing : ${Date.now() - t0} ms (n=1)`);
+  }
+}
+
+/* ---------- 7. Transformations : symétries du sudoku ---------- */
+console.log("Transformations :");
+{
+  const KINDS = {
+    "naked-single": "nakedSingle", "hidden-single": "hiddenSingle",
+    "naked-pair": "nakedPair", "pointing-pair": "pointing", "claiming": "claiming",
+    "hidden-pair": "hiddenPair", "x-wing": "xWing", "xy-wing": "xyWing",
+    "swordfish": "swordfish", "skyscraper": "skyscraper", "remote-pairs": "remotePair",
+    "xyz-wing": "xyzWing", "w-wing": "wWing", "kite": "kite",
+    "empty-rectangle": "emptyRectangle", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
+  };
+  const posOf = (L) => ({
+    given: L.given, notes: L.notes, removals: L.removals,
+    unit: L.unit, focus: L.focus, target: L.target, answer: L.answer,
+  });
+  const gridOf = (given) => {
+    const g = Array(81).fill(0);
+    for (const [k, v] of Object.entries(given)) g[Number(k)] = v;
+    return g;
+  };
+  const identity = {
+    digitPerm: Array.from({ length: 10 }, (_, d) => d),
+    rowPerm: Array.from({ length: 9 }, (_, r) => r),
+    colPerm: Array.from({ length: 9 }, (_, c) => c),
+    transpose: false,
+  };
+  for (const L of LESSONS) {
+    const kind = KINDS[L.id];
+    const pos = posOf(L);
+    ok(JSON.stringify(transformPosition(pos, identity)) === JSON.stringify(pos),
+      `[${L.num}] ${L.title} : transformation identité = no-op`);
+    const problems = [];
+    for (const seed of [1, 2, 3]) {
+      const t = randomTransform(makeRng(500 + L.num * 10 + seed));
+      const p = transformPosition(pos, t);
+      const g = gridOf(p.given);
+      // (a) valeurs transformées sans conflit
+      if (conflictSet(g).size) { problems.push(`seed ${seed} : conflit`); continue; }
+      // (b) candidats affichés compatibles avec les valeurs
+      let clash = 0;
+      for (const [k, arr] of Object.entries(p.notes)) {
+        const i = Number(k);
+        for (const d of arr) {
+          for (const q of PEERS[i]) if (g[q] === d) clash++;
+          if (g[i] !== 0) clash++;
+        }
+      }
+      if (clash) { problems.push(`seed ${seed} : candidats`); continue; }
+      // (c) le motif est retrouvé sur la position transformée
+      if (kind === "nakedSingle") {
+        const cs = candidatesFromGrid(g, p.target);
+        if (!(cs.length === 1 && cs[0] === p.answer)) problems.push(`seed ${seed} : single`);
+      } else if (kind === "hiddenSingle") {
+        const hs = findHiddenSingleFor(g, allCands(g), p.target);
+        if (!(hs && hs.digit === p.answer)) problems.push(`seed ${seed} : single caché`);
+      } else {
+        const cands = Array.from({ length: 81 }, (_, i) => new Set(p.notes[i] || []));
+        const prefer = new Set(Object.keys(p.removals).map(Number));
+        const e = ELIM_FINDER_BY_KIND[kind](cands, prefer);
+        if (!(e && e.kind === kind && e.removals.some((r) => prefer.has(r.cell))))
+          problems.push(`seed ${seed} : finder`);
+      }
+    }
+    ok(problems.length === 0,
+      `[${L.num}] ${L.title} : 3 transformations valides${problems.length ? ` (${problems.join(" · ")})` : ""}`);
   }
 }
 

@@ -1272,11 +1272,12 @@ function hintFromZone(e, zone) {
   return `Regarde du côté ${de}.`;
 }
 
-function exerciseFromElim(kind, step) {
-  const e = step.e;
+// Emballe une élimination trouvée en exercice complet — notes, removals,
+// surlignage, explication, indice et bonus — depuis des valeurs + candidats.
+export function packageExercise(kind, e, values, candsArr) {
   const notes = {};
   for (let i = 0; i < 81; i++) {
-    if (step.values[i] === 0 && step.cands[i].length) notes[i] = step.cands[i];
+    if (values[i] === 0 && candsArr[i].length) notes[i] = candsArr[i];
   }
   const removals = {};
   for (const r of e.removals) {
@@ -1286,7 +1287,7 @@ function exerciseFromElim(kind, step) {
   const d = describeElim(e);
   const { unit, focus } = elimHighlight(e);
   const ex = {
-    kind, given: step.values, notes, removals, unit, focus,
+    kind, given: values, notes, removals, unit, focus,
     explain: [d.text], hint: hintFromZone(e, d.zone),
   };
   // Bonus : une case qui passe à candidat unique après application (l'unicité
@@ -1300,6 +1301,66 @@ function exerciseFromElim(kind, step) {
     }
   }
   return ex;
+}
+const exerciseFromElim = (kind, step) => packageExercise(kind, step.e, step.values, step.cands);
+
+/* ---------- Transformations : symétries du sudoku ----------
+   Toute position reste logiquement identique sous permutation des chiffres,
+   des lignes au sein d'une bande, des colonnes au sein d'une pile, des bandes,
+   des piles, et transposition. Un motif présent dans la position d'origine est
+   présent (déplacé/renuméroté) dans la position transformée. */
+export function randomTransform(rng = Math.random) {
+  const linePerm = () => {
+    // perm[ancienne ligne] = nouvelle ligne : bandes mélangées, puis les
+    // 3 lignes au sein de chaque bande.
+    const bands = shuffle([0, 1, 2], rng);
+    const perm = Array(9);
+    for (let b = 0; b < 3; b++) {
+      const inner = shuffle([0, 1, 2], rng);
+      for (let i = 0; i < 3; i++) perm[b * 3 + i] = bands[b] * 3 + inner[i];
+    }
+    return perm;
+  };
+  return {
+    digitPerm: [0, ...shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9], rng)],
+    rowPerm: linePerm(),
+    colPerm: linePerm(),
+    transpose: rng() < 0.5,
+  };
+}
+
+// pos = format leçon/exercice : { given, notes, removals, unit, focus,
+// target, answer }. Convention : (r, c) → (rowPerm[r], colPerm[c]), PUIS
+// transposition. Forme préservée (given array ou objet). Les textes ne sont
+// jamais remappés : les régénérer via finder + packageExercise.
+export function transformPosition(pos, t) {
+  const mapCell = (i) => {
+    let r = t.rowPerm[rowOf(i)], c = t.colPerm[colOf(i)];
+    if (t.transpose) [r, c] = [c, r];
+    return r * 9 + c;
+  };
+  const mapDigit = (d) => t.digitPerm[d];
+  const mapDigits = (arr) => arr.map(mapDigit).sort((a, b) => a - b);
+  const mapObj = (obj, mapVal) => {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) out[mapCell(Number(k))] = mapVal(v);
+    return out;
+  };
+  const out = {};
+  if (Array.isArray(pos.given)) {
+    const g = Array(81).fill(0);
+    pos.given.forEach((v, i) => { if (v) g[mapCell(i)] = mapDigit(v); });
+    out.given = g;
+  } else {
+    out.given = mapObj(pos.given || {}, mapDigit);
+  }
+  out.notes = mapObj(pos.notes || {}, mapDigits);
+  out.removals = mapObj(pos.removals || {}, mapDigits);
+  out.unit = (pos.unit || []).map(mapCell);
+  out.focus = (pos.focus || []).map(mapCell);
+  if (pos.target !== undefined) out.target = mapCell(pos.target);
+  if (pos.answer !== undefined) out.answer = mapDigit(pos.answer);
+  return out;
 }
 
 // Singles : on cherche dans l'état INITIAL d'une grille creusée — buildPlan
