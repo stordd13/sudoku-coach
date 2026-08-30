@@ -78,6 +78,18 @@ export function conflictSet(grid) {
   return bad;
 }
 export const isComplete = (g) => !g.some((v) => v === 0) && conflictSet(g).size === 0;
+// Unités nouvellement complétées (remplies, 9 chiffres distincts) entre deux
+// états de grille — sert au balayage « surligneur » de l'UI.
+export function completedUnits(before, after) {
+  const res = [];
+  for (const u of UNITS) {
+    if (u.cells.some((i) => after[i] === 0)) continue;
+    if (new Set(u.cells.map((i) => after[i])).size !== 9) continue; // conflit
+    if (u.cells.every((i) => before[i] !== 0)) continue;
+    res.push(u);
+  }
+  return res;
+}
 
 /* ---------- Notation Snyder : un chiffre n'est noté que là où il n'a
    que 2 places possibles dans un bloc ---------- */

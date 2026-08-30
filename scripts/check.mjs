@@ -8,7 +8,7 @@ import {
   findColoringE, findSueDeCoqE,
   snyderNotes,
   makeRng, generateFullGrid, solveHumanly, generatePuzzle, isComplete,
-  findTechniqueExercise, ELIM_FINDER_BY_KIND,
+  findTechniqueExercise, ELIM_FINDER_BY_KIND, completedUnits,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 
@@ -304,6 +304,20 @@ console.log("Génération :");
   const full = generateFullGrid(makeRng(42));
   ok(full.length === 81 && full.every((v) => v >= 1 && v <= 9), "grille pleine : 81 chiffres");
   ok(isComplete(full), "grille pleine : complète et sans conflit");
+
+  // completedUnits : zones nouvellement complétées entre deux états
+  {
+    const before = full.slice(); before[0] = 0;
+    const units = completedUnits(before, full);
+    ok(units.length === 3
+      && units.some((u) => u.type === "row" && u.index === 0)
+      && units.some((u) => u.type === "col" && u.index === 0)
+      && units.some((u) => u.type === "box" && u.index === 0),
+      "completedUnits : poser la dernière case complète ligne, colonne et bloc");
+    ok(completedUnits(full, full).length === 0, "completedUnits : rien si rien ne change");
+    const bad = full.slice(); bad[0] = full[1]; // duplique un chiffre → conflit
+    ok(completedUnits(before, bad).length === 0, "completedUnits : une zone en conflit ne compte pas");
+  }
 
   SAMPLES.forEach((s, i) => {
     const r = solveHumanly(s.split("").map(Number));

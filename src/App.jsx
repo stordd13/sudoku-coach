@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, SAMPLES,
-  snyderNotes, generatePuzzle, findTechniqueExercise,
+  snyderNotes, generatePuzzle, findTechniqueExercise, completedUnits,
 } from "./engine.js";
 import { LESSONS } from "./lessons.js";
 
@@ -411,6 +411,12 @@ export default function App() {
   const [solRef, setSolRef] = useState(null);
   const [errorCells, setErrorCells] = useState(new Set());
   const [loaded, setLoaded] = useState(false);
+  /* Animations (T3) — stamps pour rejouer les keyframes via un changement de key */
+  const [pop, setPop] = useState(null); // {cell, stamp} : chiffre qui vient d'être posé
+  const [sweep, setSweep] = useState(null); // {delays: Map(cell→ms), stamp} : zone complétée
+  const [padPulse, setPadPulse] = useState(null); // {digit, stamp} : chiffre épuisé
+  const [celebrate, setCelebrate] = useState(null); // stamp : grille terminée
+  const [shake, setShake] = useState(null); // {cells: Set, stamp} : erreurs / conflits
 
   const histRef = useRef([]);
   const fileRef = useRef(null);
@@ -418,6 +424,33 @@ export default function App() {
   const msgTimer = useRef(null);
   const errTimer = useRef(null);
   const sampleIx = useRef(0);
+  const sweepTimer = useRef(null);
+  const celebTimer = useRef(null);
+
+  /* ----- déclencheurs d'animations (appelés aux sites de pose uniquement) ----- */
+  const popCell = (cell) => setPop({ cell, stamp: Date.now() });
+  const doShake = (cells) => setShake({ cells: new Set(cells), stamp: Date.now() });
+  function animateMove(before, ng, d) {
+    if (ng.filter((v) => v === d).length === 9) setPadPulse({ digit: d, stamp: Date.now() });
+    if (isComplete(ng)) {
+      setCelebrate(Date.now());
+      if (celebTimer.current) clearTimeout(celebTimer.current);
+      celebTimer.current = setTimeout(() => setCelebrate(null), 1700);
+      return;
+    }
+    const units = completedUnits(before, ng);
+    if (!units.length) return;
+    const delays = new Map();
+    for (const u of units) {
+      u.cells.forEach((c, k) => {
+        const ms = k * 40;
+        if (!delays.has(c) || ms < delays.get(c)) delays.set(c, ms);
+      });
+    }
+    setSweep({ delays, stamp: Date.now() });
+    if (sweepTimer.current) clearTimeout(sweepTimer.current);
+    sweepTimer.current = setTimeout(() => setSweep(null), 9 * 40 + 700);
+  }
 
   /* ----- messages ----- */
   function flash(text, type) {
@@ -445,6 +478,7 @@ export default function App() {
   function showErrors(cells) {
     if (errTimer.current) clearTimeout(errTimer.current);
     setErrorCells(new Set(cells));
+    doShake(cells);
     errTimer.current = setTimeout(() => setErrorCells(new Set()), 4000);
   }
 
@@ -457,6 +491,7 @@ export default function App() {
       const ng = grid.slice();
       ng[sel] = ng[sel] === d ? 0 : d;
       setGrid(ng);
+      if (ng[sel] !== 0) popCell(sel);
       return;
     }
     if (givens[sel]) { flash("Cette case fait partie de l’énoncé.", "warn"); return; }
@@ -483,8 +518,12 @@ export default function App() {
     }
     setGrid(ng); setNotes(nn);
     if (plan && plan.target === sel) setPlan(null);
+    if (ng[sel] !== 0) { popCell(sel); animateMove(grid, ng, d); }
     const conf = conflictSet(ng);
-    if (ng[sel] !== 0 && conf.has(sel)) flash("⚠️ Ce chiffre entre en conflit avec sa ligne, sa colonne ou son bloc.", "warn");
+    if (ng[sel] !== 0 && conf.has(sel)) {
+      doShake([...conf]);
+      flash("⚠️ Ce chiffre entre en conflit avec sa ligne, sa colonne ou son bloc.", "warn");
+    }
     else if (isComplete(ng)) flash("🎉 Grille terminée — bravo !", "success");
   }
   function eraseSel() {
@@ -641,6 +680,7 @@ export default function App() {
       if (k >= 0) nn[p].splice(k, 1);
     });
     setGrid(ng); setNotes(nn); setSel(t); setPlan(null);
+    popCell(t); animateMove(grid, ng, d);
     if (isComplete(ng)) flash("🎉 Grille terminée — bravo !", "success");
     else flash(`✓ ${cellName(t)} = ${d} — bien joué !`, "success");
   }
@@ -887,7 +927,17 @@ export default function App() {
       alignItems: "center", gap: 12, color: C.ink,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     }}>
-      <style>{`@keyframes scspin{to{transform:rotate(360deg)}} summary::-webkit-details-marker{display:none}`}</style>
+      <style>{`@keyframes scspin{to{transform:rotate(360deg)}} summary::-webkit-details-marker{display:none}
+@media (prefers-reduced-motion: no-preference){
+  .sc-pop{animation:scpop .14s ease-out}
+  @keyframes scpop{from{transform:scale(.85);opacity:.4}to{transform:scale(1);opacity:1}}
+  .sc-sweep{animation:scsweep .5s ease-out}
+  @keyframes scsweep{0%{opacity:0}30%{opacity:.9}100%{opacity:0}}
+  .sc-shake{animation:scshake .2s linear}
+  @keyframes scshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2.5px)}75%{transform:translateX(2.5px)}}
+  .sc-pulse{animation:scpulse .45s ease-out}
+  @keyframes scpulse{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+}`}</style>
 
       {/* ---------- En-tête ---------- */}
       <header style={{ width: W, display: "flex", alignItems: "center", gap: 10 }}>
@@ -977,10 +1027,12 @@ export default function App() {
           {/* ---------- Badge de niveau ---------- */}
           {phase === "play" && gameLevel ? (
             <div style={{ width: W, display: "flex" }}>
-              <span style={{
+              <span key={celebrate ? `b${celebrate}` : "lvl"}
+                className={celebrate ? "sc-pulse" : undefined} style={{
                 fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
                 color: "#5A6763", background: "#EFF2F1", border: "1px solid #E2E7E5",
-                borderRadius: 999, padding: "3px 10px",
+                borderRadius: 999, padding: "3px 10px", display: "inline-block",
+                animationDelay: celebrate ? "800ms" : undefined,
               }}>
                 🎲 Niveau · {LEVELS[gameLevel].name}
               </span>
@@ -998,10 +1050,16 @@ export default function App() {
             }}>
               {Array.from({ length: 81 }, (_, i) => {
                 const v = grid[i];
+                const shaking = shake && shake.cells.has(i);
+                const sweepMs = sweep ? sweep.delays.get(i) : undefined;
                 return (
-                  <div key={i} onClick={() => setSel(i)} style={cellStyle(i)}>
+                  <div key={shaking ? `${i}s${shake.stamp}` : i} onClick={() => setSel(i)}
+                    className={shaking ? "sc-shake" : undefined} style={cellStyle(i)}>
                     {v !== 0 ? (
-                      <span style={{
+                      <span
+                        key={pop && pop.cell === i ? `p${pop.stamp}` : undefined}
+                        className={pop && pop.cell === i ? "sc-pop" : undefined}
+                        style={{
                         fontSize: "min(6.2vw, 27px)",
                         fontWeight: phase === "play" && givens[i] ? 700 : 600,
                         fontFamily: NUMFONT, fontVariantNumeric: "tabular-nums",
@@ -1028,6 +1086,19 @@ export default function App() {
                         })}
                       </div>
                     ) : null}
+                    {sweepMs !== undefined && (
+                      <div key={`w${sweep.stamp}`} className="sc-sweep" style={{
+                        position: "absolute", inset: 0, background: C.yellowSoft,
+                        opacity: 0, pointerEvents: "none", animationDelay: `${sweepMs}ms`,
+                      }} />
+                    )}
+                    {celebrate && (
+                      <div key={`c${celebrate}`} className="sc-sweep" style={{
+                        position: "absolute", inset: 0, background: C.yellowSoft,
+                        opacity: 0, pointerEvents: "none",
+                        animationDelay: `${(rowOf(i) + colOf(i)) * 30}ms`,
+                      }} />
+                    )}
                   </div>
                 );
               })}
@@ -1066,8 +1137,11 @@ export default function App() {
           <div style={{ width: W, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, userSelect: "none" }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => {
               const remaining = 9 - (counts[d] || 0);
+              const pulsing = padPulse && padPulse.digit === d;
               return (
-                <button key={d} type="button" onClick={() => padPress(d)} style={{
+                <button key={pulsing ? `${d}p${padPulse.stamp}` : d} type="button"
+                  className={pulsing ? "sc-pulse" : undefined}
+                  onClick={() => padPress(d)} style={{
                   background: "#FFFFFF", border: "1px solid #D8DEDC", borderRadius: 12,
                   padding: "7px 0 5px", display: "flex", flexDirection: "column",
                   alignItems: "center", justifyContent: "center", gap: 1, cursor: "pointer",
