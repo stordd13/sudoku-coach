@@ -48,6 +48,7 @@ function Btn({ children, onClick, variant = "ghost", disabled, active, grow, tit
     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
     flex: grow ? 1 : "none", opacity: disabled ? 0.45 : 1, whiteSpace: "nowrap",
     WebkitTapHighlightColor: "transparent", transition: "background .15s",
+    minHeight: 44, touchAction: "manipulation",
   };
   const styles = {
     primary: { background: C.ink, color: "#fff", borderColor: C.ink },
@@ -65,7 +66,7 @@ function Btn({ children, onClick, variant = "ghost", disabled, active, grow, tit
 function LinkBtn({ children, onClick }) {
   return (
     <button type="button" onClick={onClick}
-      style={{ background: "none", border: "none", color: "#5A6763", textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: 4, fontFamily: "inherit" }}>
+      style={{ background: "none", border: "none", color: "#5A6763", textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: "13px 8px", fontFamily: "inherit", minHeight: 44, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
       {children}
     </button>
   );
@@ -103,7 +104,7 @@ function LessonBoard({ lesson, revealed }) {
       gridTemplateColumns: "repeat(9, 1fr)", gridTemplateRows: "repeat(9, 1fr)",
       border: `2.5px solid ${C.ink}`, borderRadius: 10, overflow: "hidden",
       background: C.surface, boxShadow: "0 10px 30px rgba(31,39,46,0.10)",
-      userSelect: "none", WebkitUserSelect: "none",
+      userSelect: "none", WebkitUserSelect: "none", touchAction: "manipulation",
     }}>
       {Array.from({ length: 81 }, (_, i) => {
         const r = rowOf(i), c = colOf(i);
@@ -264,6 +265,7 @@ function LearnView() {
                 borderRadius: 999, padding: "7px 12px", fontSize: 12.5, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
                 WebkitTapHighlightColor: "transparent",
+                minHeight: 44, touchAction: "manipulation",
               }}>
                 {l.num} · {l.title}
               </button>
@@ -922,7 +924,7 @@ export default function App() {
       minHeight: "100vh", backgroundColor: C.paper,
       backgroundImage: "linear-gradient(#E5EAE8 1px, transparent 1px), linear-gradient(90deg, #E5EAE8 1px, transparent 1px)",
       backgroundSize: "26px 26px",
-      padding: "calc(14px + env(safe-area-inset-top)) 12px 44px",
+      padding: "calc(14px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(44px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))",
       display: "flex", flexDirection: "column",
       alignItems: "center", gap: 12, color: C.ink,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -937,6 +939,8 @@ export default function App() {
   @keyframes scshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2.5px)}75%{transform:translateX(2.5px)}}
   .sc-pulse{animation:scpulse .45s ease-out}
   @keyframes scpulse{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+  .sc-screen{animation:scscreen .15s ease-out}
+  @keyframes scscreen{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 }`}</style>
 
       {/* ---------- En-tête ---------- */}
@@ -968,10 +972,16 @@ export default function App() {
             color: tab === k ? C.ink : "#5A6763",
             boxShadow: tab === k ? "0 1px 4px rgba(31,39,46,0.12)" : "none",
             WebkitTapHighlightColor: "transparent",
+            minHeight: 44, touchAction: "manipulation",
           }}>{l}</button>
         ))}
       </div>
 
+      {/* Transition douce entre écrans : le wrapper keyé remonte à chaque changement */}
+      <div key={tab === "learn" ? "learn" : `play:${screen}`} className="sc-screen" style={{
+        width: "100%", display: "flex", flexDirection: "column",
+        alignItems: "center", gap: 12,
+      }}>
       {tab === "learn" ? <LearnView /> : screen === "home" ? (
         <>
           {/* ---------- Accueil ---------- */}
@@ -1046,7 +1056,7 @@ export default function App() {
               gridTemplateColumns: "repeat(9, 1fr)", gridTemplateRows: "repeat(9, 1fr)",
               border: `2.5px solid ${C.ink}`, borderRadius: 10, overflow: "hidden",
               background: C.surface, boxShadow: "0 10px 30px rgba(31,39,46,0.10)",
-              userSelect: "none", WebkitUserSelect: "none",
+              userSelect: "none", WebkitUserSelect: "none", touchAction: "manipulation",
             }}>
               {Array.from({ length: 81 }, (_, i) => {
                 const v = grid[i];
@@ -1134,7 +1144,7 @@ export default function App() {
           </div>
 
           {/* ---------- Pavé numérique ---------- */}
-          <div style={{ width: W, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, userSelect: "none" }}>
+          <div style={{ width: W, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, userSelect: "none", touchAction: "manipulation" }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => {
               const remaining = 9 - (counts[d] || 0);
               const pulsing = padPulse && padPulse.digit === d;
@@ -1146,7 +1156,7 @@ export default function App() {
                   padding: "7px 0 5px", display: "flex", flexDirection: "column",
                   alignItems: "center", justifyContent: "center", gap: 1, cursor: "pointer",
                   boxShadow: "0 1px 0 rgba(31,39,46,0.05)", WebkitTapHighlightColor: "transparent",
-                  opacity: remaining <= 0 ? 0.35 : 1, fontFamily: "inherit",
+                  opacity: remaining <= 0 ? 0.35 : 1, fontFamily: "inherit", minHeight: 44,
                 }}>
                   <span style={{
                     fontSize: 21, fontWeight: 700, fontFamily: NUMFONT,
@@ -1163,7 +1173,7 @@ export default function App() {
               padding: "7px 0 5px", display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center", gap: 1, cursor: "pointer",
               boxShadow: "0 1px 0 rgba(31,39,46,0.05)", WebkitTapHighlightColor: "transparent",
-              fontFamily: "inherit",
+              fontFamily: "inherit", minHeight: 44,
             }}>
               <span style={{ fontSize: 19 }}>⌫</span>
               <span style={{ fontSize: 9.5, color: C.gray, fontWeight: 600 }}>effacer</span>
@@ -1267,7 +1277,10 @@ export default function App() {
                   )}
                   <button type="button" onClick={closePlan} style={{
                     background: "none", border: "none", fontSize: 16, color: "#8A948F",
-                    cursor: "pointer", padding: "2px 6px", fontFamily: "inherit",
+                    cursor: "pointer", padding: 0, fontFamily: "inherit",
+                    minWidth: 44, minHeight: 44, margin: "-10px -12px -10px -4px",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    touchAction: "manipulation", WebkitTapHighlightColor: "transparent",
                   }}>✕</button>
                 </div>
               </div>
@@ -1366,6 +1379,7 @@ export default function App() {
           <div style={{ fontSize: 11, color: "#98A29D" }}>Sauvegarde automatique sur cet appareil.</div>
         </>
       )}
+      </div>
 
       {tab !== "learn" && (
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPhoto} />
