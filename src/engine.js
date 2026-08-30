@@ -737,6 +737,10 @@ const ELIM_FINDERS = [
   [findRemotePairE, "remotePair"], [findColoringE, "coloring"],
   [findSueDeCoqE, "sueDeCoq"],
 ];
+// Accès par kind (tests et UI) : les finders de base ne sont pas exportés un à un.
+export const ELIM_FINDER_BY_KIND = Object.fromEntries(
+  ELIM_FINDERS.map(([f, kind]) => [kind, f])
+);
 const findElim = (cands, prefer, maxTier = 5) => {
   for (const [f, kind] of ELIM_FINDERS) {
     if (TIER_OF_KIND[kind] > maxTier) continue;
@@ -908,7 +912,7 @@ function finalizeHidden(grid, t, digit, unit, chain) {
     paras.push(...free);
   }
   paras.push(`Une seule case de ${uL} peut encore accueillir le ${digit} → **${name} = ${digit}**.`);
-  const hint1 = `Ne fixe pas la case toute seule : élargis le regard à **${uL}** en entier. Un chiffre n’y a plus qu’une seule place possible — repère-le en balayant les chiffres déjà posés dans les lignes et colonnes qui traversent cette zone.`;
+  const hint1 = `Ne fixe pas la case toute seule : élargis le regard ${unit.type === "box" ? "au" : "à la"} **${uL.replace(/^le |^la /, "")}** en entier. Un chiffre n’y a plus qu’une seule place possible — repère-le en balayant les chiffres déjà posés dans les lignes et colonnes qui traversent cette zone.`;
   const hint2 = `Le chiffre à placer est le **${digit}**. Passe en revue chaque case libre de ${uL} : toutes sauf une « voient » déjà un ${digit} (même ligne, même colonne ou même bloc).`;
   const typeFr = unit.type === "box" ? "bloc" : unit.type === "row" ? "ligne" : "colonne";
   return {
@@ -1090,7 +1094,13 @@ function findElimTiered(cands, cap) {
 
 // Simule un humain : singles jusqu'au point fixe, sinon une élimination (du
 // palier le plus bas possible, jamais au-delà de cap), et on recommence.
-export function solveHumanly(grid, cap = 5) {
+// Version instrumentée : onStep (optionnel) reçoit chaque événement —
+//   { type: "place", cell, digit, via: "single" | "hiddenSingle" }
+//   { type: "elim", e, values, cands } — values et cands copiés AU MOMENT T,
+//     avant application (cands : 81 tableaux triés).
+// onStep qui retourne true interrompt la résolution (aborted: true).
+// Sans onStep : zéro copie, zéro allocation — comportement de solveHumanly.
+export function solveHumanlySteps(grid, onStep, cap = 5) {
   const g = grid.slice();
   const cands = allCands(g); // persistants : les éliminations s'y accumulent
   const counts = {};
@@ -1109,10 +1119,13 @@ export function solveHumanly(grid, cap = 5) {
         if (g[i] !== 0) continue;
         if (cands[i].size === 0) return { solved: false, maxTier, counts };
         if (cands[i].size === 1) {
-          place(i, [...cands[i]][0]);
+          const d = [...cands[i]][0];
+          place(i, d);
           counts.single = (counts.single || 0) + 1;
           maxTier = Math.max(maxTier, 1);
           placed = true;
+          if (onStep && onStep({ type: "place", cell: i, digit: d, via: "single" }))
+            return { solved: false, aborted: true, maxTier, counts };
         }
       }
       for (let i = 0; i < 81; i++) {
@@ -1123,6 +1136,8 @@ export function solveHumanly(grid, cap = 5) {
           counts.hiddenSingle = (counts.hiddenSingle || 0) + 1;
           maxTier = Math.max(maxTier, 1);
           placed = true;
+          if (onStep && onStep({ type: "place", cell: i, digit: hs.digit, via: "hiddenSingle" }))
+            return { solved: false, aborted: true, maxTier, counts };
         }
       }
     }
@@ -1130,12 +1145,18 @@ export function solveHumanly(grid, cap = 5) {
     // 2. Une élimination du palier le plus bas possible
     const e = findElimTiered(cands, cap);
     if (!e) return { solved: false, maxTier, counts };
+    if (onStep && onStep({
+      type: "elim", e,
+      values: g.slice(),
+      cands: cands.map((s) => [...s].sort((a, b) => a - b)),
+    })) return { solved: false, aborted: true, maxTier, counts };
     applyElim(cands, e);
     counts[e.kind] = (counts[e.kind] || 0) + 1;
     maxTier = Math.max(maxTier, TIER_OF_KIND[e.kind]);
   }
   return { solved: false, maxTier, counts };
 }
+export const solveHumanly = (grid, cap = 5) => solveHumanlySteps(grid, null, cap);
 
 /* Niveaux 1-4 : Facile / Moyen / Difficile / Expert (5 : Diabolique).
    Grille pleine → creusage par paires symétriques (unicité obligatoire ; pour
@@ -1179,4 +1200,139 @@ export function generatePuzzle(level, rng = Math.random) {
   }
   delete best.score;
   return best; // meilleure grille obtenue, avec son niveau réel
+}
+
+/* ================================================================
+   EXERCICES — capture d'états réels pour l'onglet Apprendre
+   ================================================================ */
+
+// Creusage rapide NON gardé (unicité seule) : donne une grille difficile où les
+// techniques apparaissent naturellement. generatePuzzle (3 s/grille pour viser
+// un grade exact) serait inutilisable dans le time-box d'une recherche.
+function digUnguarded(full, rng) {
+  const g = full.slice();
+  const pairs = shuffle(
+    [...Array.from({ length: 40 }, (_, i) => [i, 80 - i]), [40]], rng
+  );
+  for (const pair of pairs) {
+    const saved = pair.map((i) => g[i]);
+    pair.forEach((i) => { g[i] = 0; });
+    if (solveGrid(g).count !== 1) pair.forEach((i, k) => { g[i] = saved[k]; });
+  }
+  return g;
+}
+
+// Cases à teinter (unit) / encadrer (focus) pour un exercice — même logique que
+// le surlignage du coach : la ou les zones que le motif « lit », plus ses cases.
+function elimHighlight(e) {
+  let unit;
+  switch (e.kind) {
+    case "nakedPair": case "hiddenPair":
+      unit = [...e.unit.cells]; break;
+    case "pointing": case "claiming":
+      unit = [...BOXES[e.box], ...e.line.cells]; break;
+    case "xWing": case "swordfish": {
+      const cross = e.lineType === "row" ? COLS : ROWS;
+      unit = e.cross.flatMap((c) => cross[c]); break;
+    }
+    case "kite":
+      unit = [...ROWS[e.row], ...COLS[e.col]]; break;
+    case "emptyRectangle":
+      unit = [...BOXES[e.box], ...e.linkLine.cells]; break;
+    case "wWing":
+      unit = [...e.linkUnit.cells, ...e.cells]; break;
+    case "sueDeCoq":
+      unit = [...e.line.cells, ...BOXES[e.box]]; break;
+    case "coloring":
+      unit = e.linkUnits.flatMap((u) => u.cells); break;
+    default: // skyscraper, xyWing, xyzWing, remotePair
+      unit = [...e.cells, ...e.removals.map((r) => r.cell)];
+  }
+  return { unit, focus: [...e.cells] };
+}
+
+// « Regarde du côté de {zone} » avec la contraction française qui va bien.
+function hintFromZone(e, zone) {
+  // Pour les poissons, la zone (« 2 lignes ») est moins parlante que le chiffre.
+  const z = e.kind === "xWing" || e.kind === "swordfish" ? `le ${e.digit}` : zone;
+  const de = z.startsWith("le ") ? `du ${z.slice(3)}`
+    : z.startsWith("les ") ? `des ${z.slice(4)}` : `de ${z}`;
+  return `Regarde du côté ${de}.`;
+}
+
+function exerciseFromElim(kind, step) {
+  const e = step.e;
+  const notes = {};
+  for (let i = 0; i < 81; i++) {
+    if (step.values[i] === 0 && step.cands[i].length) notes[i] = step.cands[i];
+  }
+  const removals = {};
+  for (const r of e.removals) {
+    removals[r.cell] = [...new Set([...(removals[r.cell] || []), ...r.digits])]
+      .sort((a, b) => a - b);
+  }
+  const d = describeElim(e);
+  const { unit, focus } = elimHighlight(e);
+  const ex = {
+    kind, given: step.values, notes, removals, unit, focus,
+    explain: [d.text], hint: hintFromZone(e, d.zone),
+  };
+  // Bonus : une case qui passe à candidat unique après application (l'unicité
+  // de la solution garantit que ce candidat est le bon chiffre).
+  for (const [cell, digs] of Object.entries(removals)) {
+    const left = notes[cell].filter((x) => !digs.includes(x));
+    if (left.length === 1 && notes[cell].length > 1) {
+      ex.target = Number(cell);
+      ex.answer = left[0];
+      break;
+    }
+  }
+  return ex;
+}
+
+// Singles : on cherche dans l'état INITIAL d'une grille creusée — buildPlan
+// fournit la preuve complète (paras, unitCells, indices contextuels).
+function exerciseFromSingle(kind, g) {
+  const cands = allCands(g);
+  for (let t = 0; t < 81; t++) {
+    if (g[t] !== 0) continue;
+    if (kind === "nakedSingle") {
+      if (cands[t].size !== 1) continue;
+    } else {
+      // Un vrai single caché : plusieurs candidats, mais une seule place pour lui.
+      if (cands[t].size < 2 || !findHiddenSingleFor(g, cands, t)) continue;
+    }
+    const plan = buildPlan(g, t);
+    if (!plan || plan.chain.length) continue; // preuve directe uniquement
+    return {
+      kind, given: g.slice(), notes: {}, removals: {},
+      unit: plan.unitCells, focus: [], target: t, answer: plan.digit,
+      explain: plan.paras, hint: plan.hint1,
+    };
+  }
+  return null;
+}
+
+// Cherche, dans le time-box, un état de grille réelle où la technique demandée
+// est LA prochaine étape (les singles sont épuisés, rien de plus simple ne
+// s'applique au même moment). null si la configuration est trop rare.
+export function findTechniqueExercise(kind, { timeBoxMs = 4000, rng = Math.random } = {}) {
+  const deadline = Date.now() + timeBoxMs;
+  const isSingle = kind === "nakedSingle" || kind === "hiddenSingle";
+  while (Date.now() < deadline) {
+    const g = digUnguarded(generateFullGrid(rng), rng);
+    if (isSingle) {
+      const ex = exerciseFromSingle(kind, g);
+      if (ex) return ex;
+      continue;
+    }
+    let found = null;
+    solveHumanlySteps(g, (step) => {
+      if (step.type !== "elim" || step.e.kind !== kind) return false;
+      found = exerciseFromElim(kind, step);
+      return true;
+    });
+    if (found) return found;
+  }
+  return null;
 }

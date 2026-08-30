@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, SAMPLES,
-  snyderNotes, generatePuzzle,
+  snyderNotes, generatePuzzle, findTechniqueExercise,
 } from "./engine.js";
 import { LESSONS } from "./lessons.js";
 
@@ -153,12 +153,93 @@ function LessonBoard({ lesson, revealed }) {
     </div>
   );
 }
+/* ----- Exercices « grille réelle » : mapping leçon → moteur, cache ----- */
+const KIND_BY_LESSON = {
+  "naked-single": "nakedSingle", "hidden-single": "hiddenSingle",
+  "naked-pair": "nakedPair", "pointing-pair": "pointing", "claiming": "claiming",
+  "hidden-pair": "hiddenPair", "x-wing": "xWing", "xy-wing": "xyWing",
+  "swordfish": "swordfish", "skyscraper": "skyscraper", "remote-pairs": "remotePair",
+  "xyz-wing": "xyzWing", "w-wing": "wWing", "kite": "kite",
+  "empty-rectangle": "emptyRectangle", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
+};
+const EXO_NAME_BY_ID = {
+  "naked-single": "le candidat unique", "hidden-single": "le single caché",
+  "naked-pair": "la paire nue", "pointing-pair": "la paire pointante",
+  "claiming": "la réduction bloc/ligne", "hidden-pair": "le duo caché",
+  "x-wing": "le X-Wing", "xy-wing": "le XY-Wing", "swordfish": "le Swordfish",
+  "skyscraper": "le Skyscraper", "remote-pairs": "les Remote Pairs",
+  "xyz-wing": "le XYZ-Wing", "w-wing": "le W-Wing", "kite": "le 2-String Kite",
+  "empty-rectangle": "l’Empty Rectangle", "coloring": "le coloriage",
+  "sue-de-coq": "le Sue de Coq",
+};
+const EXO_CACHE_KEY = "sudoku-coach-exos-v1";
+function loadExoCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(EXO_CACHE_KEY) || "{}");
+    return c && typeof c === "object" ? c : {};
+  } catch (e) { return {}; }
+}
+function saveExoCache(c) {
+  try { localStorage.setItem(EXO_CACHE_KEY, JSON.stringify(c)); } catch (e) { /* best-effort */ }
+}
+
 function LearnView() {
   const [ix, setIx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [exo, setExo] = useState(null); // null | "searching" | "notFound" | exercice
+  const refillRef = useRef(false);
   const L = LESSONS[ix];
-  useEffect(() => { setRevealed(false); setShowHint(false); }, [ix]);
+  const isExo = exo !== null && typeof exo === "object";
+  useEffect(() => { setRevealed(false); setShowHint(false); setExo(null); }, [ix]);
+
+  // Reremplit le cache en tranches de 250 ms pour ne pas geler l'interface
+  // pendant que l'utilisateur travaille l'exercice servi.
+  function refillCache(kind) {
+    if (refillRef.current) return;
+    refillRef.current = true;
+    let budget = 3000;
+    const tick = () => {
+      const cache = loadExoCache();
+      const list = cache[kind] || [];
+      if (list.length >= 3 || budget <= 0) { refillRef.current = false; return; }
+      budget -= 250;
+      const ex = findTechniqueExercise(kind, { timeBoxMs: 250 });
+      if (ex) { list.push(ex); cache[kind] = list; saveExoCache(cache); }
+      setTimeout(tick, 300);
+    };
+    setTimeout(tick, 600);
+  }
+
+  function newExercise() {
+    const kind = KIND_BY_LESSON[L.id];
+    setRevealed(false); setShowHint(false);
+    const cache = loadExoCache();
+    const list = cache[kind] || [];
+    if (list.length) {
+      const ex = list.shift();
+      cache[kind] = list;
+      saveExoCache(cache);
+      setExo(ex);
+      refillCache(kind);
+      return;
+    }
+    setExo("searching");
+    // setTimeout : laisse React peindre l'overlay avant la recherche synchrone.
+    setTimeout(() => {
+      const ex = findTechniqueExercise(kind);
+      setRevealed(false); setShowHint(false);
+      if (ex) { setExo(ex); refillCache(kind); }
+      else setExo("notFound");
+    }, 50);
+  }
+  function backToGuided() { setExo(null); setRevealed(false); setShowHint(false); }
+
+  const board = isExo
+    ? (revealed ? exo : { ...exo, unit: [], focus: [], target: undefined })
+    : L;
+  const question = isExo ? `Trouve ${EXO_NAME_BY_ID[L.id]} sur cette grille.` : L.question;
+  const hint = isExo ? exo.hint : L.hint;
   return (
     <>
       <div style={{ width: W, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, alignItems: "center" }}>
@@ -200,7 +281,27 @@ function LearnView() {
         <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0, color: "#3C464D" }}>{L.concept}</p>
       </div>
 
-      <LessonBoard lesson={L} revealed={revealed} />
+      <div style={{ position: "relative" }}>
+        <LessonBoard lesson={board} revealed={revealed} />
+        {exo === "searching" && (
+          <div style={{
+            position: "absolute", inset: 0, background: "rgba(241,244,243,0.85)",
+            borderRadius: 10, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 10, zIndex: 5,
+          }}>
+            <div style={{
+              width: 34, height: 34, border: "3px solid #C9D1CE", borderTopColor: C.teal,
+              borderRadius: "50%", animation: "scspin .9s linear infinite",
+            }} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#2B4A44" }}>Recherche d’un exemple…</div>
+          </div>
+        )}
+      </div>
+      {Object.keys(board.notes || {}).length > 0 && (
+        <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
+          Petits chiffres = tous les candidats encore possibles de la case.
+        </div>
+      )}
 
       <div style={{
         width: W, background: "#fff", border: "1px solid #E2E7E5",
@@ -208,11 +309,16 @@ function LearnView() {
         display: "flex", flexDirection: "column", gap: 9,
         boxShadow: "0 8px 24px rgba(31,39,46,0.08)",
       }}>
-        <div style={{ fontWeight: 700, fontSize: 14.5 }}>🎓 {L.question}</div>
-        {showHint && !revealed && (
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#5A6763" }}>💡 {L.hint}</p>
+        <div style={{ fontWeight: 700, fontSize: 14.5 }}>🎓 {question}</div>
+        {exo === "notFound" && (
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#8A5A16" }}>
+            Cette configuration est rare sur une grille réelle — réessaie 🍀
+          </p>
         )}
-        {revealed && (
+        {showHint && !revealed && (
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#5A6763" }}>💡 <Rich text={hint} /></p>
+        )}
+        {revealed && !isExo && (
           <>
             {L.steps.map((s, i) => (
               <div key={i} style={{
@@ -234,15 +340,49 @@ function LearnView() {
             </div>
           </>
         )}
+        {revealed && isExo && (
+          <>
+            {exo.explain.map((s, i) => (
+              <div key={i} style={{
+                border: "1px solid #EBDB9B", background: "#FFFBEA",
+                borderRadius: 10, padding: "8px 10px", fontSize: 13.5, lineHeight: 1.5,
+              }}>
+                <Rich text={s} />
+              </div>
+            ))}
+            {exo.target != null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, background: C.ink, color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
+                }}>{exo.answer}</div>
+                <div style={{ fontSize: 13, color: C.gray }}>
+                  en <strong style={{ color: C.ink }}>{cellName(exo.target)}</strong>
+                  {Object.keys(exo.removals).length ? " — l’élimination y laisse un candidat unique" : ""}
+                </div>
+              </div>
+            )}
+            <div style={{ fontSize: 11.5, color: C.gray }}>
+              Sur une grille réelle, le motif peut apparaître à plusieurs endroits — en voici un.
+            </div>
+          </>
+        )}
         <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
-          {!revealed && <Btn grow onClick={() => setShowHint(true)} disabled={showHint}>💡 Indice</Btn>}
-          {!revealed && <Btn variant="accent" grow onClick={() => setRevealed(true)}>Voir la solution</Btn>}
+          {!revealed && <Btn grow onClick={() => setShowHint(true)} disabled={showHint || exo === "searching"}>💡 Indice</Btn>}
+          {!revealed && <Btn variant="accent" grow onClick={() => setRevealed(true)} disabled={exo === "searching"}>Voir la solution</Btn>}
           {revealed && <Btn grow onClick={() => { setRevealed(false); setShowHint(false); }}>Masquer</Btn>}
-          {revealed && ix < LESSONS.length - 1 && (
+          {revealed && !isExo && ix < LESSONS.length - 1 && (
             <Btn variant="primary" grow onClick={() => setIx(ix + 1)}>Technique suivante →</Btn>
           )}
         </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn grow onClick={newExercise} disabled={exo === "searching"}>
+            {exo === "notFound" ? "🎲 Réessayer" : "🎲 Nouvel exemple (grille réelle)"}
+          </Btn>
+        </div>
       </div>
+      {isExo && <LinkBtn onClick={backToGuided}>← Revenir à l’exemple guidé</LinkBtn>}
       <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
         Ces techniques sont exactement celles utilisées par le coach dans l’onglet Jouer.
       </div>
