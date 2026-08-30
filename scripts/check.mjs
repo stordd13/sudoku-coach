@@ -9,7 +9,7 @@ import {
   snyderNotes,
   makeRng, generateFullGrid, solveHumanly, generatePuzzle, isComplete,
   findTechniqueExercise, ELIM_FINDER_BY_KIND, completedUnits,
-  randomTransform, transformPosition,
+  randomTransform, transformPosition, buildConstructiveExercise,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 
@@ -351,42 +351,44 @@ console.log("Génération :");
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
+// Invariants d'un exercice, revérifiés par le finder — partagé par les
+// sections 6 (recherche), 8 (constructif) et 9 (acceptation getExercise).
+const checkExercise = (kind, ex) => {
+  if (!ex) return false;
+  ok(Array.isArray(ex.given) && ex.given.length === 81 && conflictSet(ex.given).size === 0,
+    `${kind} : given sans conflit`);
+  let remOk = true;
+  for (const [c, ds] of Object.entries(ex.removals)) {
+    const shown = ex.notes[c] || [];
+    for (const d of ds) if (!shown.includes(d)) remOk = false;
+  }
+  ok(remOk, `${kind} : removals ⊆ notes case par case`);
+  if (kind === "nakedSingle") {
+    const cs = candidatesFromGrid(ex.given, ex.target);
+    ok(cs.length === 1 && cs[0] === ex.answer,
+      `${kind} : candidat unique ${ex.answer} en ${cellName(ex.target)}`);
+  } else if (kind === "hiddenSingle") {
+    const hs = findHiddenSingleFor(ex.given, allCands(ex.given), ex.target);
+    ok(!!hs && hs.digit === ex.answer,
+      `${kind} : single caché ${ex.answer} en ${cellName(ex.target)}`);
+  } else {
+    // Reconstruire les candidats depuis les notes → le finder correspondant
+    // doit retrouver une élimination du même kind sur ces cases.
+    const cands = Array.from({ length: 81 }, (_, i) => new Set(ex.notes[i] || []));
+    const prefer = new Set(Object.keys(ex.removals).map(Number));
+    const e = ELIM_FINDER_BY_KIND[kind](cands, prefer);
+    ok(!!e && e.kind === kind, `${kind} : élimination revérifiée par le finder`);
+    if (ex.target != null) {
+      const after = (ex.notes[ex.target] || [])
+        .filter((d) => !(ex.removals[ex.target] || []).includes(d));
+      ok(after.length === 1 && after[0] === ex.answer,
+        `${kind} : bonus — notes[target] − removals[target] = {${ex.answer}}`);
+    }
+  }
+  return true;
+};
 console.log("Exercices par technique :");
 {
-  const checkExercise = (kind, ex) => {
-    if (!ex) return false;
-    ok(Array.isArray(ex.given) && ex.given.length === 81 && conflictSet(ex.given).size === 0,
-      `${kind} : given sans conflit`);
-    let remOk = true;
-    for (const [c, ds] of Object.entries(ex.removals)) {
-      const shown = ex.notes[c] || [];
-      for (const d of ds) if (!shown.includes(d)) remOk = false;
-    }
-    ok(remOk, `${kind} : removals ⊆ notes case par case`);
-    if (kind === "nakedSingle") {
-      const cs = candidatesFromGrid(ex.given, ex.target);
-      ok(cs.length === 1 && cs[0] === ex.answer,
-        `${kind} : candidat unique ${ex.answer} en ${cellName(ex.target)}`);
-    } else if (kind === "hiddenSingle") {
-      const hs = findHiddenSingleFor(ex.given, allCands(ex.given), ex.target);
-      ok(!!hs && hs.digit === ex.answer,
-        `${kind} : single caché ${ex.answer} en ${cellName(ex.target)}`);
-    } else {
-      // Reconstruire les candidats depuis les notes → le finder correspondant
-      // doit retrouver une élimination du même kind sur ces cases.
-      const cands = Array.from({ length: 81 }, (_, i) => new Set(ex.notes[i] || []));
-      const prefer = new Set(Object.keys(ex.removals).map(Number));
-      const e = ELIM_FINDER_BY_KIND[kind](cands, prefer);
-      ok(!!e && e.kind === kind, `${kind} : élimination revérifiée par le finder`);
-      if (ex.target != null) {
-        const after = (ex.notes[ex.target] || [])
-          .filter((d) => !(ex.removals[ex.target] || []).includes(d));
-        ok(after.length === 1 && after[0] === ex.answer,
-          `${kind} : bonus — notes[target] − removals[target] = {${ex.answer}}`);
-      }
-    }
-    return true;
-  };
   const COMMON = ["nakedSingle", "hiddenSingle", "pointing", "claiming", "nakedPair", "hiddenPair"];
   for (const kind of COMMON) {
     const times = [];
@@ -474,6 +476,24 @@ console.log("Transformations :");
     ok(problems.length === 0,
       `[${L.num}] ${L.title} : 3 transformations valides${problems.length ? ` (${problems.join(" · ")})` : ""}`);
   }
+}
+
+/* ---------- 8. Génération constructive : motifs rares sur vraies grilles ---------- */
+console.log("Génération constructive :");
+for (const kind of ["xWing", "swordfish", "skyscraper", "kite", "remotePair"]) {
+  const times = [];
+  for (const seed of [101, 202, 303]) {
+    const t0 = Date.now();
+    const ex = buildConstructiveExercise(kind, { budgetMs: 1500, rng: makeRng(seed) });
+    const dt = Date.now() - t0;
+    times.push(dt);
+    ok(checkExercise(kind, ex) && dt < 1500, `${kind} (seed ${seed}) : construit et validé en ${dt} ms`);
+    if (ex) {
+      const g = ex.given.map((v) => v);
+      ok(solveGrid(g).count === 1, `${kind} (seed ${seed}) : solution unique`);
+    }
+  }
+  console.log(`  ℹ ${kind} (constructif) : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms (n=3)`);
 }
 
 console.log(failures === 0 ? "\nTOUT EST OK ✓" : `\n${failures} ÉCHEC(S) ✗`);

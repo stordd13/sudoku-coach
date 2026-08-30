@@ -1386,6 +1386,177 @@ function exerciseFromSingle(kind, g) {
   return null;
 }
 
+/* ---------- Génération constructive (motifs rares) ----------
+   Recette « solution d'abord » : le squelette du motif est choisi directement
+   dans une grille pleine S (un chiffre y apparaît une fois par ligne/colonne/
+   bloc — k lignes donnent donc k colonnes distinctes), on vide les cases du
+   motif + une ou deux victimes, et un oracle (finder du kind sur les candidats
+   bruts + unicité de la solution) valide chaque tentative (~0,1 ms). */
+const colOfDigitInRow = (S, r, d) => colOf(ROWS[r].find((i) => S[i] === d));
+const rowOfDigitInCol = (S, c, d) => rowOf(COLS[c].find((i) => S[i] === d));
+const bandOf = (r) => Math.floor(r / 3);
+const pileOf = (c) => Math.floor(c / 3);
+const ALL9 = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+
+// Vide les givens de valeur d qui voient `cell` (sinon d n'y serait pas
+// candidat). false si une case protégée devrait être vidée.
+function carveSupport(g, cell, d, protectedSet) {
+  for (const p of PEERS[cell]) {
+    if (g[p] !== d) continue;
+    if (protectedSet.has(p)) return false;
+    g[p] = 0;
+  }
+  return true;
+}
+
+// X-Wing (size 2) / Swordfish (size 3) : k lignes, les colonnes du chiffre
+// dans S, tout le croisement vidé, victimes dans les colonnes hors lignes.
+function skeletonFish(size) {
+  return (S, rng) => {
+    const g = S.slice();
+    const d = 1 + Math.floor(rng() * 9);
+    const rows = shuffle(ALL9.slice(), rng).slice(0, size);
+    const cols = rows.map((r) => colOfDigitInRow(S, r, d));
+    const protectedSet = new Set(rows.flatMap((r) => ROWS[r]));
+    const pattern = rows.flatMap((r) => cols.map((c) => r * 9 + c));
+    pattern.forEach((i) => { g[i] = 0; });
+    for (const i of pattern) if (!carveSupport(g, i, d, protectedSet)) return null;
+    const rowSet = new Set(rows);
+    const victims = [];
+    const spots = shuffle(cols.flatMap((c) => COLS[c].filter((i) => !rowSet.has(rowOf(i)))), rng);
+    for (const v of spots) {
+      if (victims.length >= 2) break;
+      g[v] = 0;
+      if (!carveSupport(g, v, d, protectedSet)) return null;
+      victims.push(v);
+    }
+    return victims.length ? { g, victims } : null;
+  };
+}
+
+// Skyscraper : lignes de bandes ≠ dont les toits (colonnes du d dans S)
+// partagent la même pile, base commune hors pile ; victime dans
+// box(toit) ∩ colonne de l'autre toit.
+function skeletonSkyscraper(S, rng) {
+  const g = S.slice();
+  for (const d of shuffle(ALL9.map((x) => x + 1), rng)) {
+    const colD = ALL9.map((r) => colOfDigitInRow(S, r, d));
+    const pairs = [];
+    for (let r1 = 0; r1 < 9; r1++) for (let r2 = r1 + 1; r2 < 9; r2++) {
+      if (bandOf(r1) === bandOf(r2)) continue;
+      if (colD[r1] === colD[r2] || pileOf(colD[r1]) !== pileOf(colD[r2])) continue;
+      pairs.push([r1, r2]);
+    }
+    if (!pairs.length) continue;
+    const [r1, r2] = pairs[Math.floor(rng() * pairs.length)];
+    const ct1 = colD[r1], ct2 = colD[r2];
+    const cb = shuffle(ALL9.filter((c) => pileOf(c) !== pileOf(ct1)), rng)[0];
+    const protectedSet = new Set([...ROWS[r1], ...ROWS[r2]]);
+    const pattern = [r1 * 9 + ct1, r2 * 9 + ct2, r1 * 9 + cb, r2 * 9 + cb];
+    pattern.forEach((i) => { g[i] = 0; });
+    for (const i of pattern) if (!carveSupport(g, i, d, protectedSet)) return null;
+    const spots = [];
+    for (let k = 0; k < 3; k++) {
+      const ra = bandOf(r1) * 3 + k, rb = bandOf(r2) * 3 + k;
+      if (ra !== r1) spots.push(ra * 9 + ct2);
+      if (rb !== r2) spots.push(rb * 9 + ct1);
+    }
+    const v = shuffle(spots, rng).find((i) => g[i] !== 0);
+    if (v === undefined) return null;
+    g[v] = 0;
+    if (!carveSupport(g, v, d, protectedSet)) return null;
+    return { g, victims: [v] };
+  }
+  return null;
+}
+
+// 2-String Kite : autour d'un bloc, une ligne de sa bande (d hors pile) et une
+// colonne de sa pile (d hors bande), deux cases vidées dans le bloc ;
+// victime au croisement des extrémités libres.
+function skeletonKite(S, rng) {
+  const g = S.slice();
+  for (const b of shuffle(ALL9.slice(), rng)) {
+    const bandRows = [0, 1, 2].map((k) => Math.floor(b / 3) * 3 + k);
+    const pileCols = [0, 1, 2].map((k) => (b % 3) * 3 + k);
+    for (const d of shuffle(ALL9.map((x) => x + 1), rng)) {
+      const rowsOk = bandRows.filter((r) => !pileCols.includes(colOfDigitInRow(S, r, d)));
+      const colsOk = pileCols.filter((c) => !bandRows.includes(rowOfDigitInCol(S, c, d)));
+      if (!rowsOk.length || !colsOk.length) continue;
+      const r = rowsOk[Math.floor(rng() * rowsOk.length)];
+      const c = colsOk[Math.floor(rng() * colsOk.length)];
+      const cfree = colOfDigitInRow(S, r, d), rfree = rowOfDigitInCol(S, c, d);
+      const cin = shuffle(pileCols.filter((x) => x !== c), rng)[0];
+      const rin = shuffle(bandRows.filter((x) => x !== r), rng)[0];
+      const pattern = [r * 9 + cfree, r * 9 + cin, rfree * 9 + c, rin * 9 + c];
+      const protectedSet = new Set([...ROWS[r], ...COLS[c]]);
+      pattern.forEach((i) => { g[i] = 0; });
+      for (const i of pattern) if (!carveSupport(g, i, d, protectedSet)) return null;
+      const v = rfree * 9 + cfree;
+      if (g[v] === 0) return null;
+      g[v] = 0;
+      if (!carveSupport(g, v, d, protectedSet)) return null;
+      return { g, victims: [v] };
+    }
+  }
+  return null;
+}
+
+// Remote Pairs : marche dans S en alternant deux valeurs a/b de peer en peer
+// (4 maillons, sans adjacence de même couleur), victime voyant les deux
+// extrémités. Le creusage support des a/b visibles est indispensable pour
+// rendre les maillons bivalués.
+function skeletonRemotePair(S, rng) {
+  const g = S.slice();
+  const [a, b] = shuffle(ALL9.map((x) => x + 1), rng);
+  const none = new Set();
+  const cellsA = shuffle(Array.from({ length: 81 }, (_, i) => i).filter((i) => S[i] === a), rng);
+  for (const c1 of cellsA) {
+    for (const c2 of shuffle([...PEERS[c1]].filter((i) => S[i] === b), rng)) {
+      for (const c3 of shuffle([...PEERS[c2]].filter((i) => S[i] === a && i !== c1 && !PEERS[c1].has(i)), rng)) {
+        for (const c4 of shuffle([...PEERS[c3]].filter((i) => S[i] === b && i !== c2 && !PEERS[c2].has(i)), rng)) {
+          const chain = [c1, c2, c3, c4];
+          const v = shuffle(
+            [...PEERS[c1]].filter((i) => PEERS[c4].has(i) && !chain.includes(i)), rng
+          )[0];
+          if (v === undefined) continue;
+          chain.forEach((i) => { g[i] = 0; });
+          g[v] = 0;
+          for (const i of [...chain, v]) {
+            carveSupport(g, i, a, none);
+            carveSupport(g, i, b, none);
+          }
+          return { g, victims: [v] };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+const CONSTRUCTORS = {
+  xWing: skeletonFish(2), swordfish: skeletonFish(3),
+  skyscraper: skeletonSkyscraper, kite: skeletonKite, remotePair: skeletonRemotePair,
+};
+
+// Construit une vraie grille autour du motif demandé. Chaque tentative est
+// validée par l'oracle : finder du kind sur candidats bruts (prefer=victimes)
+// + solution unique. null si kind non couvert ou budget épuisé.
+export function buildConstructiveExercise(kind, { budgetMs = 1500, rng = Math.random } = {}) {
+  const build = CONSTRUCTORS[kind];
+  if (!build) return null;
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    const sk = build(generateFullGrid(rng), rng);
+    if (!sk) continue;
+    const cands = allCands(sk.g);
+    const e = ELIM_FINDER_BY_KIND[kind](cands, new Set(sk.victims));
+    if (!e) continue;
+    if (solveGrid(sk.g).count !== 1) continue;
+    return packageExercise(kind, e, sk.g, cands.map((s) => [...s].sort((x, y) => x - y)));
+  }
+  return null;
+}
+
 // Part du time-box réservée aux captures « brutes » (l'élim visée est la
 // première de la résolution : notes affichées ≡ candidats bruts de la grille).
 // Mesuré sur 1000 grilles : l'Empty Rectangle n'apparaît jamais en premier → 0.
