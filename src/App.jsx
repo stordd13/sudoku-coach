@@ -751,7 +751,16 @@ export default function App() {
       // une autre, un plan valide peut la contredire ; on ne filtre donc pas.
       if (p && (!solRef || multiSol || p.digit === solRef[i])) plans.push(p);
     }
-    if (!plans.length) { setPlan({ kind: "stuckAll" }); setLevel(0); return; }
+    if (!plans.length) {
+      // Avant d'annoncer « plus rien n'est déductible » : si un chiffre posé
+      // contredit la solution, c'est LUI la cause — orienter vers Vérifier.
+      // (multiSol : indécidable par solRef, on garde le panneau générique.)
+      const hasWrong = solRef && !multiSol &&
+        grid.some((v, i) => v && !givens[i] && v !== solRef[i]);
+      setPlan({ kind: hasWrong ? "stuckError" : "stuckAll" });
+      setLevel(0);
+      return;
+    }
     const min = Math.min(...plans.map((p) => p.difficulty));
     const easiest = plans.filter((p) => p.difficulty === min);
     const p = easiest[Math.floor(Math.random() * easiest.length)];
@@ -1468,6 +1477,19 @@ export default function App() {
                   }}>✕</button>
                 </div>
               </div>
+
+              {plan.kind === "stuckError" && (
+                <>
+                  <p style={pStyle}>
+                    Je ne trouve plus de déduction — et la cause est probablement là : au moins un
+                    chiffre posé ne correspond pas à la solution. Vérifions ensemble.
+                  </p>
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <Btn variant="primary" grow onClick={() => { closePlan(); checkErrors(); }}>🔍 Vérifier</Btn>
+                    <Btn grow onClick={closePlan}>Fermer</Btn>
+                  </div>
+                </>
+              )}
 
               {plan.kind === "stuckAll" && (
                 <>
