@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
-  candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, SAMPLES,
+  candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, stuckPanelKind, SAMPLES,
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
 import { getExercise, KIND_BY_LESSON } from "./exercises.js";
@@ -751,7 +751,22 @@ export default function App() {
     }
     const p = buildPlan(grid, t);
     if (p && (!solRef || multiSol || p.digit === solRef[t])) { setPlan(p); setLevel(0); }
-    else { setPlan({ kind: "stuck", target: t }); setLevel(0); }
+    else {
+      const kind = stuckPlanFor(false);
+      if (kind === "wrong-digit") setPlan({ kind: "stuckError" });
+      else if (kind === "multi-sol") setPlan({ kind: "stuckMulti", target: t });
+      else setPlan({ kind: "stuck", target: t }); // grille unique : panneau par case inchangé
+      setLevel(0);
+    }
+  }
+  // Quand plus rien n'est déductible : choisir le panneau honnête. Sur grille
+  // ambiguë, seule une contradiction prouve une erreur (solRef n'est qu'une
+  // solution parmi d'autres) — cohérent avec « Vérifier » (checkErrors).
+  function stuckPlanFor(anyPlan) {
+    const hasWrongDigit = multiSol
+      ? [...conflictSet(grid)].some((i) => !givens[i])
+      : !!solRef && grid.some((v, i) => v && !givens[i] && v !== solRef[i]);
+    return stuckPanelKind({ multiSol, hasWrongDigit, anyPlan });
   }
   function randomHint() {
     if (phase !== "play") { flash("Appuie d’abord sur « Commencer » pour verrouiller la grille."); return; }
@@ -766,12 +781,8 @@ export default function App() {
       if (p && (!solRef || multiSol || p.digit === solRef[i])) plans.push(p);
     }
     if (!plans.length) {
-      // Avant d'annoncer « plus rien n'est déductible » : si un chiffre posé
-      // contredit la solution, c'est LUI la cause — orienter vers Vérifier.
-      // (multiSol : indécidable par solRef, on garde le panneau générique.)
-      const hasWrong = solRef && !multiSol &&
-        grid.some((v, i) => v && !givens[i] && v !== solRef[i]);
-      setPlan({ kind: hasWrong ? "stuckError" : "stuckAll" });
+      const kind = stuckPlanFor(false);
+      setPlan({ kind: { "wrong-digit": "stuckError", "multi-sol": "stuckMulti", "beyond-coach": "stuckAll" }[kind] });
       setLevel(0);
       return;
     }
@@ -1565,6 +1576,19 @@ export default function App() {
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="primary" grow onClick={solveAll}>Tout résoudre</Btn>
                     <Btn grow onClick={revealLeastCandidates}>💡 Révéler une case</Btn>
+                    <Btn grow onClick={closePlan}>Fermer</Btn>
+                  </div>
+                </>
+              )}
+
+              {plan.kind === "stuckMulti" && (
+                <>
+                  <p style={pStyle}>
+                    <Rich text={"Sur une grille à plusieurs solutions, les cases où elles divergent sont **indéductibles** — aucune technique n’y peut rien. Le plus probable : un chiffre de l’énoncé manque."} />
+                  </p>
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <Btn variant="primary" grow onClick={backToEdit}>✏️ Modifier la grille</Btn>
+                    <Btn grow onClick={() => (plan.target != null ? revealAnyway(plan.target) : revealLeastCandidates())}>💡 Révéler une case</Btn>
                     <Btn grow onClick={closePlan}>Fermer</Btn>
                   </div>
                 </>

@@ -1045,6 +1045,16 @@ export function buildPlan(grid, target) {
   return null;
 }
 
+/* ---------- Routage du panneau « bloqué » (👣/🎯) ----------
+   Priorité : erreur prouvée > grille ambiguë > mur légitime.
+   anyPlan=true → null : le coach a un plan, pas de panneau bloqué. */
+export function stuckPanelKind({ multiSol, hasWrongDigit, anyPlan }) {
+  if (anyPlan) return null;
+  if (hasWrongDigit) return "wrong-digit";
+  if (multiSol) return "multi-sol";
+  return "beyond-coach";
+}
+
 /* ================================================================
    GÉNÉRATION — grille pleine, gradation « humaine », creusage
    ================================================================ */

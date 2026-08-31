@@ -2,7 +2,7 @@
    Lancer : npm run check */
 import {
   PEERS, BOXES, COLS, candidatesFromGrid, allCands, conflictSet,
-  findHiddenSingleFor, solveGrid, buildPlan, SAMPLES, cellName, rowOf, colOf,
+  findHiddenSingleFor, solveGrid, buildPlan, stuckPanelKind, SAMPLES, cellName, rowOf, colOf,
   findXWingE, findSwordfishE, findSkyscraperE, findXYWingE, findRemotePairE,
   findXYZWingE, findWWingE, findKiteE, findEmptyRectangleE,
   findColoringE, findSueDeCoqE,
@@ -418,6 +418,25 @@ console.log("Parties intégrales (chemin du joueur) :");
     "fixture repro : au moins un plan mobilise une technique de palier 4");
   const r = playThrough(g, solution);
   ok(r.done && r.mismatches === 0, `fixture repro : partie terminée depuis l'état bloqué (${r.moves} coups)`);
+}
+
+/* ---------- 5c. Routage du panneau « bloqué » : table de vérité ---------- */
+console.log("Routage du panneau bloqué (stuckPanelKind) :");
+{
+  const T = [ // [multiSol, hasWrongDigit, anyPlan] → attendu
+    [false, false, false, "beyond-coach"],
+    [false, false, true,  null],
+    [false, true,  false, "wrong-digit"],
+    [false, true,  true,  null],
+    [true,  false, false, "multi-sol"],
+    [true,  false, true,  null],
+    [true,  true,  false, "wrong-digit"], // priorité : erreur prouvée avant multi-solutions
+    [true,  true,  true,  null],
+  ];
+  for (const [multiSol, hasWrongDigit, anyPlan, want] of T) {
+    const got = stuckPanelKind({ multiSol, hasWrongDigit, anyPlan });
+    ok(got === want, `multiSol=${multiSol} wrong=${hasWrongDigit} anyPlan=${anyPlan} → ${String(want)}`);
+  }
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
