@@ -354,6 +354,66 @@ console.log("Génération :");
   }
 }
 
+/* ---------- 5b. Parties intégrales : le chemin RÉEL du joueur ----------
+   solveHumanly grade les grilles, mais le joueur, lui, avance par buildPlan
+   (👣/🎯). Cette section joue des parties entières par ce chemin-là : c'est le
+   test qui manquait quand des grilles « gradées résolubles » se bloquaient en
+   jeu (asymétrie corrigée par MAX_CHAIN, partagé entre les deux moteurs). */
+console.log("Parties intégrales (chemin du joueur) :");
+{
+  // Boucle 👣 déterministe : meilleur plan sur toutes les cases vides,
+  // difficulté minimale (premier ex æquo), placement — comme randomHint,
+  // mais sans tirage au sort et sans écarter les désaccords : un plan dont le
+  // chiffre contredit la solution est un bug de déduction, pas un blocage.
+  const playThrough = (grid, sol) => {
+    const g = grid.slice();
+    let mismatches = 0, moves = 0;
+    for (let guard = 0; guard < 81; guard++) {
+      let best = null;
+      for (let i = 0; i < 81; i++) {
+        if (g[i] !== 0) continue;
+        const p = buildPlan(g, i);
+        if (!p) continue;
+        if (p.digit !== sol[i]) mismatches++;
+        if (!best || p.difficulty < best.difficulty) best = p;
+      }
+      if (!best) break; // blocage : plus aucune case déductible
+      g[best.target] = best.digit;
+      moves++;
+    }
+    return { done: isComplete(g), mismatches, moves, left: g.filter((v) => !v).length };
+  };
+
+  // Seeds fixes (cf. section 5 : en changer si une évolution du moteur fait
+  // tomber l'un d'eux en fallback de niveau).
+  for (const lvl of [1, 2, 3, 4]) {
+    const t0 = Date.now();
+    for (let s = 0; s < 3; s++) {
+      const p = generatePuzzle(lvl, makeRng(lvl * 100000 + s * 137 + 11));
+      ok(p.level === lvl, `niveau ${lvl} seed ${s} : niveau atteint (réel=${p.level})`);
+      const r = playThrough(p.grid.split("").map(Number), p.solution.split("").map(Number));
+      ok(r.done, `niveau ${lvl} seed ${s} : partie terminée (${r.moves} coups${r.done ? "" : `, ${r.left} cases restantes`})`);
+      ok(r.mismatches === 0, `niveau ${lvl} seed ${s} : zéro chiffre contredisant la solution`);
+    }
+    console.log(`  ℹ niveau ${lvl} : 3 parties jouées en ${Date.now() - t0} ms`);
+  }
+
+  // Fixture de régression : état réel autrefois bloqué (28 cases restantes,
+  // résoluble tier 4, aucun plan trouvable avec l'ancien plafond de 4).
+  const REPRO = "905704830380025079007839005056382907809576300273941500600257190700498050590003704";
+  const g = REPRO.split("").map(Number);
+  const { count, solution } = solveGrid(g);
+  ok(count === 1, "fixture repro : solution unique");
+  const reproPlans = g.map((v, i) => (v === 0 ? buildPlan(g, i) : null)).filter(Boolean);
+  ok(reproPlans.length > 0, "fixture repro : au moins une case produit un plan");
+  // Cet état exige le palier 4 : la preuve par paliers doit l'atteindre.
+  const TIER4 = new Set(["xWing", "xyWing", "xyzWing", "wWing", "swordfish", "kite", "skyscraper", "emptyRectangle", "remotePair"]);
+  ok(reproPlans.some((p) => p.rawChain.some((e) => TIER4.has(e.kind))),
+    "fixture repro : au moins un plan mobilise une technique de palier 4");
+  const r = playThrough(g, solution);
+  ok(r.done && r.mismatches === 0, `fixture repro : partie terminée depuis l'état bloqué (${r.moves} coups)`);
+}
+
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
 // Invariants d'un exercice, revérifiés par le finder — partagé par les
 // sections 6 (recherche), 8 (constructif) et 9 (acceptation getExercise).
