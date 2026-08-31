@@ -1001,6 +1001,12 @@ const ELIM_WEIGHTS = {
 const planDifficulty = (base, kept) =>
   base + kept.reduce((s, e) => s + (ELIM_WEIGHTS[e.kind] || 5), 0);
 
+/* Plafond d'éliminations enchaînées entre deux placements — PARTAGÉ entre
+   buildPlan (chemin de jeu 👣/🎯) et solveHumanlySteps (gradeur de génération).
+   Invariant : gradé résoluble ⟺ finissable en jeu. Deux bornes différentes
+   recréeraient des grilles certifiées résolubles mais infinissables en partie. */
+export const MAX_CHAIN = 8;
+
 export function buildPlan(grid, target) {
   if (grid[target] !== 0) return null;
   const baseCands = candidatesFromGrid(grid, target);
@@ -1011,7 +1017,8 @@ export function buildPlan(grid, target) {
   for (const maxTier of [2, 3, 4, 5]) {
     const cands = allCands(grid);
     const chain = [];
-    for (let k = 0; k < 8; k++) {
+    // MAX_CHAIN+1 itérations : la dernière teste le single créé par la 8e élim.
+    for (let k = 0; k <= MAX_CHAIN; k++) {
       const cs = [...cands[target]];
       if (cs.length === 1) {
         const kept = pruneChain(grid, chain, { type: "naked", target, digit: cs[0], baseCands });
@@ -1028,7 +1035,7 @@ export function buildPlan(grid, target) {
         plan.difficulty = planDifficulty(2, kept);
         return plan;
       }
-      if (chain.length >= 4) break; // palier suivant
+      if (chain.length >= MAX_CHAIN) break; // palier suivant
       const e = findElim(cands, prefer, maxTier) || findElim(cands, null, maxTier);
       if (!e) break; // palier suivant
       applyElim(cands, e);
@@ -1117,7 +1124,9 @@ export function solveHumanlySteps(grid, onStep, cap = 5) {
   const cands = allCands(g); // persistants : les éliminations s'y accumulent
   const counts = {};
   let maxTier = 0;
+  let elimRun = 0; // éliminations enchaînées depuis le dernier placement
   const place = (i, d) => {
+    elimRun = 0;
     g[i] = d;
     cands[i] = new Set();
     PEERS[i].forEach((p) => cands[p].delete(d));
@@ -1154,7 +1163,10 @@ export function solveHumanlySteps(grid, onStep, cap = 5) {
       }
     }
     if (!g.some((v) => v === 0)) return { solved: true, maxTier, counts };
-    // 2. Une élimination du palier le plus bas possible
+    // 2. Une élimination du palier le plus bas possible — bornée par MAX_CHAIN
+    // entre deux placements, comme buildPlan : au-delà, la grille est déclarée
+    // non résoluble « humainement » (le joueur ne pourrait pas la finir en jeu).
+    if (elimRun >= MAX_CHAIN) return { solved: false, maxTier, counts };
     const e = findElimTiered(cands, cap);
     if (!e) return { solved: false, maxTier, counts };
     if (onStep && onStep({
@@ -1163,6 +1175,7 @@ export function solveHumanlySteps(grid, onStep, cap = 5) {
       cands: cands.map((s) => [...s].sort((a, b) => a - b)),
     })) return { solved: false, aborted: true, maxTier, counts };
     applyElim(cands, e);
+    elimRun++;
     counts[e.kind] = (counts[e.kind] || 0) + 1;
     maxTier = Math.max(maxTier, TIER_OF_KIND[e.kind]);
   }

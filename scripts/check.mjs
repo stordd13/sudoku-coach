@@ -65,11 +65,14 @@ console.log("Preuves par paliers :");
   ok(p30 && p30.digit === 7 && p30.chain.length === 1 && p30.chain[0].title === "Duo caché",
     "L4C4 : preuve tier 3 (duo caché), pas d'escalade");
 
-  // Et inversement : quand le tier 4 est réellement nécessaire, on l'atteint.
+  // Et le budget MAX_CHAIN sert la simplicité : avant lui, la recherche palier 3
+  // cassait au 4e maillon et escaladait au 2-String Kite (palier 4) ; avec lui,
+  // L2C9 se prouve au palier 3 (chaîne plus longue, techniques plus simples).
+  // Le palier 4 « réellement nécessaire » est couvert par la fixture de 5b.
   const p17 = buildPlan(g, 17); // L2C9
   ok(p17 && p17.digit === 9
-    && p17.chain.map((s) => s.title).join("|") === "Paire pointante|2-String Kite",
-    "repro L2C9 : preuve tier 4 (pointante puis kite) quand rien de plus simple n'existe");
+    && p17.chain.every((s) => s.title === "Paire pointante" || s.title === "Paire nue"),
+    "repro L2C9 : preuve palier 3 (pointantes + paire nue) grâce au budget MAX_CHAIN");
 }
 
 /* ---------- 2c. Difficulté : « Étape suivante » choisit la plus simple ---------- */
