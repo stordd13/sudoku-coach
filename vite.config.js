@@ -12,7 +12,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,png,webmanifest}"],
         // /api/* reste réseau uniquement : jamais servi par le fallback SPA.
-        navigateFallbackDenylist: [/^\/api\//],
+        // /confidentialite est une vraie page statique (fiche App Store) :
+        // sans cette exclusion, le service worker servirait index.html à la place.
+        navigateFallbackDenylist: [/^\/api\//, /^\/confidentialite/],
       },
     }),
   ],

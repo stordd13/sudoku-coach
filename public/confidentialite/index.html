@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F1F4F3" />
+  <title>Confidentialité — Sudoku·Coach</title>
+  <link rel="icon" type="image/png" href="/icon-192.png" />
+  <style>
+    :root {
+      --paper: #F1F4F3; --ink: #1F272E; --teal: #12766F;
+      --gray: #5A6763; --line: #C9D1CE;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--paper); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-image:
+        linear-gradient(rgba(201, 209, 206, 0.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(201, 209, 206, 0.35) 1px, transparent 1px);
+      background-size: 24px 24px;
+      padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+    }
+    main {
+      max-width: 560px; margin: 0 auto; background: #fff;
+      border: 1px solid #E2E7E5; border-radius: 14px;
+      padding: 24px 20px; box-shadow: 0 8px 24px rgba(31, 39, 46, 0.08);
+    }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 22px 0 6px; color: var(--teal); }
+    p, li { font-size: 14px; line-height: 1.55; color: var(--gray); margin: 6px 0; }
+    strong { color: var(--ink); }
+    a { color: var(--teal); }
+    .date { font-size: 12px; color: #98A29D; margin-bottom: 14px; }
+    .back { display: inline-block; margin-top: 20px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔒 Confidentialité</h1>
+    <p class="date">Sudoku·Coach — dernière mise à jour : 31 août 2026</p>
+
+    <p><strong>En bref : tout reste sur ton appareil.</strong> Pas de compte,
+    pas de tracking, pas de publicité, pas de statistiques d’usage.</p>
+
+    <h2>Ce qui est stocké, et où</h2>
+    <p>Tes grilles, tes notes, ta progression et ton compteur de scans sont
+    enregistrés <strong>uniquement sur ton appareil</strong> (stockage local du
+    navigateur, ou stockage de l’application sur iPhone). Rien de tout cela
+    n’est envoyé ni conservé sur un serveur. Supprimer l’app (ou vider les
+    données du site) efface tout.</p>
+
+    <h2>Le scan photo</h2>
+    <p>Quand tu scannes une grille, la photo est envoyée à notre fonction
+    serveur, qui la transmet à une API de lecture (OCR) pour en extraire les
+    81 chiffres. La photo sert <strong>uniquement</strong> à cette lecture :
+    elle n’est <strong>pas conservée</strong> après la réponse, ni chez nous,
+    ni utilisée pour autre chose.</p>
+    <p>Pour protéger le service contre les abus, ton adresse IP est utilisée
+    <strong>transitoirement</strong> afin de limiter le nombre de scans par
+    jour. Elle n’est pas associée à un profil.</p>
+
+    <h2>L’achat « Scan illimité » (app iPhone)</h2>
+    <p>L’achat intégré est traité par <strong>Apple</strong> — nous ne voyons
+    jamais tes informations de paiement. Le déblocage est géré par RevenueCat
+    avec un <strong>identifiant anonyme</strong>, uniquement pour savoir que
+    l’achat est actif et pouvoir le restaurer sur tes appareils.</p>
+
+    <h2>Questions</h2>
+    <p>Écris-nous : <a href="mailto:stordeur.bru@gmail.com">stordeur.bru@gmail.com</a></p>
+
+    <a class="back" href="/">← Retour à Sudoku·Coach</a>
+  </main>
+</body>
+</html>
