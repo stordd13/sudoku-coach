@@ -788,6 +788,19 @@ export default function App() {
     });
     setLevel(2);
   }
+  // Mur légitime (stuckAll) : révèle LA case vide au moins de candidats —
+  // celle qui a le plus de chances de relancer les déductions du coach.
+  function revealLeastCandidates() {
+    let best = null, bestN = 10;
+    for (let i = 0; i < 81; i++) {
+      if (grid[i] !== 0) continue;
+      const n = candidatesFromGrid(grid, i).length;
+      if (n < bestN) { bestN = n; best = i; }
+    }
+    if (best === null) { closePlan(); return; }
+    setSel(best);
+    revealAnyway(best);
+  }
   function placeFromPlan() {
     if (!plan || plan.kind !== "ok" || plan.target == null) return;
     const t = plan.target, d = plan.digit;
@@ -1497,10 +1510,12 @@ export default function App() {
                     Plus aucune case n’est déductible avec les techniques du coach (candidat unique,
                     singles cachés, paires, alignements, X-Wing, XY-Wing, XYZ-Wing, W-Wing, Swordfish,
                     2-String Kite, Skyscraper, Empty Rectangle, Remote Pairs, coloriage, Sue de Coq).
-                    La suite demande des chaînes de forçage — au-delà du programme du coach.
+                    La suite demande des techniques au-delà du coach. Révèle une case pour te
+                    relancer, ou laisse-moi tout résoudre.
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="primary" grow onClick={solveAll}>Tout résoudre</Btn>
+                    <Btn grow onClick={revealLeastCandidates}>💡 Révéler une case</Btn>
                     <Btn grow onClick={closePlan}>Fermer</Btn>
                   </div>
                 </>
