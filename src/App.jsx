@@ -718,7 +718,7 @@ export default function App() {
   /* ----- solve complet ----- */
   function solveAll() {
     const baseGrid = phase === "play" ? grid.map((v, i) => (givens[i] ? v : 0)) : grid;
-    const { solution } = solveGrid(baseGrid);
+    const { count, solution } = solveGrid(baseGrid);
     if (!solution) { flash("Grille insoluble — corrige la saisie.", "warn"); return; }
     pushHist();
     let wrong = 0;
@@ -726,7 +726,10 @@ export default function App() {
     setGrid(solution);
     setNotes(Array.from({ length: 81 }, () => []));
     setPlan(null);
-    flash(wrong ? `Résolu ✓ — ${wrong} de tes chiffres ${wrong > 1 ? "ont été corrigés" : "a été corrigé"}.` : "Résolu ✓", "success");
+    // Grille ambiguë : pas de décompte « corrigés » — il comparerait le joueur
+    // à une branche arbitraire alors que la sienne peut être tout aussi valide.
+    if (count > 1) flash("Grille à plusieurs solutions : voici l’une des complétions valides — elle peut différer de celle du livre.", "warn", 9000);
+    else flash(wrong ? `Résolu ✓ — ${wrong} de tes chiffres ${wrong > 1 ? "ont été corrigés" : "a été corrigé"}.` : "Résolu ✓", "success");
   }
 
   /* ----- coach : case précise / aléatoire ----- */
