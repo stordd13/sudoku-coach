@@ -1,0 +1,6 @@
+{
+  "appId": "com.stordeur.sudokucoach",
+  "appName": "Sudoku Coach",
+  "webDir": "dist",
+  "backgroundColor": "#F1F4F3"
+}

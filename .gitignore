@@ -3,3 +3,12 @@ dist
 .vercel
 .env
 .env.*
+
+# iOS (Capacitor) : fichiers générés par `npx cap sync ios` ou Xcode
+ios/App/build
+ios/App/Pods
+ios/App/output
+ios/App/App/public
+ios/App/App/capacitor.config.json
+ios/DerivedData
+**/xcuserdata

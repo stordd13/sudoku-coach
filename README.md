@@ -68,6 +68,26 @@ npm run build      # build de production
 Pour tester le scan en local : `npm i -g vercel` puis `vercel dev`
 (avec `ANTHROPIC_API_KEY` dans un fichier `.env`).
 
+## Application iOS (Capacitor)
+
+La même app web est emballée dans une coquille native iOS avec
+[Capacitor](https://capacitorjs.com) (dossier `ios/`, dépendances gérées par
+Swift Package Manager). Le cycle de travail, sur un Mac avec Xcode :
+
+```bash
+npm run build          # build web dans dist/
+npx cap sync ios       # copie dist/ dans la coquille + met à jour les plugins
+npx cap open ios       # ouvre le projet dans Xcode (compiler / lancer / archiver)
+```
+
+> ⚠️ Sur un clone frais, `ios/App/App/public` et `ios/App/App/capacitor.config.json`
+> n'existent pas (fichiers générés, non versionnés) : lance **toujours**
+> `npm run build && npx cap sync ios` avant d'ouvrir Xcode, sinon la compilation échoue.
+
+L'identifiant de l'app (`com.stordeur.sudokucoach`), son nom et le `webDir`
+sont dans `capacitor.config.json`. La version web/PWA reste déployée sur Vercel
+exactement comme avant — la coquille iOS n'y change rien.
+
 ## Hors-ligne (PWA)
 
 L'appli embarque un service worker qui précache tout au premier chargement :
