@@ -897,7 +897,13 @@ export default function App() {
     if (!shot || !shot.base64String) return;
     await processScan(`data:image/jpeg;base64,${shot.base64String}`);
   }
+  const offline = () => typeof navigator !== "undefined" && navigator.onLine === false;
   async function processScan(srcUrl, cleanup) {
+    if (offline()) {
+      if (cleanup) cleanup();
+      flash("📡 Pas de connexion — le scan a besoin d’internet. Tout le reste de l’app fonctionne hors-ligne.", "warn");
+      return;
+    }
     setScreen("board"); // le scan peut être lancé depuis l'accueil
     setScanning(true);
     try {
@@ -932,7 +938,12 @@ export default function App() {
       }
       flash(`📷 ${filledCount} chiffres lus. Vérifie la grille (corrige au besoin) puis « Commencer ».`, "success");
     } catch (err) {
-      flash("Scan impossible : cadre bien la grille, à plat, avec une lumière franche — puis réessaie.", "warn");
+      // Réseau tombé pendant l'appel : ne pas accuser la photo à tort.
+      if (offline()) {
+        flash("📡 Pas de connexion — le scan a besoin d’internet. Tout le reste de l’app fonctionne hors-ligne.", "warn");
+      } else {
+        flash("Scan impossible : cadre bien la grille, à plat, avec une lumière franche — puis réessaie.", "warn");
+      }
     } finally {
       setScanning(false);
     }
