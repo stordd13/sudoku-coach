@@ -551,10 +551,10 @@ export default function App() {
   }
 
   /* ----- messages ----- */
-  function flash(text, type) {
+  function flash(text, type, ms) {
     if (msgTimer.current) clearTimeout(msgTimer.current);
     setMsg({ text, type: type || "info" });
-    msgTimer.current = setTimeout(() => setMsg(null), 4600);
+    msgTimer.current = setTimeout(() => setMsg(null), ms || 4600);
   }
 
   /* ----- historique ----- */
@@ -1252,18 +1252,33 @@ export default function App() {
             </div>
           ) : null}
 
-          {/* ---------- Badge de niveau ---------- */}
-          {phase === "play" && gameLevel ? (
-            <div style={{ width: W, display: "flex" }}>
-              <span key={celebrate ? `b${celebrate}` : "lvl"}
-                className={celebrate ? "sc-pulse" : undefined} style={{
-                fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
-                color: "#5A6763", background: "#EFF2F1", border: "1px solid #E2E7E5",
-                borderRadius: 999, padding: "3px 10px", display: "inline-block",
-                animationDelay: celebrate ? "800ms" : undefined,
-              }}>
-                🎲 Niveau · {LEVELS[gameLevel].name}
-              </span>
+          {/* ---------- Badges : niveau (générée) / plusieurs solutions (saisie) ---------- */}
+          {phase === "play" && (gameLevel || multiSol) ? (
+            <div style={{ width: W, display: "flex", gap: 8 }}>
+              {gameLevel ? (
+                <span key={celebrate ? `b${celebrate}` : "lvl"}
+                  className={celebrate ? "sc-pulse" : undefined} style={{
+                  fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
+                  color: "#5A6763", background: "#EFF2F1", border: "1px solid #E2E7E5",
+                  borderRadius: 999, padding: "3px 10px", display: "inline-block",
+                  animationDelay: celebrate ? "800ms" : undefined,
+                }}>
+                  🎲 Niveau · {LEVELS[gameLevel].name}
+                </span>
+              ) : null}
+              {multiSol ? (
+                <button type="button" onClick={() => flash(
+                  "Grille à plusieurs solutions : certaines cases sont indéductibles par nature ; les vérifications se font par contradictions ; la solution peut différer de celle du livre.",
+                  "warn", 9000
+                )} style={{
+                  fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
+                  color: "#8A5A16", background: "#FBEFDD", border: "1px solid #EDD98F",
+                  borderRadius: 999, padding: "3px 10px", cursor: "pointer",
+                  fontFamily: "inherit", WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+                }}>
+                  ⚠️ plusieurs solutions
+                </button>
+              ) : null}
             </div>
           ) : null}
 
