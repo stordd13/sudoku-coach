@@ -13,6 +13,7 @@
   "dependencies": {
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/preferences": "^8.0.1",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.3",
     "react": "^18.3.1",

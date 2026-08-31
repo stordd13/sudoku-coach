@@ -6,6 +6,7 @@ import {
 } from "./engine.js";
 import { getExercise, KIND_BY_LESSON } from "./exercises.js";
 import { LESSONS } from "./lessons.js";
+import { KEYS, loadAll, readSync, persist } from "./storage.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ---------- */
 const C = {
@@ -19,26 +20,15 @@ const C = {
 const NUMFONT = `'Avenir Next', 'Futura', 'Century Gothic', -apple-system, sans-serif`;
 const DISPLAYFONT = `'Futura', 'Century Gothic', 'Trebuchet MS', sans-serif`;
 const W = "min(94vw, 430px)";
-const STORAGE_KEY = "sudoku-coach-v1";
 
 /* Web : VITE_API_BASE absente → URL relative (même origine, comme avant).
    Natif (build --mode ios) : URL absolue du déploiement Vercel via .env.ios. */
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-/* Quota freemium volontairement côté client : contournable (vider localStorage
+/* Quota freemium volontairement côté client : contournable (vider le stockage
    suffit). La vraie protection de la clé API, c'est la limite par IP de /api/ocr
    et le plafond de dépense Anthropic — ici on dose juste l'usage gratuit. */
 const FREE_SCANS = 5;
-const SCANS_KEY = "sudoku-coach-scansUsed";
-function loadScansUsed() {
-  try {
-    const n = parseInt(localStorage.getItem(SCANS_KEY) || "0", 10);
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  } catch (e) { return 0; }
-}
-function saveScansUsed(n) {
-  try { localStorage.setItem(SCANS_KEY, String(n)); } catch (e) { /* best-effort */ }
-}
 
 /* ---------- Niveaux de difficulté (générateur) ---------- */
 const LEVELS = {
@@ -205,15 +195,12 @@ const EXO_NAME_BY_ID = {
   "empty-rectangle": "l’Empty Rectangle", "coloring": "le coloriage",
   "sue-de-coq": "le Sue de Coq",
 };
-const EXO_CACHE_KEY = "sudoku-coach-exos-v2"; // v2 : + champs source/workedNotes
 function loadExoCache() {
-  try {
-    const c = JSON.parse(localStorage.getItem(EXO_CACHE_KEY) || "{}");
-    return c && typeof c === "object" ? c : {};
-  } catch (e) { return {}; }
+  const c = readSync(KEYS.exos);
+  return c && typeof c === "object" ? c : {};
 }
 function saveExoCache(c) {
-  try { localStorage.setItem(EXO_CACHE_KEY, JSON.stringify(c)); } catch (e) { /* best-effort */ }
+  persist(KEYS.exos, c);
 }
 
 function LearnView() {
@@ -447,7 +434,7 @@ export default function App() {
   const [level, setLevel] = useState(0); // 0 indice1, 1 indice2, 2 solution
   const [msg, setMsg] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [scansUsed, setScansUsed] = useState(loadScansUsed);
+  const [scansUsed, setScansUsed] = useState(0); // chargé au boot via loadAll()
   const scansLeft = Math.max(0, FREE_SCANS - scansUsed);
   const [solRef, setSolRef] = useState(null);
   const [errorCells, setErrorCells] = useState(new Set());
@@ -841,8 +828,8 @@ export default function App() {
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
       setPhase("edit"); setSolRef(null); setPlan(null); setSel(null); setGameLevel(null);
-      const used = loadScansUsed() + 1; // relit le storage (robuste multi-onglets)
-      saveScansUsed(used);
+      const used = (Number(readSync(KEYS.scans)) || 0) + 1; // relit le storage (robuste multi-onglets)
+      persist(KEYS.scans, used);
       setScansUsed(used);
       flash(`📷 ${filledCount} chiffres lus. Vérifie la grille (corrige au besoin) puis « Commencer ».`, "success");
     } catch (err) {
@@ -852,13 +839,13 @@ export default function App() {
     }
   }
 
-  /* ----- persistance (localStorage) ----- */
+  /* ----- persistance (storage.js : localStorage sur le web, Preferences en natif) ----- */
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const s = JSON.parse(raw);
-        if (Array.isArray(s.grid) && s.grid.length === 81) {
+    (async () => {
+      try {
+        const data = await loadAll();
+        const s = data[KEYS.save];
+        if (s && Array.isArray(s.grid) && s.grid.length === 81) {
           setGrid(s.grid);
           const gv = Array.isArray(s.givens) && s.givens.length === 81 ? s.givens : Array(81).fill(false);
           setGivens(gv);
@@ -874,16 +861,16 @@ export default function App() {
           }
           if (s.level >= 1 && s.level <= 5) setGameLevel(s.level);
         }
-      }
-    } catch (e) { /* première visite ou stockage indisponible */ }
-    setLoaded(true);
+        const used = Number(data[KEYS.scans]);
+        if (Number.isFinite(used) && used > 0) setScansUsed(used);
+      } catch (e) { /* première visite ou stockage indisponible */ }
+      setLoaded(true);
+    })();
   }, []);
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ grid, givens, notes, phase, level: gameLevel }));
-      } catch (e) { /* best-effort */ }
+      persist(KEYS.save, { grid, givens, notes, phase, level: gameLevel });
     }, 400);
     return () => clearTimeout(t);
   }, [grid, givens, notes, phase, gameLevel, loaded]);

@@ -507,7 +507,37 @@ for (const kind of Object.values(KIND_BY_LESSON)) {
   console.log(`  ℹ ${kind} : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms — ${src}`);
 }
 
-/* ---------- 10. API /api/ocr : CORS pour le WebView natif ---------- */
+/* ---------- 10. Stockage : implémentation web de storage.js ---------- */
+console.log("Stockage (implémentation web) :");
+{
+  // Stub localStorage : sous Node il n'existe pas ; sans window, isNative()
+  // est faux → storage.js prend le chemin web (localStorage).
+  const backing = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (backing.has(k) ? backing.get(k) : null),
+    setItem: (k, v) => backing.set(k, String(v)),
+    removeItem: (k) => backing.delete(k),
+  };
+  const { KEYS, loadAll, readSync, persist } = await import("../src/storage.js");
+
+  await persist(KEYS.scans, 4);
+  ok(backing.get(KEYS.scans) === "4", "un nombre est stocké comme avant (octets = String(n))");
+  const save = { grid: [7, 0, 3], givens: [true, false], phase: "play", level: 3 };
+  await persist(KEYS.save, save);
+  const all = await loadAll();
+  ok(all[KEYS.scans] === 4, "loadAll relit le compteur de scans");
+  ok(JSON.stringify(all[KEYS.save]) === JSON.stringify(save), "loadAll relit la sauvegarde (objet profond)");
+  ok(all[KEYS.exos] === null, "clé absente → null");
+  ok(readSync(KEYS.scans) === 4, "readSync relit une valeur persistée");
+
+  backing.set(KEYS.scans, "6"); // valeur héritée de l'ancien code (brute, sans JSON)
+  ok(readSync(KEYS.scans) === 6, "compteur hérité de l'ancien format relu tel quel");
+  backing.set(KEYS.save, "{pas du json");
+  ok((await loadAll())[KEYS.save] === null, "JSON corrompu → null (pas d'exception)");
+  delete globalThis.localStorage;
+}
+
+/* ---------- 11. API /api/ocr : CORS pour le WebView natif ---------- */
 console.log("API /api/ocr (CORS) :");
 {
   // Déterministe et sans réseau : pas de clé API ni d'Upstash dans le test.
