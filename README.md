@@ -75,14 +75,19 @@ La même app web est emballée dans une coquille native iOS avec
 Swift Package Manager). Le cycle de travail, sur un Mac avec Xcode :
 
 ```bash
-npm run build          # build web dans dist/
+npm run build:ios      # build web dans dist/, avec l'URL d'API absolue (.env.ios)
 npx cap sync ios       # copie dist/ dans la coquille + met à jour les plugins
 npx cap open ios       # ouvre le projet dans Xcode (compiler / lancer / archiver)
 ```
 
+Le build natif lit `.env.ios` (versionné, valeurs publiques uniquement) :
+`VITE_API_BASE` pointe le déploiement Vercel pour que le scan fonctionne depuis
+le WebView (`capacitor://localhost`). Le build web (`npm run build`) ne lit pas
+ce fichier et garde son URL relative.
+
 > ⚠️ Sur un clone frais, `ios/App/App/public` et `ios/App/App/capacitor.config.json`
 > n'existent pas (fichiers générés, non versionnés) : lance **toujours**
-> `npm run build && npx cap sync ios` avant d'ouvrir Xcode, sinon la compilation échoue.
+> `npm run build:ios && npx cap sync ios` avant d'ouvrir Xcode, sinon la compilation échoue.
 
 L'identifiant de l'app (`com.stordeur.sudokucoach`), son nom et le `webDir`
 sont dans `capacitor.config.json`. La version web/PWA reste déployée sur Vercel

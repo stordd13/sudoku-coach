@@ -507,5 +507,40 @@ for (const kind of Object.values(KIND_BY_LESSON)) {
   console.log(`  ℹ ${kind} : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms — ${src}`);
 }
 
+/* ---------- 10. API /api/ocr : CORS pour le WebView natif ---------- */
+console.log("API /api/ocr (CORS) :");
+{
+  // Déterministe et sans réseau : pas de clé API ni d'Upstash dans le test.
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  const { default: handler } = await import("../api/ocr.js");
+  const makeRes = () => ({
+    statusCode: null,
+    headers: {},
+    body: undefined,
+    ended: false,
+    status(c) { this.statusCode = c; return this; },
+    setHeader(k, v) { this.headers[k.toLowerCase()] = v; },
+    json(o) { this.body = o; this.ended = true; },
+    end() { this.ended = true; },
+  });
+
+  const preflight = makeRes();
+  await handler({ method: "OPTIONS", headers: {} }, preflight);
+  ok(preflight.statusCode === 204 && preflight.ended, "OPTIONS (préflight) → 204");
+  ok(preflight.headers["access-control-allow-origin"] === "*", "OPTIONS : Access-Control-Allow-Origin *");
+  ok(String(preflight.headers["access-control-allow-methods"] || "").includes("POST"), "OPTIONS : Access-Control-Allow-Methods contient POST");
+  ok(String(preflight.headers["access-control-allow-headers"] || "").includes("Content-Type"), "OPTIONS : Access-Control-Allow-Headers contient Content-Type");
+
+  const wrongMethod = makeRes();
+  await handler({ method: "GET", headers: {} }, wrongMethod);
+  ok(wrongMethod.statusCode === 405 && wrongMethod.headers["access-control-allow-origin"] === "*", "GET → 405 avec l'en-tête CORS");
+
+  const noKey = makeRes();
+  await handler({ method: "POST", headers: {}, body: { image: "x", media_type: "image/jpeg" } }, noKey);
+  ok(noKey.statusCode === 500 && noKey.headers["access-control-allow-origin"] === "*", "POST sans clé serveur → 500 avec l'en-tête CORS");
+}
+
 console.log(failures === 0 ? "\nTOUT EST OK ✓" : `\n${failures} ÉCHEC(S) ✗`);
 process.exit(failures === 0 ? 0 : 1);

@@ -54,7 +54,22 @@ Puis, tout à la fin, donne ta réponse finale sur une seule ligne au format JSO
 
 Si l'image ne contient pas de grille de sudoku lisible, réponds simplement {"grid":"ERROR"}.`;
 
+// CORS : le WebView Capacitor a une origine capacitor://localhost. « * » est
+// acceptable ici : la clé API reste côté serveur et la limite par IP s'applique
+// à tous les appelants, quelle que soit l'origine.
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 export default async function handler(req, res) {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
   if (req.method !== "POST") {
     res.status(405).json({ error: "Méthode non autorisée" });
     return;

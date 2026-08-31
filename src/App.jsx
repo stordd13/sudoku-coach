@@ -21,6 +21,10 @@ const DISPLAYFONT = `'Futura', 'Century Gothic', 'Trebuchet MS', sans-serif`;
 const W = "min(94vw, 430px)";
 const STORAGE_KEY = "sudoku-coach-v1";
 
+/* Web : VITE_API_BASE absente → URL relative (même origine, comme avant).
+   Natif (build --mode ios) : URL absolue du déploiement Vercel via .env.ios. */
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
 /* Quota freemium volontairement côté client : contournable (vider localStorage
    suffit). La vraie protection de la clé API, c'est la limite par IP de /api/ocr
    et le plafond de dépense Anthropic — ici on dose juste l'usage gratuit. */
@@ -814,7 +818,7 @@ export default function App() {
     setScanning(true);
     try {
       const b64 = await fileToJpegBase64(file, 1150);
-      const res = await fetch("/api/ocr", {
+      const res = await fetch(`${API_BASE}/api/ocr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: b64, media_type: "image/jpeg" }),

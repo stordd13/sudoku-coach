@@ -3,6 +3,9 @@ dist
 .vercel
 .env
 .env.*
+# .env.ios ne contient que des valeurs publiques (URL Vercel, clé SDK publique) :
+# versionné pour que le build iOS soit reproductible depuis un clone frais.
+!.env.ios
 
 # iOS (Capacitor) : fichiers générés par `npx cap sync ios` ou Xcode
 ios/App/build
