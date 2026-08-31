@@ -27,6 +27,12 @@ SAMPLES.forEach((s, i) => {
   const { count } = solveGrid(g);
   ok(count === 1, `SAMPLES[${i}] a une solution unique (count=${count})`);
 });
+{
+  // Fixture du bug réel (scan avec un chiffre d'énoncé manquant) : doit
+  // déclencher le panneau bloquant « plusieurs solutions » au « Commencer ».
+  const AMBIG = "630009080007000100800040000700826350003957801008000702300592000000000000004000023";
+  ok(solveGrid(AMBIG.split("").map(Number)).count > 1, "fixture multi-solutions : count > 1");
+}
 
 /* ---------- 2. Moteur : plan pédagogique sur l'exemple 1 ---------- */
 console.log("Moteur (buildPlan sur l'exemple 1) :");

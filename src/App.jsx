@@ -502,6 +502,9 @@ export default function App() {
      (conflits uniquement), sinon « Vérifier » accuse à tort. Jamais persisté :
      recalculé au restore par le même solveGrid. */
   const [multiSol, setMultiSol] = useState(false);
+  /* Panneau bloquant « plusieurs solutions » avant verrouillage (M1) : la grille
+     reste éditable pendant qu'il est ouvert — on re-résout au « Jouer quand même ». */
+  const [multiSolPrompt, setMultiSolPrompt] = useState(false);
   const [errorCells, setErrorCells] = useState(new Set());
   const [loaded, setLoaded] = useState(false);
   /* Animations (T3) — stamps pour rejouer les keyframes via un changement de key */
@@ -644,7 +647,7 @@ export default function App() {
         setGivens(g.map((v) => v !== 0));
         setNotes(Array.from({ length: 81 }, () => []));
         setSolRef(p.solution.split("").map(Number));
-        setMultiSol(false); // générée = solution unique garantie
+        setMultiSol(false); setMultiSolPrompt(false); // générée = solution unique garantie
         setPhase("play");
         setGameLevel(p.level);
         histRef.current = [];
@@ -655,25 +658,36 @@ export default function App() {
       }
     }, 50);
   }
+  function lockGrid(solution, multi) {
+    setSolRef(solution);
+    setMultiSol(multi);
+    setGivens(grid.map((v) => v !== 0));
+    setPhase("play");
+    setGameLevel(null);
+    histRef.current = [];
+    setPlan(null); setNoteMode(false);
+    if (multi) flash("Grille verrouillée — garde un œil sur le badge ⚠️ plusieurs solutions.", "warn");
+    else flash("Grille verrouillée — à toi de jouer ✏️", "success");
+  }
   function startPlay() {
     const filled = grid.filter((v) => v).length;
     if (filled < 8) { flash("Ajoute d’abord les chiffres de départ (ou charge un exemple).", "warn"); return; }
     if (conflictSet(grid).size) { flash("Un chiffre apparaît deux fois dans une zone — corrige avant de commencer.", "warn"); return; }
     const { count, solution } = solveGrid(grid);
     if (count === 0 || !solution) { flash("Aucune solution possible : vérifie la saisie.", "warn"); return; }
-    setSolRef(solution);
-    setMultiSol(count > 1);
-    setGivens(grid.map((v) => v !== 0));
-    setPhase("play");
-    setGameLevel(null);
-    histRef.current = [];
-    setPlan(null); setNoteMode(false);
-    if (count > 1) flash("⚠️ Cette grille a plusieurs solutions — les déductions logiques seront limitées.", "warn");
-    else flash("Grille verrouillée — à toi de jouer ✏️", "success");
+    if (count > 1) { setMultiSolPrompt(true); return; }
+    lockGrid(solution, false);
+  }
+  function playAnyway() {
+    setMultiSolPrompt(false);
+    // Re-résout l'état COURANT : la grille a pu être corrigée pendant que le panneau était ouvert.
+    const { count, solution } = solveGrid(grid);
+    if (count === 0 || !solution) { flash("Aucune solution possible : vérifie la saisie.", "warn"); return; }
+    lockGrid(solution, count > 1);
   }
   function backToEdit() {
     setPhase("edit"); setGivens(Array(81).fill(false));
-    setSolRef(null); setMultiSol(false); setPlan(null); setNoteMode(false); setGameLevel(null);
+    setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setNoteMode(false); setGameLevel(null);
     flash("Mode saisie : modifie librement, puis « Commencer ».");
   }
   function clearAll() {
@@ -681,7 +695,7 @@ export default function App() {
     setGrid(Array(81).fill(0));
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
-    setPhase("edit"); setSolRef(null); setMultiSol(false); setPlan(null); setSel(null); setGameLevel(null);
+    setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null);
   }
   function restartPuzzle() {
     pushHist();
@@ -697,7 +711,7 @@ export default function App() {
     setGrid(s.split("").map(Number));
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
-    setPhase("edit"); setSolRef(null); setMultiSol(false); setPlan(null); setSel(null);
+    setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null);
     flash("Exemple chargé — vérifie puis « Commencer ».");
   }
 
@@ -974,7 +988,7 @@ export default function App() {
       setGrid(ng);
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
-      setPhase("edit"); setSolRef(null); setMultiSol(false); setPlan(null); setSel(null); setGameLevel(null);
+      setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null);
       if (!unlimited) {
         const used = (Number(readSync(KEYS.scans)) || 0) + 1; // relit le storage (robuste multi-onglets)
         persist(KEYS.scans, used);
@@ -1059,14 +1073,14 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  /* ----- panneau coach : scroll en vue ----- */
+  /* ----- panneau coach / multi-solutions : scroll en vue ----- */
   useEffect(() => {
-    if (plan && panelRef.current) {
+    if ((plan || multiSolPrompt) && panelRef.current) {
       setTimeout(() => {
         panelRef.current && panelRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }, 60);
     }
-  }, [plan, level]);
+  }, [plan, level, multiSolPrompt]);
 
   /* ----- dérivés ----- */
   const conflicts = useMemo(() => conflictSet(grid), [grid]);
@@ -1425,6 +1439,26 @@ export default function App() {
                 <LinkBtn onClick={restartPuzzle}>Recommencer</LinkBtn>
               </div>
             </div>
+          )}
+
+          {/* ---------- Panneau multi-solutions (bloquant, avant verrouillage) ---------- */}
+          {phase === "edit" && multiSolPrompt && (
+            <section ref={panelRef} style={{
+              width: W, background: "#FFFFFF", borderRadius: 14,
+              border: "1px solid #E2E7E5", borderTop: `5px solid ${C.yellow}`,
+              boxShadow: "0 12px 32px rgba(31,39,46,0.12)",
+              padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 9,
+            }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>⚠️ Cette grille a plusieurs solutions</div>
+              <p style={pStyle}>
+                Il manque très probablement un chiffre de l’énoncé (scan incomplet ou oubli de
+                saisie). Compare la grille avec ton magazine avant de jouer.
+              </p>
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <Btn variant="primary" grow onClick={() => setMultiSolPrompt(false)}>✏️ Vérifier ma saisie</Btn>
+                <Btn grow onClick={playAnyway}>Jouer quand même</Btn>
+              </div>
+            </section>
           )}
 
           {/* ---------- Panneau fin de partie ---------- */}
