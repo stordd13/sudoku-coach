@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Source vectorielle des icônes iOS : même motif que public/icon-*.png
+       (papier + grille encre + case jaune + 7). Le 7 est un tracé, pas un
+       <text>, pour un rendu identique quel que soit le rasteriseur. -->
+  <rect width="1024" height="1024" fill="#F1F4F3"/>
+  <rect x="96" y="96" width="832" height="832" fill="#1F272E"/>
+  <!-- 9 cases (232 px, gouttières 24, bord 44) -->
+  <g fill="#FFFFFF">
+    <rect x="140" y="140" width="232" height="232"/>
+    <rect x="652" y="140" width="232" height="232"/>
+    <rect x="140" y="396" width="232" height="232"/>
+    <rect x="396" y="396" width="232" height="232"/>
+    <rect x="652" y="396" width="232" height="232"/>
+    <rect x="140" y="652" width="232" height="232"/>
+    <rect x="396" y="652" width="232" height="232"/>
+    <rect x="652" y="652" width="232" height="232"/>
+  </g>
+  <rect x="396" y="140" width="232" height="232" fill="#F2C40F"/>
+  <!-- Le 7, en trait épais -->
+  <path d="M446 206 L578 206 L506 318" fill="none" stroke="#1F272E" stroke-width="34" stroke-linejoin="miter" stroke-linecap="butt"/>
+</svg>
