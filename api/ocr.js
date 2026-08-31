@@ -7,9 +7,37 @@
    moins cher mais nettement moins précis pour la lecture de grille).
    ================================================================ */
 
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
 // Laisse le déploiement Vercel prendre jusqu'à 60 s (la transcription pas-à-pas
 // d'Opus peut dépasser le défaut de 10 s sur une photo dense).
 export const maxDuration = 60;
+
+// Limite anti-abus : RATE_LIMIT_PER_DAY scans / jour / IP (fenêtre glissante).
+// Sans UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (dev local) : pas de limite.
+const RATE_LIMIT_PER_DAY = 10;
+
+let ratelimiter = null;
+let warnedNoUpstash = false;
+function getRatelimiter() {
+  if (ratelimiter) return ratelimiter;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) {
+    if (!warnedNoUpstash) {
+      console.warn("Upstash non configuré : /api/ocr sans limite par IP (ok en dev).");
+      warnedNoUpstash = true;
+    }
+    return null;
+  }
+  ratelimiter = new Ratelimit({
+    redis: new Redis({ url, token }),
+    limiter: Ratelimit.slidingWindow(RATE_LIMIT_PER_DAY, "1 d"),
+    prefix: "ocr",
+  });
+  return ratelimiter;
+}
 
 const OCR_PROMPT = `Tu es un expert en lecture de grilles de sudoku. On te donne la photo d'une grille 9×9.
 
@@ -30,6 +58,24 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Méthode non autorisée" });
     return;
+  }
+  const limiter = getRatelimiter();
+  if (limiter) {
+    try {
+      // Sur Vercel, x-forwarded-for est réécrit par la plateforme : le premier
+      // élément est l'IP réelle du client, non falsifiable.
+      const fwd = String(req.headers["x-forwarded-for"] || "");
+      const ip = (fwd.split(",")[0] || "").trim() || String(req.headers["x-real-ip"] || "") || "ip-inconnue";
+      const { success } = await limiter.limit(ip);
+      if (!success) {
+        res.status(429).json({ error: "Limite de scans atteinte pour aujourd'hui — réessaie demain." });
+        return;
+      }
+    } catch (e) {
+      // Fail-open : une panne Upstash ne doit pas casser le scan ; le filet
+      // ultime est le plafond de dépense sur la clé Anthropic.
+      console.warn("Rate-limit indisponible, requête laissée passer :", e && e.message);
+    }
   }
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {

@@ -34,7 +34,13 @@ sans compte ni serveur.
    - Ouvre **Environment Variables** et ajoute :
      - `ANTHROPIC_API_KEY` = ta clé `sk-ant-…`
      - *(optionnel)* `OCR_MODEL` = `claude-haiku-4-5-20251001` pour un scan plus économique
-       (défaut : `claude-sonnet-5`, plus fiable).
+       (défaut : `claude-opus-4-8`, le plus fiable).
+     - *(optionnel, recommandé si tu partages l'URL)* `UPSTASH_REDIS_REST_URL` et
+       `UPSTASH_REDIS_REST_TOKEN` : activent la limite anti-abus de **10 scans / jour / IP**
+       sur `/api/ocr`. Pour les obtenir : [console.upstash.com](https://console.upstash.com)
+       → compte gratuit → **Create Database** (Redis, région proche, le tier gratuit suffit
+       largement) → onglet **REST API** → copie les deux valeurs. Sans ces variables, le
+       scan fonctionne sans limite (pratique en local).
    - **Deploy** → tu obtiens une URL publique du type `https://sudoku-coach.vercel.app`.
 
 4. **Partage & installe sur iPhone**
@@ -65,7 +71,8 @@ Pour tester le scan en local : `npm i -g vercel` puis `vercel dev`
 ## Notes
 
 - **Coûts** : seule la route `/api/ocr` consomme ta clé API. Le reste est statique.
-  Si tu partages l'URL très largement et veux éviter les abus, on peut ajouter une
-  limite de requêtes par IP — demande-le à Claude.
+  Si les variables Upstash sont configurées (voir plus haut), chaque IP est limitée à
+  **10 scans par jour** — le filet de sécurité ultime reste un **plafond de dépense
+  mensuel** sur ta clé, à définir dans la console Anthropic.
 - **Vie privée** : les grilles et la progression sont sauvegardées uniquement dans
   le navigateur de chaque personne (localStorage). Rien n'est stocké côté serveur.

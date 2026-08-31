@@ -777,7 +777,11 @@ export default function App() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        flash(`Scan : ${(data && data.error) || "erreur serveur"} — réessaie avec une photo nette, à plat.`, "warn");
+        if (res.status === 429) {
+          flash(`Scan : ${(data && data.error) || "limite de scans atteinte pour aujourd'hui — réessaie demain."}`, "warn");
+        } else {
+          flash(`Scan : ${(data && data.error) || "erreur serveur"} — réessaie avec une photo nette, à plat.`, "warn");
+        }
         return;
       }
       const s = String(data.grid || "").replace(/[^0-9]/g, "");
