@@ -497,6 +497,11 @@ export default function App() {
   const [unlimited, setUnlimited] = useState(false); // entitlement RevenueCat (natif)
   const scansLeft = unlimited ? Infinity : Math.max(0, FREE_SCANS - scansUsed);
   const [solRef, setSolRef] = useState(null);
+  /* Grille à plusieurs solutions (scan/saisie) : solRef n'est qu'UNE solution
+     parmi d'autres — on ne s'en sert plus pour juger les chiffres du joueur
+     (conflits uniquement), sinon « Vérifier » accuse à tort. Jamais persisté :
+     recalculé au restore par le même solveGrid. */
+  const [multiSol, setMultiSol] = useState(false);
   const [errorCells, setErrorCells] = useState(new Set());
   const [loaded, setLoaded] = useState(false);
   /* Animations (T3) — stamps pour rejouer les keyframes via un changement de key */
@@ -639,6 +644,7 @@ export default function App() {
         setGivens(g.map((v) => v !== 0));
         setNotes(Array.from({ length: 81 }, () => []));
         setSolRef(p.solution.split("").map(Number));
+        setMultiSol(false); // générée = solution unique garantie
         setPhase("play");
         setGameLevel(p.level);
         histRef.current = [];
@@ -656,6 +662,7 @@ export default function App() {
     const { count, solution } = solveGrid(grid);
     if (count === 0 || !solution) { flash("Aucune solution possible : vérifie la saisie.", "warn"); return; }
     setSolRef(solution);
+    setMultiSol(count > 1);
     setGivens(grid.map((v) => v !== 0));
     setPhase("play");
     setGameLevel(null);
@@ -666,7 +673,7 @@ export default function App() {
   }
   function backToEdit() {
     setPhase("edit"); setGivens(Array(81).fill(false));
-    setSolRef(null); setPlan(null); setNoteMode(false); setGameLevel(null);
+    setSolRef(null); setMultiSol(false); setPlan(null); setNoteMode(false); setGameLevel(null);
     flash("Mode saisie : modifie librement, puis « Commencer ».");
   }
   function clearAll() {
@@ -674,7 +681,7 @@ export default function App() {
     setGrid(Array(81).fill(0));
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
-    setPhase("edit"); setSolRef(null); setPlan(null); setSel(null); setGameLevel(null);
+    setPhase("edit"); setSolRef(null); setMultiSol(false); setPlan(null); setSel(null); setGameLevel(null);
   }
   function restartPuzzle() {
     pushHist();
@@ -690,7 +697,7 @@ export default function App() {
     setGrid(s.split("").map(Number));
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
-    setPhase("edit"); setSolRef(null); setPlan(null); setSel(null);
+    setPhase("edit"); setSolRef(null); setMultiSol(false); setPlan(null); setSel(null);
     flash("Exemple chargé — vérifie puis « Commencer ».");
   }
 
@@ -715,6 +722,12 @@ export default function App() {
     const t = sel;
     if (grid[t] !== 0) {
       if (givens[t]) flash(`${cellName(t)} fait partie de l’énoncé.`);
+      else if (multiSol) flash(
+        conflictSet(grid).has(t)
+          ? `✗ Le ${grid[t]} en ${cellName(t)} entre en conflit avec sa ligne, sa colonne ou son bloc.`
+          : `${cellName(t)} = ${grid[t]} est cohérent pour l’instant (grille à plusieurs solutions : seule la cohérence est vérifiable).`,
+        conflictSet(grid).has(t) ? "warn" : "info"
+      );
       else if (solRef) flash(
         grid[t] === solRef[t] ? `✓ ${cellName(t)} = ${grid[t]} est correct.` : `✗ Le ${grid[t]} en ${cellName(t)} n’est pas le bon chiffre ici.`,
         grid[t] === solRef[t] ? "success" : "warn"
@@ -723,7 +736,7 @@ export default function App() {
       return;
     }
     const p = buildPlan(grid, t);
-    if (p && (!solRef || p.digit === solRef[t])) { setPlan(p); setLevel(0); }
+    if (p && (!solRef || multiSol || p.digit === solRef[t])) { setPlan(p); setLevel(0); }
     else { setPlan({ kind: "stuck", target: t }); setLevel(0); }
   }
   function randomHint() {
@@ -734,7 +747,9 @@ export default function App() {
     const plans = [];
     for (const i of empties) {
       const p = buildPlan(grid, i);
-      if (p && (!solRef || p.digit === solRef[i])) plans.push(p);
+      // multiSol : solRef n'est qu'une solution possible — si le joueur en suit
+      // une autre, un plan valide peut la contredire ; on ne filtre donc pas.
+      if (p && (!solRef || multiSol || p.digit === solRef[i])) plans.push(p);
     }
     if (!plans.length) { setPlan({ kind: "stuckAll" }); setLevel(0); return; }
     const min = Math.min(...plans.map((p) => p.difficulty));
@@ -744,7 +759,14 @@ export default function App() {
   }
   function revealAnyway(t) {
     if (!solRef) { flash("Solution indisponible pour cette grille.", "warn"); return; }
-    const d = solRef[t];
+    let d = solRef[t];
+    if (multiSol) {
+      // solRef peut contredire la branche (valide) suivie par le joueur :
+      // on résout depuis l'état COURANT pour révéler un chiffre compatible.
+      const { solution } = solveGrid(grid);
+      if (!solution) { flash("Ta grille actuelle contient une contradiction — passe par 🔍 Vérifier.", "warn"); return; }
+      d = solution[t];
+    }
     setPlan({
       kind: "ok", target: t, digit: d, chain: [], hint1: "", hint2: "",
       tech: "Au-delà des techniques classiques",
@@ -781,7 +803,7 @@ export default function App() {
     if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
     const placed = [];
     grid.forEach((v, i) => { if (v && !givens[i]) placed.push(i); });
-    if (solRef) {
+    if (solRef && !multiSol) {
       const wrong = placed.filter((i) => grid[i] !== solRef[i]);
       if (!wrong.length) {
         flash(`✅ Aucune erreur pour l’instant — ${placed.length} chiffre${placed.length > 1 ? "s" : ""} posé${placed.length > 1 ? "s" : ""}, continue !`, "success");
@@ -930,7 +952,7 @@ export default function App() {
       setGrid(ng);
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
-      setPhase("edit"); setSolRef(null); setPlan(null); setSel(null); setGameLevel(null);
+      setPhase("edit"); setSolRef(null); setMultiSol(false); setPlan(null); setSel(null); setGameLevel(null);
       if (!unlimited) {
         const used = (Number(readSync(KEYS.scans)) || 0) + 1; // relit le storage (robuste multi-onglets)
         persist(KEYS.scans, used);
@@ -966,8 +988,8 @@ export default function App() {
           );
           if (s.phase === "play") {
             const gb = s.grid.map((v, i) => (gv[i] ? v : 0));
-            const { solution } = solveGrid(gb);
-            if (solution) { setSolRef(solution); setPhase("play"); }
+            const { count, solution } = solveGrid(gb);
+            if (solution) { setSolRef(solution); setMultiSol(count > 1); setPhase("play"); }
           }
           if (s.level >= 1 && s.level <= 5) setGameLevel(s.level);
         }
