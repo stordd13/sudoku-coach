@@ -68,6 +68,22 @@ npm run build      # build de production
 Pour tester le scan en local : `npm i -g vercel` puis `vercel dev`
 (avec `ANTHROPIC_API_KEY` dans un fichier `.env`).
 
+## Hors-ligne (PWA)
+
+L'appli embarque un service worker qui précache tout au premier chargement :
+jeu, leçons, indices, notes et sauvegarde fonctionnent ensuite **sans réseau**.
+Seul le **scan photo** exige une connexion (il appelle `/api/ocr`) — hors-ligne,
+il échoue avec son message d'erreur habituel.
+
+Test manuel :
+
+1. Charge l'appli une fois (URL Vercel, ou `npm run build && npm run preview`).
+2. Ferme-la, puis coupe le réseau (mode avion, ou DevTools → Network → Offline).
+3. Rouvre l'appli → tout fonctionne, sauf le scan.
+
+Les mises à jour se font toutes seules : la nouvelle version est téléchargée en
+arrière-plan et devient active à l'ouverture suivante.
+
 ## Notes
 
 - **Coûts** : seule la route `/api/ocr` consomme ta clé API. Le reste est statique.
