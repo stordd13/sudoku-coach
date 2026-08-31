@@ -21,6 +21,21 @@ const DISPLAYFONT = `'Futura', 'Century Gothic', 'Trebuchet MS', sans-serif`;
 const W = "min(94vw, 430px)";
 const STORAGE_KEY = "sudoku-coach-v1";
 
+/* Quota freemium volontairement côté client : contournable (vider localStorage
+   suffit). La vraie protection de la clé API, c'est la limite par IP de /api/ocr
+   et le plafond de dépense Anthropic — ici on dose juste l'usage gratuit. */
+const FREE_SCANS = 5;
+const SCANS_KEY = "sudoku-coach-scansUsed";
+function loadScansUsed() {
+  try {
+    const n = parseInt(localStorage.getItem(SCANS_KEY) || "0", 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch (e) { return 0; }
+}
+function saveScansUsed(n) {
+  try { localStorage.setItem(SCANS_KEY, String(n)); } catch (e) { /* best-effort */ }
+}
+
 /* ---------- Niveaux de difficulté (générateur) ---------- */
 const LEVELS = {
   1: { name: "Facile", desc: "Candidats uniques et singles cachés" },
@@ -90,6 +105,26 @@ function Card({ emoji, title, sub, onClick, accent }) {
       <span style={{ marginLeft: "auto", color: C.gray, fontSize: 16 }}>›</span>
     </button>
   );
+}
+function ScanQuotaNote({ left }) {
+  if (left <= 0) {
+    return (
+      <div style={{
+        width: "100%", fontSize: 12.5, color: "#5A6763", background: "rgba(255,255,255,0.8)",
+        border: "1px dashed #B9C4C0", borderRadius: 10, padding: "10px 12px", textAlign: "center",
+      }}>
+        📷 Scans gratuits épuisés — le scan illimité arrive bientôt ✨
+      </div>
+    );
+  }
+  if (left < 3) {
+    return (
+      <div style={{ width: "100%", fontSize: 11.5, color: "#98A29D", textAlign: "center" }}>
+        {left === 1 ? "1 scan gratuit restant" : `${left} scans gratuits restants`}
+      </div>
+    );
+  }
+  return null;
 }
 
 /* ================================================================
@@ -408,6 +443,8 @@ export default function App() {
   const [level, setLevel] = useState(0); // 0 indice1, 1 indice2, 2 solution
   const [msg, setMsg] = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [scansUsed, setScansUsed] = useState(loadScansUsed);
+  const scansLeft = Math.max(0, FREE_SCANS - scansUsed);
   const [solRef, setSolRef] = useState(null);
   const [errorCells, setErrorCells] = useState(new Set());
   const [loaded, setLoaded] = useState(false);
@@ -762,6 +799,13 @@ export default function App() {
       img.src = url;
     });
   }
+  function openScan() {
+    if (scansLeft <= 0) {
+      flash("Scans gratuits épuisés — le scan illimité arrive bientôt ✨", "info");
+      return;
+    }
+    if (fileRef.current) fileRef.current.click();
+  }
   async function onPhoto(e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
@@ -793,6 +837,9 @@ export default function App() {
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
       setPhase("edit"); setSolRef(null); setPlan(null); setSel(null); setGameLevel(null);
+      const used = loadScansUsed() + 1; // relit le storage (robuste multi-onglets)
+      saveScansUsed(used);
+      setScansUsed(used);
       flash(`📷 ${filledCount} chiffres lus. Vérifie la grille (corrige au besoin) puis « Commencer ».`, "success");
     } catch (err) {
       flash("Scan impossible : cadre bien la grille, à plat, avec une lumière franche — puis réessaie.", "warn");
@@ -995,8 +1042,11 @@ export default function App() {
             )}
             <Card emoji="🎲" title="Jouer" sub="Une nouvelle grille, de Facile à Diabolique"
               onClick={() => setScreen("levels")} />
-            <Card emoji="📷" title="Scanner" sub="Photographie une grille de magazine ou de journal"
-              onClick={() => fileRef.current && fileRef.current.click()} />
+            {scansLeft > 0 && (
+              <Card emoji="📷" title="Scanner" sub="Photographie une grille de magazine ou de journal"
+                onClick={openScan} />
+            )}
+            <ScanQuotaNote left={scansLeft} />
             <Card emoji="📚" title="Apprendre" sub={`${LESSONS.length} leçons, des bases aux techniques expertes`}
               onClick={() => setTab("learn")} />
           </div>
@@ -1187,8 +1237,9 @@ export default function App() {
             <div style={{ width: W, display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn variant="primary" grow onClick={startPlay}>▶︎ Commencer</Btn>
-                <Btn variant="accent" grow onClick={() => fileRef.current && fileRef.current.click()} disabled={scanning}>📷 Scanner</Btn>
+                <Btn variant="accent" grow onClick={openScan} disabled={scanning || !scansLeft}>📷 Scanner</Btn>
               </div>
+              <ScanQuotaNote left={scansLeft} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
                 <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
                 <LinkBtn onClick={loadSample}>Charger un exemple</LinkBtn>
@@ -1212,9 +1263,10 @@ export default function App() {
                 <Btn onClick={undo} title="Annuler">↩︎</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn grow onClick={() => fileRef.current && fileRef.current.click()} disabled={scanning}>📷 Scanner</Btn>
+                <Btn grow onClick={openScan} disabled={scanning || !scansLeft}>📷 Scanner</Btn>
                 <Btn grow onClick={solveAll}>✅ Tout résoudre</Btn>
               </div>
+              <ScanQuotaNote left={scansLeft} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
                 <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
                 <LinkBtn onClick={backToEdit}>Modifier la grille</LinkBtn>
