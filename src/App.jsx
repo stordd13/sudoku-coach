@@ -7,7 +7,7 @@ import {
 import { getExercise, KIND_BY_LESSON } from "./exercises.js";
 import { LESSONS } from "./lessons.js";
 import { KEYS, loadAll, readSync, persist } from "./storage.js";
-import { isNative } from "./native.js";
+import { isNative, haptic } from "./native.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ---------- */
 const C = {
@@ -457,11 +457,12 @@ export default function App() {
   const celebTimer = useRef(null);
 
   /* ----- déclencheurs d'animations (appelés aux sites de pose uniquement) ----- */
-  const popCell = (cell) => setPop({ cell, stamp: Date.now() });
-  const doShake = (cells) => setShake({ cells: new Set(cells), stamp: Date.now() });
+  const popCell = (cell) => { haptic("light"); setPop({ cell, stamp: Date.now() }); };
+  const doShake = (cells) => { haptic("error"); setShake({ cells: new Set(cells), stamp: Date.now() }); };
   function animateMove(before, ng, d) {
     if (ng.filter((v) => v === d).length === 9) setPadPulse({ digit: d, stamp: Date.now() });
     if (isComplete(ng)) {
+      haptic("success");
       setCelebrate(Date.now());
       if (celebTimer.current) clearTimeout(celebTimer.current);
       celebTimer.current = setTimeout(() => setCelebrate(null), 1700);
@@ -469,6 +470,7 @@ export default function App() {
     }
     const units = completedUnits(before, ng);
     if (!units.length) return;
+    haptic("success");
     const delays = new Map();
     for (const u of units) {
       u.cells.forEach((c, k) => {
