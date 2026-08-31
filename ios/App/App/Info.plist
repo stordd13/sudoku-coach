@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Sudoku·Coach utilise l’appareil photo pour scanner une grille de sudoku.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Sudoku·Coach lit une photo de ta photothèque pour scanner une grille de sudoku.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

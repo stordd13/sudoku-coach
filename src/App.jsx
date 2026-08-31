@@ -7,6 +7,7 @@ import {
 import { getExercise, KIND_BY_LESSON } from "./exercises.js";
 import { LESSONS } from "./lessons.js";
 import { KEYS, loadAll, readSync, persist } from "./storage.js";
+import { isNative } from "./native.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ---------- */
 const C = {
@@ -769,10 +770,10 @@ export default function App() {
   }
 
   /* ----- OCR photo (via /api/ocr sur Vercel) ----- */
-  function fileToJpegBase64(file, maxDim) {
+  function imageUrlToJpegBase64(url, maxDim, cleanup) {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      const url = URL.createObjectURL(file);
+      const done = (settle, arg) => { if (cleanup) cleanup(); settle(arg); };
       img.onload = () => {
         try {
           const sc = Math.min(1, maxDim / Math.max(img.width, img.height));
@@ -782,11 +783,10 @@ export default function App() {
           cv.width = w; cv.height = h;
           cv.getContext("2d").drawImage(img, 0, 0, w, h);
           const dataUrl = cv.toDataURL("image/jpeg", 0.85);
-          URL.revokeObjectURL(url);
-          resolve(dataUrl.split(",")[1]);
-        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+          done(resolve, dataUrl.split(",")[1]);
+        } catch (e) { done(reject, e); }
       };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("image")); };
+      img.onerror = () => done(reject, new Error("image"));
       img.src = url;
     });
   }
@@ -795,16 +795,43 @@ export default function App() {
       flash("Scans gratuits épuisés — le scan illimité arrive bientôt ✨", "info");
       return;
     }
+    if (isNative()) { scanNative(); return; }
     if (fileRef.current) fileRef.current.click();
   }
   async function onPhoto(e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!file) return;
+    const url = URL.createObjectURL(file);
+    await processScan(url, () => URL.revokeObjectURL(url));
+  }
+  /* Natif : la caméra du système (plus fluide que l'input fichier du WebView),
+     puis le même pipeline de redimensionnement et d'appel API que le web. */
+  async function scanNative() {
+    let shot;
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+      shot = await Camera.getPhoto({
+        resultType: CameraResultType.Base64,
+        quality: 85,
+        correctOrientation: true,
+        source: CameraSource.Prompt,
+        promptLabelHeader: "Scanner une grille",
+        promptLabelPicture: "Prendre une photo",
+        promptLabelPhoto: "Depuis la photothèque",
+        promptLabelCancel: "Annuler",
+      });
+    } catch (err) {
+      return; // annulation (ou permission refusée) : on n'affiche rien
+    }
+    if (!shot || !shot.base64String) return;
+    await processScan(`data:image/jpeg;base64,${shot.base64String}`);
+  }
+  async function processScan(srcUrl, cleanup) {
     setScreen("board"); // le scan peut être lancé depuis l'accueil
     setScanning(true);
     try {
-      const b64 = await fileToJpegBase64(file, 1150);
+      const b64 = await imageUrlToJpegBase64(srcUrl, 1150, cleanup);
       const res = await fetch(`${API_BASE}/api/ocr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
