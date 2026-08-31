@@ -36,7 +36,7 @@ sans compte ni serveur.
      - *(optionnel)* `OCR_MODEL` = `claude-haiku-4-5-20251001` pour un scan plus économique
        (défaut : `claude-opus-4-8`, le plus fiable).
      - *(optionnel, recommandé si tu partages l'URL)* `UPSTASH_REDIS_REST_URL` et
-       `UPSTASH_REDIS_REST_TOKEN` : activent la limite anti-abus de **10 scans / jour / IP**
+       `UPSTASH_REDIS_REST_TOKEN` : activent la limite anti-abus de **30 scans / jour / IP**
        sur `/api/ocr`. Pour les obtenir : [console.upstash.com](https://console.upstash.com)
        → compte gratuit → **Create Database** (Redis, région proche, le tier gratuit suffit
        largement) → onglet **REST API** → copie les deux valeurs. Sans ces variables, le
@@ -113,7 +113,7 @@ arrière-plan et devient active à l'ouverture suivante.
 
 - **Coûts** : seule la route `/api/ocr` consomme ta clé API. Le reste est statique.
   Si les variables Upstash sont configurées (voir plus haut), chaque IP est limitée à
-  **10 scans par jour** — le filet de sécurité ultime reste un **plafond de dépense
+  **30 scans par jour** — le filet de sécurité ultime reste un **plafond de dépense
   mensuel** sur ta clé, à définir dans la console Anthropic.
 - **Vie privée** : les grilles et la progression sont sauvegardées uniquement dans
   le navigateur de chaque personne (localStorage). Rien n'est stocké côté serveur.

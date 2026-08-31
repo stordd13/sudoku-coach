@@ -15,8 +15,10 @@ import { Redis } from "@upstash/redis";
 export const maxDuration = 60;
 
 // Limite anti-abus : RATE_LIMIT_PER_DAY scans / jour / IP (fenêtre glissante).
+// Assez haute pour qu'un acheteur légitime du scan illimité ne la touche jamais —
+// elle reste le garde-fou de la clé API contre les abus, pas un quota produit.
 // Sans UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (dev local) : pas de limite.
-const RATE_LIMIT_PER_DAY = 10;
+const RATE_LIMIT_PER_DAY = 30;
 
 let ratelimiter = null;
 let warnedNoUpstash = false;
