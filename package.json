@@ -16,6 +16,7 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.5.0",
     "@capacitor/preferences": "^8.0.1",
+    "@revenuecat/purchases-capacitor": "^13.4.2",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.3",
     "react": "^18.3.1",

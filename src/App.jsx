@@ -8,6 +8,7 @@ import { getExercise, KIND_BY_LESSON } from "./exercises.js";
 import { LESSONS } from "./lessons.js";
 import { KEYS, loadAll, readSync, persist } from "./storage.js";
 import { isNative, haptic } from "./native.js";
+import { initPurchases, getOffer, buy, restore } from "./purchases.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ---------- */
 const C = {
@@ -101,8 +102,9 @@ function Card({ emoji, title, sub, onClick, accent }) {
     </button>
   );
 }
-function ScanQuotaNote({ left }) {
+function ScanQuotaNote({ left, onUnlocked }) {
   if (left <= 0) {
+    if (isNative()) return <PaywallCard onUnlocked={onUnlocked} />;
     return (
       <div style={{
         width: "100%", fontSize: 12.5, color: "#5A6763", background: "rgba(255,255,255,0.8)",
@@ -120,6 +122,62 @@ function ScanQuotaNote({ left }) {
     );
   }
   return null;
+}
+/* Paywall natif (RevenueCat) : remplace le panneau d'attente quand les scans
+   gratuits sont épuisés. Si l'offre est indisponible (clé absente, produit pas
+   prêt, hors-ligne), on retombe sur le même panneau « bientôt » que le web. */
+function PaywallCard({ onUnlocked }) {
+  const [offer, setOffer] = useState(null); // null = chargement | false = indisponible | { price, pkg }
+  const [busy, setBusy] = useState(null); // null | "buy" | "restore"
+  const [note, setNote] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    getOffer().then((o) => { if (alive) setOffer(o || false); });
+    return () => { alive = false; };
+  }, []);
+  async function onBuy() {
+    setBusy("buy"); setNote(null);
+    try {
+      const r = await buy(offer.pkg);
+      if (r === true) onUnlocked();
+      else if (r !== "cancelled") setNote("L’achat n’a pas abouti — réessaie.");
+    } catch (e) { setNote("L’achat n’a pas abouti — réessaie."); }
+    setBusy(null);
+  }
+  async function onRestore() {
+    setBusy("restore"); setNote(null);
+    try {
+      if (await restore()) onUnlocked();
+      else setNote("Aucun achat à retrouver sur ce compte.");
+    } catch (e) { setNote("La restauration n’a pas abouti — réessaie."); }
+    setBusy(null);
+  }
+  const box = {
+    width: "100%", background: "rgba(255,255,255,0.8)", border: "1px dashed #B9C4C0",
+    borderRadius: 10, padding: "12px", textAlign: "center",
+    display: "flex", flexDirection: "column", gap: 8,
+  };
+  if (offer === null) {
+    return <div style={box}><div style={{ fontSize: 12.5, color: "#5A6763" }}>📷 Un instant, on charge l’offre…</div></div>;
+  }
+  if (offer === false) {
+    return <div style={box}><div style={{ fontSize: 12.5, color: "#5A6763" }}>📷 Scans gratuits épuisés — le scan illimité arrive bientôt ✨</div></div>;
+  }
+  return (
+    <div style={box}>
+      <div style={{ fontSize: 12.5, color: "#5A6763" }}>📷 Tes {FREE_SCANS} scans gratuits sont utilisés.</div>
+      <Btn variant="accent" grow disabled={!!busy} onClick={onBuy}>
+        {busy === "buy" ? "Un instant…" : `✨ Débloquer le scan illimité — ${offer.price}`}
+      </Btn>
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <LinkBtn onClick={busy ? undefined : onRestore}>
+          {busy === "restore" ? "Recherche de tes achats…" : "Restaurer mes achats"}
+        </LinkBtn>
+      </div>
+      {note && <div style={{ fontSize: 12, color: C.red }}>{note}</div>}
+      <div style={{ fontSize: 11, color: "#98A29D" }}>Achat unique — pas d’abonnement.</div>
+    </div>
+  );
 }
 
 /* ================================================================
@@ -436,7 +494,8 @@ export default function App() {
   const [msg, setMsg] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [scansUsed, setScansUsed] = useState(0); // chargé au boot via loadAll()
-  const scansLeft = Math.max(0, FREE_SCANS - scansUsed);
+  const [unlimited, setUnlimited] = useState(false); // entitlement RevenueCat (natif)
+  const scansLeft = unlimited ? Infinity : Math.max(0, FREE_SCANS - scansUsed);
   const [solRef, setSolRef] = useState(null);
   const [errorCells, setErrorCells] = useState(new Set());
   const [loaded, setLoaded] = useState(false);
@@ -792,9 +851,18 @@ export default function App() {
       img.src = url;
     });
   }
+  function unlockScans() {
+    setUnlimited(true);
+    flash("✨ Scan illimité débloqué — merci !", "success");
+  }
   function openScan() {
     if (scansLeft <= 0) {
-      flash("Scans gratuits épuisés — le scan illimité arrive bientôt ✨", "info");
+      flash(
+        isNative()
+          ? "Scans gratuits épuisés — débloque le scan illimité ✨"
+          : "Scans gratuits épuisés — le scan illimité arrive bientôt ✨",
+        "info"
+      );
       return;
     }
     if (isNative()) { scanNative(); return; }
@@ -857,9 +925,11 @@ export default function App() {
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
       setPhase("edit"); setSolRef(null); setPlan(null); setSel(null); setGameLevel(null);
-      const used = (Number(readSync(KEYS.scans)) || 0) + 1; // relit le storage (robuste multi-onglets)
-      persist(KEYS.scans, used);
-      setScansUsed(used);
+      if (!unlimited) {
+        const used = (Number(readSync(KEYS.scans)) || 0) + 1; // relit le storage (robuste multi-onglets)
+        persist(KEYS.scans, used);
+        setScansUsed(used);
+      }
       flash(`📷 ${filledCount} chiffres lus. Vérifie la grille (corrige au besoin) puis « Commencer ».`, "success");
     } catch (err) {
       flash("Scan impossible : cadre bien la grille, à plat, avec une lumière franche — puis réessaie.", "warn");
@@ -895,6 +965,13 @@ export default function App() {
       } catch (e) { /* première visite ou stockage indisponible */ }
       setLoaded(true);
     })();
+  }, []);
+  useEffect(() => {
+    // Natif : RevenueCat au boot. setUnlimited(true) seulement — un échec
+    // ponctuel (hors-ligne) ne doit pas rétrograder un achat déjà connu.
+    initPurchases((active) => { if (active) setUnlimited(true); })
+      .then((active) => { if (active) setUnlimited(true); })
+      .catch(() => { /* SDK indisponible : freemium inchangé */ });
   }, []);
   useEffect(() => {
     if (!loaded) return;
@@ -1066,7 +1143,7 @@ export default function App() {
               <Card emoji="📷" title="Scanner" sub="Photographie une grille de magazine ou de journal"
                 onClick={openScan} />
             )}
-            <ScanQuotaNote left={scansLeft} />
+            <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
             <Card emoji="📚" title="Apprendre" sub={`${LESSONS.length} leçons, des bases aux techniques expertes`}
               onClick={() => setTab("learn")} />
           </div>
@@ -1259,7 +1336,7 @@ export default function App() {
                 <Btn variant="primary" grow onClick={startPlay}>▶︎ Commencer</Btn>
                 <Btn variant="accent" grow onClick={openScan} disabled={scanning || !scansLeft}>📷 Scanner</Btn>
               </div>
-              <ScanQuotaNote left={scansLeft} />
+              <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
                 <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
                 <LinkBtn onClick={loadSample}>Charger un exemple</LinkBtn>
@@ -1286,7 +1363,7 @@ export default function App() {
                 <Btn grow onClick={openScan} disabled={scanning || !scansLeft}>📷 Scanner</Btn>
                 <Btn grow onClick={solveAll}>✅ Tout résoudre</Btn>
               </div>
-              <ScanQuotaNote left={scansLeft} />
+              <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
                 <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
                 <LinkBtn onClick={backToEdit}>Modifier la grille</LinkBtn>
