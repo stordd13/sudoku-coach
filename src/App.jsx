@@ -4,6 +4,7 @@ import {
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, stuckPanelKind, SAMPLES,
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
+import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak } from "./daily.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
 import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
 import { LESSONS } from "./lessons.js";
@@ -102,6 +103,39 @@ function Card({ emoji, title, sub, onClick, accent }) {
       </span>
       <span style={{ marginLeft: "auto", color: C.gray, fontSize: 16 }}>›</span>
     </button>
+  );
+}
+/* « mardi 1 septembre » — parse en heure LOCALE (T00:00:00 sans Z) pour ne pas
+   décaler le jour affiché selon le fuseau. Locale figée FR (i18n en 5.5). */
+function fmtDailyDate(dateStr) {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+}
+/* Mini-calendrier du mois : une pastille par jour, pleine quand le défi est
+   réussi, cerclée pour aujourd'hui, estompée pour les jours à venir. */
+function DailyDots({ cells, done, today }) {
+  const doneCount = cells.reduce((n, c) => n + (done[c.dateStr] ? 1 : 0), 0);
+  const month = new Date(today + "T00:00:00").toLocaleDateString("fr-FR", { month: "long" });
+  return (
+    <div style={{
+      width: "100%", background: "rgba(255,255,255,0.8)", border: "1px solid #E2E7E5",
+      borderRadius: 10, padding: "8px 12px", display: "flex", flexDirection: "column",
+      gap: 6, alignItems: "center",
+    }}>
+      <div style={{ fontSize: 11, color: "#98A29D", fontWeight: 600 }}>
+        {month[0].toUpperCase() + month.slice(1)}
+        {doneCount ? ` — ${doneCount} défi${doneCount > 1 ? "s" : ""} réussi${doneCount > 1 ? "s" : ""}` : ""}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, justifyContent: "center" }}>
+        {cells.map((c) => (
+          <span key={c.dateStr} style={{
+            width: 9, height: 9, borderRadius: 999,
+            background: done[c.dateStr] ? C.teal : "#E2E7E5",
+            boxShadow: c.dateStr === today ? `0 0 0 2px ${C.tealSoft}, 0 0 0 3px ${C.teal}` : "none",
+            opacity: c.dateStr > today ? 0.35 : 1,
+          }} />
+        ))}
+      </div>
+    </div>
   );
 }
 function ScanQuotaNote({ left, onUnlocked }) {
@@ -490,6 +524,10 @@ export default function App() {
   const [notes, setNotes] = useState(Array.from({ length: 81 }, () => []));
   const [phase, setPhase] = useState("edit"); // 'edit' | 'play'
   const [gameLevel, setGameLevel] = useState(null); // 1-4 (grille générée) | null (scan/manuel)
+  /* Origine de la partie : null (libre/scan) ou { type: "daily", date }.
+     Persisté dans KEYS.save — un défi repris le lendemain garde sa réussite. */
+  const [gameOrigin, setGameOrigin] = useState(null);
+  const [dailyDone, setDailyDone] = useState({}); // { "YYYY-MM-DD": true }
   const [generating, setGenerating] = useState(false);
   const [sel, setSel] = useState(null);
   const [noteMode, setNoteMode] = useState(false);
@@ -519,6 +557,7 @@ export default function App() {
   const [shake, setShake] = useState(null); // {cells: Set, stamp} : erreurs / conflits
 
   const histRef = useRef([]);
+  const wonHandledRef = useRef(false); // garde StrictMode/re-renders de l'effet de victoire
   const fileRef = useRef(null);
   const panelRef = useRef(null);
   const msgTimer = useRef(null);
@@ -654,9 +693,48 @@ export default function App() {
         setMultiSol(false); setMultiSolPrompt(false); // générée = solution unique garantie
         setPhase("play");
         setGameLevel(p.level);
+        setGameOrigin(null);
         histRef.current = [];
         if (p.level === lvl) flash(`🎲 Grille ${LEVELS[p.level].name} — à toi de jouer ✏️`, "success");
         else flash(`Le niveau ${LEVELS[lvl].name} n'est pas sorti cette fois — voici une grille ${LEVELS[p.level].name}.`, "warn");
+      } finally {
+        setGenerating(false);
+      }
+    }, 50);
+  }
+  /* ----- défi du jour ----- */
+  function startDaily() {
+    const today = localDateStr();
+    // Le défi du jour est déjà en cours → reprendre la partie, pas régénérer.
+    if (phase === "play" && !won && gameOrigin && gameOrigin.type === "daily" && gameOrigin.date === today) {
+      setScreen("board");
+      return;
+    }
+    setScreen("board"); setGenerating(true);
+    setPlan(null); setSel(null); setNoteMode(false); clearErrors();
+    // setTimeout : laisse React peindre l'overlay avant l'appel synchrone —
+    // indispensable ici, la génération du défi n'a pas de time-box (cf. daily.js).
+    setTimeout(() => {
+      try {
+        const store = readSync(KEYS.daily) || {};
+        let p = store.puzzles && store.puzzles[today];
+        if (!p || String(p.grid || "").length !== 81 || String(p.solution || "").length !== 81) {
+          p = dailyPuzzle(today);
+          // Une génération par jour et par appareil : seule celle du jour est gardée.
+          persist(KEYS.daily, { done: store.done || {}, puzzles: { [today]: p } });
+        }
+        const g = p.grid.split("").map(Number);
+        setGrid(g);
+        setGivens(g.map((v) => v !== 0));
+        setNotes(Array.from({ length: 81 }, () => []));
+        setSolRef(p.solution.split("").map(Number));
+        setMultiSol(false); setMultiSolPrompt(false);
+        setPhase("play");
+        setGameLevel(p.level);
+        setGameOrigin({ type: "daily", date: today });
+        histRef.current = [];
+        if (p.level === p.targetLevel) flash(`🗓️ Défi du ${fmtDailyDate(today)} — grille ${LEVELS[p.level].name}. À toi de jouer ✏️`, "success");
+        else flash(`Le niveau ${LEVELS[p.targetLevel].name} n’est pas sorti aujourd’hui — le défi est une grille ${LEVELS[p.level].name}.`, "warn");
       } finally {
         setGenerating(false);
       }
@@ -668,6 +746,7 @@ export default function App() {
     setGivens(grid.map((v) => v !== 0));
     setPhase("play");
     setGameLevel(null);
+    setGameOrigin(null);
     histRef.current = [];
     setPlan(null); setNoteMode(false);
     if (multi) flash("Grille verrouillée — garde un œil sur le badge ⚠️ plusieurs solutions.", "warn");
@@ -691,7 +770,7 @@ export default function App() {
   }
   function backToEdit() {
     setPhase("edit"); setGivens(Array(81).fill(false));
-    setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setNoteMode(false); setGameLevel(null);
+    setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setNoteMode(false); setGameLevel(null); setGameOrigin(null);
     flash("Mode saisie : modifie librement, puis « Commencer ».");
   }
   function clearAll() {
@@ -699,7 +778,7 @@ export default function App() {
     setGrid(Array(81).fill(0));
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
-    setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null);
+    setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null); setGameOrigin(null);
   }
   function restartPuzzle() {
     pushHist();
@@ -1055,7 +1134,12 @@ export default function App() {
             if (solution) { setSolRef(solution); setMultiSol(count > 1); setPhase("play"); }
           }
           if (s.level >= 1 && s.level <= 5) setGameLevel(s.level);
+          if (s.origin && s.origin.type === "daily" && typeof s.origin.date === "string") {
+            setGameOrigin({ type: "daily", date: s.origin.date });
+          }
         }
+        const d = data[KEYS.daily];
+        if (d && d.done && typeof d.done === "object") setDailyDone(d.done);
         const used = Number(data[KEYS.scans]);
         if (Number.isFinite(used) && used > 0) setScansUsed(used);
       } catch (e) { /* première visite ou stockage indisponible */ }
@@ -1072,10 +1156,25 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      persist(KEYS.save, { grid, givens, notes, phase, level: gameLevel });
+      persist(KEYS.save, { grid, givens, notes, phase, level: gameLevel, origin: gameOrigin });
     }, 400);
     return () => clearTimeout(t);
-  }, [grid, givens, notes, phase, gameLevel, loaded]);
+  }, [grid, givens, notes, phase, gameLevel, gameOrigin, loaded]);
+
+  /* ----- défi du jour : marquer la réussite (une fois par victoire) ----- */
+  useEffect(() => {
+    if (!won) { wonHandledRef.current = false; return; }
+    if (wonHandledRef.current) return; // StrictMode et re-renders
+    wonHandledRef.current = true;
+    if (gameOrigin && gameOrigin.type === "daily" && !dailyDone[gameOrigin.date]) {
+      const nextDone = { ...dailyDone, [gameOrigin.date]: true };
+      setDailyDone(nextDone);
+      const store = readSync(KEYS.daily) || {};
+      persist(KEYS.daily, { ...store, done: nextDone });
+      const streak = currentStreak(nextDone, localDateStr());
+      flash(streak > 1 ? `🗓️ Défi du jour réussi — série de ${streak} jours 🔥` : "🗓️ Défi du jour réussi ✓", "success", 7000);
+    }
+  }, [won, gameOrigin, dailyDone]);
 
   /* ----- clavier (desktop) ----- */
   useEffect(() => {
@@ -1228,6 +1327,20 @@ export default function App() {
         <>
           {/* ---------- Accueil ---------- */}
           <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+            {(() => {
+              const today = localDateStr();
+              const inProgress = phase === "play" && !won
+                && gameOrigin && gameOrigin.type === "daily" && gameOrigin.date === today;
+              const state = dailyDone[today] ? "Réussi ✓" : inProgress ? "En cours…" : "À faire";
+              return (
+                <>
+                  <Card accent={!dailyDone[today]} emoji="🗓️" title="Défi du jour"
+                    sub={`${fmtDailyDate(today)} · ${LEVELS[dailyLevelFor(today)].name} · ${state}`}
+                    onClick={startDaily} />
+                  <DailyDots cells={monthCells(today)} done={dailyDone} today={today} />
+                </>
+              );
+            })()}
             {phase === "play" && !won && (
               <Card accent emoji="▶︎" title="Reprendre la partie"
                 sub={`${gameLevel ? `Niveau ${LEVELS[gameLevel].name} · ` : ""}${grid.filter((v) => !v).length} cases restantes`}

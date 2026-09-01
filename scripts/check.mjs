@@ -785,6 +785,14 @@ console.log("Stockage (implémentation web) :");
   ok(all[KEYS.exos] === null, "clé absente → null");
   ok(readSync(KEYS.scans) === 4, "readSync relit une valeur persistée");
 
+  const daily = {
+    done: { "2026-08-31": true, "2026-09-01": true },
+    puzzles: { "2026-09-01": { grid: "1".repeat(81), solution: "2".repeat(81), level: 2, targetLevel: 2 } },
+  };
+  await persist(KEYS.daily, daily);
+  ok(JSON.stringify((await loadAll())[KEYS.daily]) === JSON.stringify(daily),
+    "KEYS.daily : round-trip persist/loadAll (réussites + grille du jour)");
+
   backing.set(KEYS.scans, "6"); // valeur héritée de l'ancien code (brute, sans JSON)
   ok(readSync(KEYS.scans) === 6, "compteur hérité de l'ancien format relu tel quel");
   backing.set(KEYS.save, "{pas du json");

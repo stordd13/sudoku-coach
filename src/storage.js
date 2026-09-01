@@ -13,6 +13,7 @@ export const KEYS = {
   save: "sudoku-coach-v1",
   scans: "sudoku-coach-scansUsed",
   exos: "sudoku-coach-exos-v2",
+  daily: "sudoku-coach-daily", // { done: { "YYYY-MM-DD": true }, puzzles: { [date]: grille } }
 };
 
 /* L'ancien compteur de scans était stocké brut ("4") — c'est du JSON valide,
