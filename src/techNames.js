@@ -44,10 +44,22 @@ export function frWithArticle(kind) {
   return `${t.fem ? "la" : "le"} ${name}`;
 }
 
-/* Liste FR des 17 techniques dans l'ordre des leçons — panneaux « au-delà
+/* Forme avec article selon la langue : « la paire pointante » / « the
+   pointing pair ». */
+export function withArticle(kind, lang = "fr") {
+  if (lang !== "en") return frWithArticle(kind);
+  const t = TECH_NAMES[kind];
+  if (!t) return "";
+  return `the ${t.proper ? t.en : t.en.toLowerCase()}`;
+}
+
+/* Liste des 17 techniques dans l'ordre des leçons — panneaux « au-delà
    du coach » (stuckAll, révélation). */
-export function frTechList() {
+export function frTechList(lang = "fr") {
   return Object.values(TECH_NAMES)
-    .map((t) => (t.proper ? t.fr : t.fr.charAt(0).toLowerCase() + t.fr.slice(1)))
+    .map((t) => {
+      const name = lang === "en" ? t.en : t.fr;
+      return t.proper ? name : name.charAt(0).toLowerCase() + name.slice(1);
+    })
     .join(", ");
 }

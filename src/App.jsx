@@ -14,8 +14,8 @@ import { KEYS, loadAll, readSync, persist } from "./storage.js";
 import { isNative, haptic } from "./native.js";
 import { initPurchases, getOffer, buy, restore } from "./purchases.js";
 import { C_LIGHT, C_DARK, cssVars, META_COLOR } from "./theme.js";
-import { TECH_NAMES, frWithArticle, frTechList } from "./techNames.js";
-import { t, setLang, detectLang } from "./i18n.js";
+import { TECH_NAMES, withArticle, frTechList } from "./techNames.js";
+import { t, setLang, getLang, detectLang } from "./i18n.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
    Les hex vivent dans theme.js (C_LIGHT/C_DARK) ; ici chaque clé devient une
@@ -38,15 +38,14 @@ const FREE_SCANS = 5;
 /* ---------- Réglages (persistés via KEYS.settings) ---------- */
 const DEFAULT_SETTINGS = { hideTimer: false, theme: "auto", lang: "auto" };
 
-/* ---------- Niveaux de difficulté (générateur) ---------- */
-const LEVELS = {
-  1: { name: "Facile", desc: "Candidats uniques et singles cachés" },
-  2: { name: "Moyen", desc: "+ alignements (paires pointantes, réductions bloc/ligne)" },
-  3: { name: "Difficile", desc: "+ paires nues et paires cachées" },
-  4: { name: "Expert", desc: "+ X-Wing, XY-Wing, Skyscraper, Swordfish…" },
-  5: { name: "Diabolique", desc: "Coloriage, Sue de Coq… voire au-delà du coach" },
-};
+/* ---------- Niveaux de difficulté (générateur) — libellés via i18n ---------- */
+const LEVEL_IDS = [1, 2, 3, 4, 5];
+const levelName = (n) => t(`level.${n}.name`);
+const levelDesc = (n) => t(`level.${n}.desc`);
 const MAX_LEVEL = 5;
+
+/* Pluriel : clé .one ou .other selon n (pas de moteur de pluriel). */
+const tn = (base, n, params) => t(n === 1 ? `${base}.one` : `${base}.other`, { n, ...params });
 
 /* ---------- Petits composants UI ---------- */
 function Rich({ text }) {
@@ -108,16 +107,17 @@ function Card({ emoji, title, sub, onClick, accent }) {
     </button>
   );
 }
-/* « mardi 1 septembre » — parse en heure LOCALE (T00:00:00 sans Z) pour ne pas
-   décaler le jour affiché selon le fuseau. Locale figée FR (i18n en 5.5). */
+/* « mardi 1 septembre » / « Tuesday 1 September » — parse en heure LOCALE
+   (T00:00:00 sans Z) pour ne pas décaler le jour affiché selon le fuseau. */
+const dateLocale = () => (getLang() === "en" ? "en-GB" : "fr-FR");
 function fmtDailyDate(dateStr) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return new Date(dateStr + "T00:00:00").toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" });
 }
 /* Mini-calendrier du mois : une pastille par jour, pleine quand le défi est
    réussi, cerclée pour aujourd'hui, estompée pour les jours à venir. */
 function DailyDots({ cells, done, today }) {
   const doneCount = cells.reduce((n, c) => n + (done[c.dateStr] ? 1 : 0), 0);
-  const month = new Date(today + "T00:00:00").toLocaleDateString("fr-FR", { month: "long" });
+  const month = new Date(today + "T00:00:00").toLocaleDateString(dateLocale(), { month: "long" });
   return (
     <div style={{
       width: "100%", background: C.glass, border: `1px solid ${C.borderSoft}`,
@@ -126,7 +126,7 @@ function DailyDots({ cells, done, today }) {
     }}>
       <div style={{ fontSize: 11, color: C.faint, fontWeight: 600 }}>
         {month[0].toUpperCase() + month.slice(1)}
-        {doneCount ? ` — ${doneCount} défi${doneCount > 1 ? "s" : ""} réussi${doneCount > 1 ? "s" : ""}` : ""}
+        {doneCount ? tn("daily.month", doneCount) : ""}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, justifyContent: "center" }}>
         {cells.map((c) => (
@@ -163,13 +163,13 @@ function StatsView({ stats, dailyDone }) {
   const record = bestStreak(dailyDone);
   const rate = helpRate(s);
   const rows = ["1", "2", "3", "4", "5", "custom"].filter((k) => s.started[k] || s.finished[k]);
-  const rowName = (k) => (k === "custom" ? "Perso / scan" : LEVELS[Number(k)].name);
+  const rowName = (k) => (k === "custom" ? t("stats.custom") : levelName(Number(k)));
   return (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-        <StatTile value={totalFinished} label="parties terminées" />
-        <StatTile value={streak ? `${streak} 🔥` : "0"} label="série défi en cours" />
-        <StatTile value={record} label="record de série" />
+        <StatTile value={totalFinished} label={t("stats.finished")} />
+        <StatTile value={streak ? `${streak} 🔥` : "0"} label={t("stats.streak")} />
+        <StatTile value={record} label={t("stats.bestStreak")} />
       </div>
       <div style={{
         background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 14,
@@ -177,14 +177,14 @@ function StatsView({ stats, dailyDone }) {
       }}>
         {rows.length === 0 ? (
           <div style={{ fontSize: 13, color: C.textSoft }}>
-            Joue ta première grille — tes chiffres apparaîtront ici.
+            {t("stats.empty")}
           </div>
         ) : (
           <>
             <div style={{ display: "flex", fontSize: 11, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: ".04em" }}>
-              <span style={{ flex: 1 }}>Niveau</span>
-              <span style={{ width: 86, textAlign: "right" }}>Terminées</span>
-              <span style={{ width: 86, textAlign: "right" }}>Meilleur temps</span>
+              <span style={{ flex: 1 }}>{t("stats.colLevel")}</span>
+              <span style={{ width: 86, textAlign: "right" }}>{t("stats.colDone")}</span>
+              <span style={{ width: 86, textAlign: "right" }}>{t("stats.colBest")}</span>
             </div>
             {rows.map((k) => (
               <div key={k} style={{ display: "flex", fontSize: 13.5, alignItems: "baseline" }}>
@@ -202,8 +202,8 @@ function StatsView({ stats, dailyDone }) {
       </div>
       {totalFinished > 0 && (
         <div style={{ fontSize: 12, color: C.textSoft, textAlign: "center" }}>
-          {rate ? `En moyenne ${rate.toFixed(1)} indice${rate >= 2 ? "s" : ""} du coach par partie terminée.`
-            : "Aucun indice utilisé — chapeau 👏"}
+          {rate ? t(rate < 2 ? "stats.helpRate.one" : "stats.helpRate.other", { n: rate.toFixed(1) })
+            : t("stats.noHints")}
         </div>
       )}
     </>
@@ -267,14 +267,14 @@ function ScanQuotaNote({ left, onUnlocked }) {
         width: "100%", fontSize: 12.5, color: C.textSoft, background: C.glass,
         border: `1px dashed ${C.dashed}`, borderRadius: 10, padding: "10px 12px", textAlign: "center",
       }}>
-        📷 Scans gratuits épuisés — le scan illimité arrive bientôt ✨
+        {t("scan.out.web")}
       </div>
     );
   }
   if (left < 3) {
     return (
       <div style={{ width: "100%", fontSize: 11.5, color: C.faint, textAlign: "center" }}>
-        {left === 1 ? "1 scan gratuit restant" : `${left} scans gratuits restants`}
+        {tn("scan.left", left)}
       </div>
     );
   }
@@ -297,16 +297,16 @@ function PaywallCard({ onUnlocked }) {
     try {
       const r = await buy(offer.pkg);
       if (r === true) onUnlocked();
-      else if (r !== "cancelled") setNote("L’achat n’a pas abouti — réessaie.");
-    } catch (e) { setNote("L’achat n’a pas abouti — réessaie."); }
+      else if (r !== "cancelled") setNote(t("paywall.buyFailed"));
+    } catch (e) { setNote(t("paywall.buyFailed")); }
     setBusy(null);
   }
   async function onRestore() {
     setBusy("restore"); setNote(null);
     try {
       if (await restore()) onUnlocked();
-      else setNote("Aucun achat à retrouver sur ce compte.");
-    } catch (e) { setNote("La restauration n’a pas abouti — réessaie."); }
+      else setNote(t("paywall.noPurchase"));
+    } catch (e) { setNote(t("paywall.restoreFailed")); }
     setBusy(null);
   }
   const box = {
@@ -315,24 +315,24 @@ function PaywallCard({ onUnlocked }) {
     display: "flex", flexDirection: "column", gap: 8,
   };
   if (offer === null) {
-    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>📷 Un instant, on charge l’offre…</div></div>;
+    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>{t("paywall.loading")}</div></div>;
   }
   if (offer === false) {
-    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>📷 Scans gratuits épuisés — le scan illimité arrive bientôt ✨</div></div>;
+    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>{t("scan.out.web")}</div></div>;
   }
   return (
     <div style={box}>
-      <div style={{ fontSize: 12.5, color: C.textSoft }}>📷 Tes {FREE_SCANS} scans gratuits sont utilisés.</div>
+      <div style={{ fontSize: 12.5, color: C.textSoft }}>{t("paywall.used", { n: FREE_SCANS })}</div>
       <Btn variant="accent" grow disabled={!!busy} onClick={onBuy}>
-        {busy === "buy" ? "Un instant…" : `✨ Débloquer le scan illimité — ${offer.price}`}
+        {busy === "buy" ? t("paywall.busy") : t("paywall.buy", { price: offer.price })}
       </Btn>
       <div style={{ display: "flex", justifyContent: "center" }}>
         <LinkBtn onClick={busy ? undefined : onRestore}>
-          {busy === "restore" ? "Recherche de tes achats…" : "Restaurer mes achats"}
+          {busy === "restore" ? t("paywall.restoring") : t("paywall.restore")}
         </LinkBtn>
       </div>
       {note && <div style={{ fontSize: 12, color: C.red }}>{note}</div>}
-      <div style={{ fontSize: 11, color: C.faint }}>Achat unique — pas d’abonnement.</div>
+      <div style={{ fontSize: 11, color: C.faint }}>{t("paywall.oneTime")}</div>
     </div>
   );
 }
@@ -401,9 +401,10 @@ function LessonBoard({ lesson, revealed }) {
   );
 }
 /* ----- Exercices : libellés (dérivés de techNames.js) et cache local ----- */
-const EXO_NAME_BY_ID = Object.fromEntries(
-  Object.entries(TECH_NAMES).map(([kind, t]) => [t.lesson, frWithArticle(kind)])
+const KIND_BY_LESSON_ID = Object.fromEntries(
+  Object.entries(TECH_NAMES).map(([kind, tech]) => [tech.lesson, kind])
 );
+const exoName = (lessonId) => withArticle(KIND_BY_LESSON_ID[lessonId], getLang());
 function loadExoCache() {
   const c = readSync(KEYS.exos);
   return c && typeof c === "object" ? c : {};
@@ -468,7 +469,7 @@ function LearnView({ ix, onSelectIx }) {
   const board = isExo
     ? (revealed ? exo : { ...exo, unit: [], focus: [], target: undefined })
     : L;
-  const question = isExo ? `Trouve ${EXO_NAME_BY_ID[L.id]} sur cette grille.` : L.question;
+  const question = isExo ? t("learn.findIt", { name: exoName(L.id) }) : L.question;
   const hint = isExo ? exo.hint : L.hint;
   return (
     <>
@@ -476,8 +477,8 @@ function LearnView({ ix, onSelectIx }) {
         {LESSONS.map((l, i) => {
           const newSection = i === 0 || LESSONS[i - 1].level !== l.level;
           const sectionLabel =
-            l.level === "advanced" ? "Avancé" :
-            l.level === "intermediate" ? "Intermédiaire" : "Classiques";
+            l.level === "advanced" ? t("learn.section.advanced") :
+            l.level === "intermediate" ? t("learn.section.intermediate") : t("learn.section.classic");
           return (
             <Fragment key={l.id}>
               {newSection && (
@@ -524,21 +525,19 @@ function LearnView({ ix, onSelectIx }) {
               width: 34, height: 34, border: `3px solid ${C.line}`, borderTopColor: C.teal,
               borderRadius: "50%", animation: "scspin .9s linear infinite",
             }} />
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.msgInfoFg }}>Recherche d’un exemple…</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.msgInfoFg }}>{t("learn.searching")}</div>
           </div>
         )}
       </div>
       {Object.keys(board.notes || {}).length > 0 && (
         <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
-          Petits chiffres = tous les candidats encore possibles de la case.
+          {t("learn.candidatesNote")}
         </div>
       )}
       {isExo && (
         <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
-          {exo.source === "transform" ? "Position d’entraînement." : "Grille réelle."}
-          {exo.workedNotes
-            ? " Partie en cours : ces notes ont déjà été affinées par des techniques précédentes."
-            : ""}
+          {exo.source === "transform" ? t("learn.training") : t("learn.real")}
+          {exo.workedNotes ? t("learn.workedNotes") : ""}
         </div>
       )}
 
@@ -569,7 +568,7 @@ function LearnView({ ix, onSelectIx }) {
                 fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
               }}>{L.answer}</div>
               <div style={{ fontSize: 13, color: C.gray }}>
-                en <strong style={{ color: C.ink }}>{cellName(L.target)}</strong>
+                {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(L.target)}</strong>
               </div>
             </div>
           </>
@@ -592,35 +591,35 @@ function LearnView({ ix, onSelectIx }) {
                   fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
                 }}>{exo.answer}</div>
                 <div style={{ fontSize: 13, color: C.gray }}>
-                  en <strong style={{ color: C.ink }}>{cellName(exo.target)}</strong>
-                  {Object.keys(exo.removals).length ? " — l’élimination y laisse un candidat unique" : ""}
+                  {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(exo.target)}</strong>
+                  {Object.keys(exo.removals).length ? t("learn.elimNote") : ""}
                 </div>
               </div>
             )}
             {exo.source !== "transform" && (
               <div style={{ fontSize: 11.5, color: C.gray }}>
-                Sur une grille réelle, le motif peut apparaître à plusieurs endroits — en voici un.
+                {t("learn.multiSpot")}
               </div>
             )}
           </>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
-          {!revealed && <Btn grow onClick={() => setShowHint(true)} disabled={showHint || exo === "searching"}>💡 Indice</Btn>}
-          {!revealed && <Btn variant="accent" grow onClick={() => setRevealed(true)} disabled={exo === "searching"}>Voir la solution</Btn>}
-          {revealed && <Btn grow onClick={() => { setRevealed(false); setShowHint(false); }}>Masquer</Btn>}
+          {!revealed && <Btn grow onClick={() => setShowHint(true)} disabled={showHint || exo === "searching"}>{t("learn.hint")}</Btn>}
+          {!revealed && <Btn variant="accent" grow onClick={() => setRevealed(true)} disabled={exo === "searching"}>{t("btn.seeSolution")}</Btn>}
+          {revealed && <Btn grow onClick={() => { setRevealed(false); setShowHint(false); }}>{t("learn.hide")}</Btn>}
           {revealed && !isExo && ix < LESSONS.length - 1 && (
-            <Btn variant="primary" grow onClick={() => onSelectIx(ix + 1)}>Technique suivante →</Btn>
+            <Btn variant="primary" grow onClick={() => onSelectIx(ix + 1)}>{t("learn.nextTech")}</Btn>
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Btn grow onClick={newExercise} disabled={exo === "searching"}>
-            🎲 Nouvel exemple
+            {t("learn.newExample")}
           </Btn>
         </div>
       </div>
-      {isExo && <LinkBtn onClick={backToGuided}>← Revenir à l’exemple guidé</LinkBtn>}
+      {isExo && <LinkBtn onClick={backToGuided}>{t("learn.backGuided")}</LinkBtn>}
       <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
-        Ces techniques sont exactement celles utilisées par le coach dans l’onglet Jouer.
+        {t("learn.footer")}
       </div>
     </>
   );
@@ -763,7 +762,7 @@ export default function App() {
   }
   function undo() {
     const h = histRef.current.pop();
-    if (!h) { flash("Rien à annuler."); return; }
+    if (!h) { flash(t("flash.nothingToUndo")); return; }
     setGrid(h.grid); setNotes(h.notes); setPlan(null);
   }
 
@@ -782,7 +781,7 @@ export default function App() {
   /* ----- saisie ----- */
   function padPress(d) {
     clearErrors();
-    if (sel === null) { flash("Touche d’abord une case de la grille."); return; }
+    if (sel === null) { flash(t("flash.touchCellFirst")); return; }
     if (phase === "edit") {
       pushHist();
       const ng = grid.slice();
@@ -791,9 +790,9 @@ export default function App() {
       if (ng[sel] !== 0) popCell(sel);
       return;
     }
-    if (givens[sel]) { flash("Cette case fait partie de l’énoncé.", "warn"); return; }
+    if (givens[sel]) { flash(t("flash.givenCell"), "warn"); return; }
     if (noteMode) {
-      if (grid[sel] !== 0) { flash("Efface d’abord le chiffre pour annoter."); return; }
+      if (grid[sel] !== 0) { flash(t("flash.eraseFirst")); return; }
       pushHist();
       const nn = notes.map((a) => a.slice());
       const ixx = nn[sel].indexOf(d);
@@ -819,14 +818,14 @@ export default function App() {
     const conf = conflictSet(ng);
     if (ng[sel] !== 0 && conf.has(sel)) {
       doShake([...conf]);
-      flash("⚠️ Ce chiffre entre en conflit avec sa ligne, sa colonne ou son bloc.", "warn");
+      flash(t("flash.conflict"), "warn");
     }
-    else if (isComplete(ng)) flash("🎉 Grille terminée — bravo !", "success");
+    else if (isComplete(ng)) flash(t("flash.won"), "success");
   }
   function eraseSel() {
     clearErrors();
-    if (sel === null) { flash("Touche d’abord une case."); return; }
-    if (phase === "play" && givens[sel]) { flash("Cette case fait partie de l’énoncé.", "warn"); return; }
+    if (sel === null) { flash(t("flash.touchCell")); return; }
+    if (phase === "play" && givens[sel]) { flash(t("flash.givenCell"), "warn"); return; }
     pushHist();
     const ng = grid.slice(); const nn = notes.map((a) => a.slice());
     ng[sel] = 0; nn[sel] = [];
@@ -853,8 +852,8 @@ export default function App() {
         resetClock();
         bumpStats((s) => recordStart(s, levelKey(p.level)));
         histRef.current = [];
-        if (p.level === lvl) flash(`🎲 Grille ${LEVELS[p.level].name} — à toi de jouer ✏️`, "success");
-        else flash(`Le niveau ${LEVELS[lvl].name} n'est pas sorti cette fois — voici une grille ${LEVELS[p.level].name}.`, "warn");
+        if (p.level === lvl) flash(t("flash.newGrid", { name: levelName(p.level) }), "success");
+        else flash(t("flash.fallbackGrid", { want: levelName(lvl), got: levelName(p.level) }), "warn");
       } finally {
         setGenerating(false);
       }
@@ -893,8 +892,8 @@ export default function App() {
         resetClock();
         bumpStats((s) => recordStart(s, levelKey(p.level)));
         histRef.current = [];
-        if (p.level === p.targetLevel) flash(`🗓️ Défi du ${fmtDailyDate(today)} — grille ${LEVELS[p.level].name}. À toi de jouer ✏️`, "success");
-        else flash(`Le niveau ${LEVELS[p.targetLevel].name} n’est pas sorti aujourd’hui — le défi est une grille ${LEVELS[p.level].name}.`, "warn");
+        if (p.level === p.targetLevel) flash(t("flash.dailyStart", { date: fmtDailyDate(today), name: levelName(p.level) }), "success");
+        else flash(t("flash.dailyFallback", { want: levelName(p.targetLevel), got: levelName(p.level) }), "warn");
       } finally {
         setGenerating(false);
       }
@@ -911,15 +910,15 @@ export default function App() {
     bumpStats((s) => recordStart(s, "custom"));
     histRef.current = [];
     setPlan(null); setNoteMode(false);
-    if (multi) flash("Grille verrouillée — garde un œil sur le badge ⚠️ plusieurs solutions.", "warn");
-    else flash("Grille verrouillée — à toi de jouer ✏️", "success");
+    if (multi) flash(t("flash.lockedMulti"), "warn");
+    else flash(t("flash.locked"), "success");
   }
   function startPlay() {
     const filled = grid.filter((v) => v).length;
-    if (filled < 8) { flash("Ajoute d’abord les chiffres de départ (ou charge un exemple).", "warn"); return; }
-    if (conflictSet(grid).size) { flash("Un chiffre apparaît deux fois dans une zone — corrige avant de commencer.", "warn"); return; }
+    if (filled < 8) { flash(t("flash.needGivens"), "warn"); return; }
+    if (conflictSet(grid).size) { flash(t("flash.conflictBeforeStart"), "warn"); return; }
     const { count, solution } = solveGrid(grid);
-    if (count === 0 || !solution) { flash("Aucune solution possible : vérifie la saisie.", "warn"); return; }
+    if (count === 0 || !solution) { flash(t("flash.noSolution"), "warn"); return; }
     if (count > 1) { setMultiSolPrompt(true); return; }
     lockGrid(solution, false);
   }
@@ -927,14 +926,14 @@ export default function App() {
     setMultiSolPrompt(false);
     // Re-résout l'état COURANT : la grille a pu être corrigée pendant que le panneau était ouvert.
     const { count, solution } = solveGrid(grid);
-    if (count === 0 || !solution) { flash("Aucune solution possible : vérifie la saisie.", "warn"); return; }
+    if (count === 0 || !solution) { flash(t("flash.noSolution"), "warn"); return; }
     lockGrid(solution, count > 1);
   }
   function backToEdit() {
     setPhase("edit"); setGivens(Array(81).fill(false));
     setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setNoteMode(false); setGameLevel(null); setGameOrigin(null);
     resetClock();
-    flash("Mode saisie : modifie librement, puis « Commencer ».");
+    flash(t("flash.editMode"));
   }
   function clearAll() {
     pushHist();
@@ -950,7 +949,7 @@ export default function App() {
     setNotes(Array.from({ length: 81 }, () => []));
     setPlan(null);
     resetClock();
-    flash("Grille réinitialisée à l’énoncé.");
+    flash(t("flash.restarted"));
   }
   function loadSample() {
     const s = SAMPLES[sampleIx.current % SAMPLES.length];
@@ -960,14 +959,14 @@ export default function App() {
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
     setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null);
-    flash("Exemple chargé — vérifie puis « Commencer ».");
+    flash(t("flash.sampleLoaded"));
   }
 
   /* ----- solve complet ----- */
   function solveAll() {
     const baseGrid = phase === "play" ? grid.map((v, i) => (givens[i] ? v : 0)) : grid;
     const { count, solution } = solveGrid(baseGrid);
-    if (!solution) { flash("Grille insoluble — corrige la saisie.", "warn"); return; }
+    if (!solution) { flash(t("flash.unsolvable"), "warn"); return; }
     pushHist();
     if (phase === "play") setAssisted(true); // complétée par le solveur : pas de record
     let wrong = 0;
@@ -977,37 +976,38 @@ export default function App() {
     setPlan(null);
     // Grille ambiguë : pas de décompte « corrigés » — il comparerait le joueur
     // à une branche arbitraire alors que la sienne peut être tout aussi valide.
-    if (count > 1) flash("Grille à plusieurs solutions : voici l’une des complétions valides — elle peut différer de celle du livre.", "warn", 9000);
-    else flash(wrong ? `Résolu ✓ — ${wrong} de tes chiffres ${wrong > 1 ? "ont été corrigés" : "a été corrigé"}.` : "Résolu ✓", "success");
+    if (count > 1) flash(t("flash.multiSolved"), "warn", 9000);
+    else flash(wrong ? tn("flash.solvedFixed", wrong) : t("flash.solved"), "success");
   }
 
   /* ----- coach : case précise / aléatoire ----- */
   function hintForCell() {
-    if (phase !== "play") { flash("Appuie d’abord sur « Commencer » pour verrouiller la grille."); return; }
-    if (sel === null) { flash("Sélectionne une case vide, puis retouche 🎯."); return; }
-    const t = sel;
-    if (grid[t] !== 0) {
-      if (givens[t]) flash(`${cellName(t)} fait partie de l’énoncé.`);
+    if (phase !== "play") { flash(t("flash.startFirst")); return; }
+    if (sel === null) { flash(t("flash.selectEmpty")); return; }
+    const target = sel;
+    if (grid[target] !== 0) {
+      const cell = cellName(target), d = grid[target];
+      if (givens[target]) flash(t("flash.partOfPuzzle", { cell }));
       else if (multiSol) flash(
-        conflictSet(grid).has(t)
-          ? `✗ Le ${grid[t]} en ${cellName(t)} entre en conflit avec sa ligne, sa colonne ou son bloc.`
-          : `${cellName(t)} = ${grid[t]} est cohérent pour l’instant (grille à plusieurs solutions : seule la cohérence est vérifiable).`,
-        conflictSet(grid).has(t) ? "warn" : "info"
+        conflictSet(grid).has(target)
+          ? t("flash.conflictAt", { d, cell })
+          : t("flash.coherentMulti", { cell, d }),
+        conflictSet(grid).has(target) ? "warn" : "info"
       );
       else if (solRef) flash(
-        grid[t] === solRef[t] ? `✓ ${cellName(t)} = ${grid[t]} est correct.` : `✗ Le ${grid[t]} en ${cellName(t)} n’est pas le bon chiffre ici.`,
-        grid[t] === solRef[t] ? "success" : "warn"
+        d === solRef[target] ? t("flash.correct", { cell, d }) : t("flash.wrong", { d, cell }),
+        d === solRef[target] ? "success" : "warn"
       );
-      else flash(`${cellName(t)} contient déjà un chiffre.`);
+      else flash(t("flash.hasDigit", { cell }));
       return;
     }
-    const p = buildPlan(grid, t);
-    if (p && (!solRef || multiSol || p.digit === solRef[t])) { setPlan(p); setLevel(0); setHintsUsed((h) => h + 1); }
+    const p = buildPlan(grid, target);
+    if (p && (!solRef || multiSol || p.digit === solRef[target])) { setPlan(p); setLevel(0); setHintsUsed((h) => h + 1); }
     else {
       const kind = stuckPlanFor(false);
       if (kind === "wrong-digit") setPlan({ kind: "stuckError" });
-      else if (kind === "multi-sol") setPlan({ kind: "stuckMulti", target: t });
-      else setPlan({ kind: "stuck", target: t }); // grille unique : panneau par case inchangé
+      else if (kind === "multi-sol") setPlan({ kind: "stuckMulti", target });
+      else setPlan({ kind: "stuck", target }); // grille unique : panneau par case inchangé
       setLevel(0);
     }
   }
@@ -1021,10 +1021,10 @@ export default function App() {
     return stuckPanelKind({ multiSol, hasWrongDigit, anyPlan });
   }
   function randomHint() {
-    if (phase !== "play") { flash("Appuie d’abord sur « Commencer » pour verrouiller la grille."); return; }
+    if (phase !== "play") { flash(t("flash.startFirst")); return; }
     const empties = [];
     grid.forEach((v, i) => { if (!v) empties.push(i); });
-    if (!empties.length) { flash("La grille est déjà complète 🎉", "success"); return; }
+    if (!empties.length) { flash(t("flash.gridComplete"), "success"); return; }
     const plans = [];
     for (const i of empties) {
       const p = buildPlan(grid, i);
@@ -1053,24 +1053,24 @@ export default function App() {
     if (ix >= 0) setLessonIx(ix);
     setTab("learn");
   }
-  function revealAnyway(t) {
-    if (!solRef) { flash("Solution indisponible pour cette grille.", "warn"); return; }
+  function revealAnyway(target) {
+    if (!solRef) { flash(t("flash.noSolutionAvailable"), "warn"); return; }
     setAssisted(true); // chiffre révélé : la partie n'entre plus au tableau des records
-    let d = solRef[t];
+    let d = solRef[target];
     if (multiSol) {
       // solRef peut contredire la branche (valide) suivie par le joueur :
       // on résout depuis l'état COURANT pour révéler un chiffre compatible.
       const { solution } = solveGrid(grid);
-      if (!solution) { flash("Ta grille actuelle contient une contradiction — passe par 🔍 Vérifier.", "warn"); return; }
-      d = solution[t];
+      if (!solution) { flash(t("flash.contradiction"), "warn"); return; }
+      d = solution[target];
     }
     setPlan({
-      kind: "ok", target: t, digit: d, chain: [], hint1: "", hint2: "",
-      tech: "Au-delà des techniques classiques",
+      kind: "ok", target, digit: d, chain: [], hint1: "", hint2: "",
+      tech: t("reveal.tech"),
       paras: [
-        `Aucune des 17 techniques enseignées ici (${frTechList()}) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
-        `La valeur vient de la résolution complète : **${cellName(t)} = ${d}**.`,
-        `Conseil : avance pas à pas (bouton 👣 Étape suivante) — celle-ci se débloquera naturellement en chemin.`,
+        t("reveal.p1", { list: frTechList(getLang()), cell: cellName(target) }),
+        t("reveal.p2", { cell: cellName(target), d }),
+        t("reveal.p3"),
       ],
       unitCells: [],
     });
@@ -1091,55 +1091,55 @@ export default function App() {
   }
   function placeFromPlan() {
     if (!plan || plan.kind !== "ok" || plan.target == null) return;
-    const t = plan.target, d = plan.digit;
-    if (grid[t] !== 0) { setPlan(null); return; }
+    const target = plan.target, d = plan.digit;
+    if (grid[target] !== 0) { setPlan(null); return; }
     clearErrors();
     pushHist();
     const ng = grid.slice(); const nn = notes.map((a) => a.slice());
-    ng[t] = d; nn[t] = [];
-    PEERS[t].forEach((p) => {
+    ng[target] = d; nn[target] = [];
+    PEERS[target].forEach((p) => {
       const k = nn[p].indexOf(d);
       if (k >= 0) nn[p].splice(k, 1);
     });
-    setGrid(ng); setNotes(nn); setSel(t); setPlan(null);
-    popCell(t); animateMove(grid, ng, d);
-    if (isComplete(ng)) flash("🎉 Grille terminée — bravo !", "success");
-    else flash(`✓ ${cellName(t)} = ${d} — bien joué !`, "success");
+    setGrid(ng); setNotes(nn); setSel(target); setPlan(null);
+    popCell(target); animateMove(grid, ng, d);
+    if (isComplete(ng)) flash(t("flash.won"), "success");
+    else flash(t("flash.placed", { cell: cellName(target), d }), "success");
   }
   function closePlan() { setPlan(null); setLevel(0); }
 
   /* ----- vérification des erreurs à l'instant t ----- */
   function checkErrors() {
-    if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
+    if (phase !== "play") { flash(t("flash.playOnly")); return; }
     const placed = [];
     grid.forEach((v, i) => { if (v && !givens[i]) placed.push(i); });
     if (solRef && !multiSol) {
       const wrong = placed.filter((i) => grid[i] !== solRef[i]);
       if (!wrong.length) {
-        flash(`✅ Aucune erreur pour l’instant — ${placed.length} chiffre${placed.length > 1 ? "s" : ""} posé${placed.length > 1 ? "s" : ""}, continue !`, "success");
+        flash(tn("flash.noErrors", placed.length), "success");
         return;
       }
       showErrors(wrong);
-      flash(`❌ ${wrong.length} chiffre${wrong.length > 1 ? "s" : ""} erroné${wrong.length > 1 ? "s" : ""} — surligné${wrong.length > 1 ? "s" : ""} en rouge.`, "warn");
+      flash(tn("flash.errors", wrong.length), "warn");
     } else {
       // Grille à solutions multiples : pas de référence unique, on vérifie les conflits.
       const wrong = [...conflictSet(grid)].filter((i) => !givens[i]);
       if (!wrong.length) {
-        flash(`✅ Aucun conflit pour l’instant — ${placed.length} chiffre${placed.length > 1 ? "s" : ""} posé${placed.length > 1 ? "s" : ""} (grille à plusieurs solutions : seule la cohérence est vérifiable).`, "success");
+        flash(tn("flash.noConflicts", placed.length), "success");
         return;
       }
       showErrors(wrong);
-      flash(`❌ ${wrong.length} chiffre${wrong.length > 1 ? "s" : ""} en conflit — surligné${wrong.length > 1 ? "s" : ""} en rouge (grille à plusieurs solutions : seule la cohérence est vérifiable).`, "warn");
+      flash(tn("flash.conflicts", wrong.length), "warn");
     }
   }
 
   /* ----- notes automatiques (bascule : efface s'il y a des notes, sinon calcule) ----- */
   function autoNotes() {
-    if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
+    if (phase !== "play") { flash(t("flash.playOnly")); return; }
     pushHist();
     if (notes.some((a) => a.length)) {
       setNotes(Array.from({ length: 81 }, () => []));
-      flash("Notes effacées — rappuie pour les recalculer.");
+      flash(t("flash.notesCleared"));
       return;
     }
     const nn = notes.map((a) => a.slice());
@@ -1151,15 +1151,13 @@ export default function App() {
       }
     }
     setNotes(nn);
-    flash(singles
-      ? "🗒️ Candidats calculés et notés dans chaque case vide. Les cases à candidat unique sont résolubles immédiatement 😉"
-      : "🗒️ Candidats calculés et notés dans chaque case vide.");
+    flash(singles ? t("flash.autoNotesSingles") : t("flash.autoNotesDone"));
   }
   function snyderMode() {
-    if (phase !== "play") { flash("Disponible une fois la grille verrouillée."); return; }
+    if (phase !== "play") { flash(t("flash.playOnly")); return; }
     pushHist();
     setNotes(snyderNotes(grid));
-    flash("✍️ Notation Snyder : notés uniquement les chiffres qui n’ont que 2 places possibles dans un bloc.");
+    flash(t("flash.snyder"));
   }
 
   /* ----- OCR photo (via /api/ocr sur Vercel) ----- */
@@ -1185,16 +1183,11 @@ export default function App() {
   }
   function unlockScans() {
     setUnlimited(true);
-    flash("✨ Scan illimité débloqué — merci !", "success");
+    flash(t("flash.unlocked"), "success");
   }
   function openScan() {
     if (scansLeft <= 0) {
-      flash(
-        isNative()
-          ? "Scans gratuits épuisés — débloque le scan illimité ✨"
-          : "Scans gratuits épuisés — le scan illimité arrive bientôt ✨",
-        "info"
-      );
+      flash(isNative() ? t("flash.scansOutNative") : t("flash.scansOutWeb"), "info");
       return;
     }
     if (isNative()) { scanNative(); return; }
@@ -1218,10 +1211,10 @@ export default function App() {
         quality: 85,
         correctOrientation: true,
         source: CameraSource.Prompt,
-        promptLabelHeader: "Scanner une grille",
-        promptLabelPicture: "Prendre une photo",
-        promptLabelPhoto: "Depuis la photothèque",
-        promptLabelCancel: "Annuler",
+        promptLabelHeader: t("cam.header"),
+        promptLabelPicture: t("cam.picture"),
+        promptLabelPhoto: t("cam.photo"),
+        promptLabelCancel: t("cam.cancel"),
       });
     } catch (err) {
       return; // annulation (ou permission refusée) : on n'affiche rien
@@ -1233,7 +1226,7 @@ export default function App() {
   async function processScan(srcUrl, cleanup) {
     if (offline()) {
       if (cleanup) cleanup();
-      flash("📡 Pas de connexion — le scan a besoin d’internet. Tout le reste de l’app fonctionne hors-ligne.", "warn");
+      flash(t("flash.offline"), "warn");
       return;
     }
     setScreen("board"); // le scan peut être lancé depuis l'accueil
@@ -1247,15 +1240,14 @@ export default function App() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status === 429) {
-          flash(`Scan : ${(data && data.error) || "limite de scans atteinte pour aujourd'hui — réessaie demain."}`, "warn");
-        } else {
-          flash(`Scan : ${(data && data.error) || "erreur serveur"} — réessaie avec une photo nette, à plat.`, "warn");
-        }
+        // Zéro changement serveur : l'UI traduit par code de statut, le texte
+        // du serveur (FR) part en console pour le debug.
+        if (data && data.error) console.warn("api/ocr:", res.status, data.error);
+        flash(res.status === 429 ? t("flash.scanLimit") : t("flash.scanServerError"), "warn");
         return;
       }
       const s = String(data.grid || "").replace(/[^0-9]/g, "");
-      if (s.length !== 81) { flash("Scan : format inattendu — réessaie.", "warn"); return; }
+      if (s.length !== 81) { flash(t("flash.scanBadFormat"), "warn"); return; }
       const ng = s.split("").map(Number);
       const filledCount = ng.filter((v) => v).length;
       pushHist();
@@ -1268,13 +1260,13 @@ export default function App() {
         persist(KEYS.scans, used);
         setScansUsed(used);
       }
-      flash(`📷 ${filledCount} chiffres lus. Vérifie la grille (corrige au besoin) puis « Commencer ».`, "success");
+      flash(t("flash.scanOk", { n: filledCount }), "success");
     } catch (err) {
       // Réseau tombé pendant l'appel : ne pas accuser la photo à tort.
       if (offline()) {
-        flash("📡 Pas de connexion — le scan a besoin d’internet. Tout le reste de l’app fonctionne hors-ligne.", "warn");
+        flash(t("flash.offline"), "warn");
       } else {
-        flash("Scan impossible : cadre bien la grille, à plat, avec une lumière franche — puis réessaie.", "warn");
+        flash(t("flash.scanFailed"), "warn");
       }
     } finally {
       setScanning(false);
@@ -1454,7 +1446,7 @@ export default function App() {
       const store = readSync(KEYS.daily) || {};
       persist(KEYS.daily, { ...store, done: nextDone });
       const streak = currentStreak(nextDone, localDateStr());
-      flash(streak > 1 ? `🗓️ Défi du jour réussi — série de ${streak} jours 🔥` : "🗓️ Défi du jour réussi ✓", "success", 7000);
+      flash(streak > 1 ? t("flash.dailyStreak", { n: streak }) : t("flash.dailyDone"), "success", 7000);
     }
   }, [won, gameOrigin, dailyDone, gameLevel, hintsUsed, assisted]);
   const planHL = useMemo(() => {
@@ -1541,7 +1533,7 @@ export default function App() {
           <div style={{ fontFamily: DISPLAYFONT, letterSpacing: "0.16em", fontWeight: 700, fontSize: 19, textTransform: "uppercase" }}>
             Sudoku·Coach
           </div>
-          <div style={{ fontSize: 12, color: C.gray, marginTop: 1 }}>Résous, comprends, progresse.</div>
+          <div style={{ fontSize: 12, color: C.gray, marginTop: 1 }}>{t("app.tagline")}</div>
         </div>
         <button type="button" aria-label={t("settings.aria")} title={t("settings.aria")}
           onClick={() => { setTab("play"); setScreen("settings"); }} style={{
@@ -1580,35 +1572,35 @@ export default function App() {
               const today = localDateStr();
               const inProgress = phase === "play" && !won
                 && gameOrigin && gameOrigin.type === "daily" && gameOrigin.date === today;
-              const state = dailyDone[today] ? "Réussi ✓" : inProgress ? "En cours…" : "À faire";
+              const state = dailyDone[today] ? t("daily.state.done") : inProgress ? t("daily.state.inprogress") : t("daily.state.todo");
               return (
                 <>
-                  <Card accent={!dailyDone[today]} emoji="🗓️" title="Défi du jour"
-                    sub={`${fmtDailyDate(today)} · ${LEVELS[dailyLevelFor(today)].name} · ${state}`}
+                  <Card accent={!dailyDone[today]} emoji="🗓️" title={t("daily.title")}
+                    sub={`${fmtDailyDate(today)} · ${levelName(dailyLevelFor(today))} · ${state}`}
                     onClick={startDaily} />
                   <DailyDots cells={monthCells(today)} done={dailyDone} today={today} />
                 </>
               );
             })()}
             {phase === "play" && !won && (
-              <Card accent emoji="▶︎" title="Reprendre la partie"
-                sub={`${gameLevel ? `Niveau ${LEVELS[gameLevel].name} · ` : ""}${grid.filter((v) => !v).length} cases restantes`}
+              <Card accent emoji="▶︎" title={t("home.resume")}
+                sub={`${gameLevel ? t("home.levelPrefix", { name: levelName(gameLevel) }) : ""}${tn("home.cellsLeft", grid.filter((v) => !v).length)}`}
                 onClick={() => setScreen("board")} />
             )}
-            <Card emoji="🎲" title="Jouer" sub="Une nouvelle grille, de Facile à Diabolique"
+            <Card emoji="🎲" title={t("home.play")} sub={t("home.play.sub")}
               onClick={() => setScreen("levels")} />
             {scansLeft > 0 && (
-              <Card emoji="📷" title="Scanner" sub="Photographie une grille de magazine ou de journal"
+              <Card emoji="📷" title={t("home.scan")} sub={t("home.scan.sub")}
                 onClick={openScan} />
             )}
             <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
-            <Card emoji="📚" title="Apprendre" sub={`${LESSONS.length} leçons, des bases aux techniques expertes`}
+            <Card emoji="📚" title={t("home.learn")} sub={t("home.learn.sub", { n: LESSONS.length })}
               onClick={() => setTab("learn")} />
-            <Card emoji="📊" title="Stats" sub="Tes parties, records et séries"
+            <Card emoji="📊" title={t("home.stats")} sub={t("home.stats.sub")}
               onClick={() => setScreen("stats")} />
           </div>
           <LinkBtn onClick={() => { if (phase === "play") clearAll(); setScreen("board"); }}>
-            ✏️ Saisir une grille à la main
+            {t("home.manual")}
           </LinkBtn>
           <div style={{ fontSize: 11, color: C.faint }}>v{APP_VERSION}</div>
         </>
@@ -1616,22 +1608,22 @@ export default function App() {
         <>
           {/* ---------- Choix de difficulté ---------- */}
           <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>Choisis ta difficulté</div>
-            {Object.entries(LEVELS).map(([n, l], i) => (
-              <Card key={n} emoji={["🟢", "🟡", "🟠", "🔴", "🟣"][i] || "🎲"} title={l.name} sub={l.desc}
-                onClick={() => newGame(Number(n))} />
+            <div style={{ fontWeight: 800, fontSize: 16 }}>{t("levels.title")}</div>
+            {LEVEL_IDS.map((n, i) => (
+              <Card key={n} emoji={["🟢", "🟡", "🟠", "🔴", "🟣"][i] || "🎲"} title={levelName(n)} sub={levelDesc(n)}
+                onClick={() => newGame(n)} />
             ))}
           </div>
-          <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
+          <LinkBtn onClick={() => setScreen("home")}>{t("common.home")}</LinkBtn>
         </>
       ) : screen === "stats" ? (
         <>
           {/* ---------- Stats ---------- */}
           <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>📊 Stats</div>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>{t("stats.title")}</div>
             <StatsView stats={stats} dailyDone={dailyDone} />
           </div>
-          <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
+          <LinkBtn onClick={() => setScreen("home")}>{t("common.home")}</LinkBtn>
         </>
       ) : screen === "settings" ? (
         <>
@@ -1673,7 +1665,7 @@ export default function App() {
               width: W, fontSize: 12.5, color: C.textSoft, background: C.glass,
               border: `1px dashed ${C.dashed}`, borderRadius: 10, padding: "8px 12px", textAlign: "center",
             }}>
-              Mode saisie — remplis ou scanne la grille, puis « Commencer ».
+              {t("board.editBanner")}
             </div>
           ) : null}
 
@@ -1688,20 +1680,17 @@ export default function App() {
                   borderRadius: 999, padding: "3px 10px", display: "inline-block",
                   animationDelay: celebrate ? "800ms" : undefined,
                 }}>
-                  🎲 Niveau · {LEVELS[gameLevel].name}
+                  {t("board.levelBadge", { name: levelName(gameLevel) })}
                 </span>
               ) : null}
               {multiSol ? (
-                <button type="button" onClick={() => flash(
-                  "Grille à plusieurs solutions : certaines cases sont indéductibles par nature ; les vérifications se font par contradictions ; la solution peut différer de celle du livre.",
-                  "warn", 9000
-                )} style={{
+                <button type="button" onClick={() => flash(t("multiSol.explain"), "warn", 9000)} style={{
                   fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
                   color: C.warnInk, background: C.warnBg, border: `1px solid ${C.warnBorder}`,
                   borderRadius: 999, padding: "3px 10px", cursor: "pointer",
                   fontFamily: "inherit", WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
                 }}>
-                  ⚠️ plusieurs solutions
+                  {t("board.multiSolBadge")}
                 </button>
               ) : null}
               {!settings.hideTimer ? (
@@ -1791,7 +1780,7 @@ export default function App() {
                   borderRadius: "50%", animation: "scspin .9s linear infinite",
                 }} />
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.msgInfoFg }}>
-                  {scanning ? "Lecture de la photo…" : "Génération de la grille…"}
+                  {scanning ? t("overlay.scanning") : t("overlay.generating")}
                 </div>
               </div>
             )}
@@ -1799,13 +1788,13 @@ export default function App() {
 
           <div style={{ width: W, fontSize: 11.5, color: C.gray, textAlign: "center" }}>
             {phase === "edit"
-              ? "Touche une case, puis un chiffre du pavé. Retoucher le même chiffre l’efface."
+              ? t("board.help.edit")
               : noteMode
-                ? "Mode notes : les chiffres s’écrivent en petit dans les coins."
-                : "Sélectionne une case vide puis 🎯 pour une explication, ou 👣 pour la case la plus simple."}
+                ? t("board.help.notes")
+                : t("board.help.play")}
             {phase === "play" && (
               <div style={{ marginTop: 2 }}>
-                Sous chaque chiffre du pavé : combien il en reste à placer — grisé ✓ quand les 9 sont posés.
+                {t("board.help.padCount")}
               </div>
             )}
           </div>
@@ -1843,7 +1832,7 @@ export default function App() {
               fontFamily: "inherit", minHeight: 44,
             }}>
               <span style={{ fontSize: 19 }}>⌫</span>
-              <span style={{ fontSize: 9.5, color: C.gray, fontWeight: 600 }}>effacer</span>
+              <span style={{ fontSize: 9.5, color: C.gray, fontWeight: 600 }}>{t("pad.erase")}</span>
             </button>
           </div>
 
@@ -1851,41 +1840,41 @@ export default function App() {
           {phase === "edit" ? (
             <div style={{ width: W, display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn variant="primary" grow onClick={startPlay}>▶︎ Commencer</Btn>
-                <Btn variant="accent" grow onClick={openScan} disabled={scanning || !scansLeft}>📷 Scanner</Btn>
+                <Btn variant="primary" grow onClick={startPlay}>{t("btn.start")}</Btn>
+                <Btn variant="accent" grow onClick={openScan} disabled={scanning || !scansLeft}>{t("btn.scan")}</Btn>
               </div>
               <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
-                <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
-                <LinkBtn onClick={loadSample}>Charger un exemple</LinkBtn>
-                <LinkBtn onClick={clearAll}>Tout vider</LinkBtn>
-                <LinkBtn onClick={undo}>Annuler</LinkBtn>
+                <LinkBtn onClick={() => setScreen("home")}>{t("common.home")}</LinkBtn>
+                <LinkBtn onClick={loadSample}>{t("link.loadSample")}</LinkBtn>
+                <LinkBtn onClick={clearAll}>{t("link.clearAll")}</LinkBtn>
+                <LinkBtn onClick={undo}>{t("btn.undo")}</LinkBtn>
               </div>
             </div>
           ) : (
             <div style={{ width: W, display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn variant="accent" grow onClick={hintForCell}>🎯 Expliquer cette case</Btn>
-                <Btn grow onClick={randomHint}>👣 Étape suivante</Btn>
+                <Btn variant="accent" grow onClick={hintForCell}>{t("btn.explain")}</Btn>
+                <Btn grow onClick={randomHint}>{t("btn.nextStep")}</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn grow active={noteMode} onClick={() => setNoteMode((m) => !m)}>✏️ Notes</Btn>
-                <Btn grow active={hasNotes} onClick={autoNotes}>🗒️ Auto-notes</Btn>
-                <Btn grow onClick={snyderMode}>✍️ Snyder</Btn>
+                <Btn grow active={noteMode} onClick={() => setNoteMode((m) => !m)}>{t("btn.notes")}</Btn>
+                <Btn grow active={hasNotes} onClick={autoNotes}>{t("btn.autoNotes")}</Btn>
+                <Btn grow onClick={snyderMode}>{t("btn.snyder")}</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn grow onClick={checkErrors}>🔍 Vérifier</Btn>
-                <Btn onClick={undo} title="Annuler">↩︎</Btn>
+                <Btn grow onClick={checkErrors}>{t("btn.check")}</Btn>
+                <Btn onClick={undo} title={t("btn.undo")}>↩︎</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn grow onClick={openScan} disabled={scanning || !scansLeft}>📷 Scanner</Btn>
-                <Btn grow onClick={solveAll}>✅ Tout résoudre</Btn>
+                <Btn grow onClick={openScan} disabled={scanning || !scansLeft}>{t("btn.scan")}</Btn>
+                <Btn grow onClick={solveAll}>{t("btn.solveAll")}</Btn>
               </div>
               <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
-                <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
-                <LinkBtn onClick={backToEdit}>Modifier la grille</LinkBtn>
-                <LinkBtn onClick={restartPuzzle}>Recommencer</LinkBtn>
+                <LinkBtn onClick={() => setScreen("home")}>{t("common.home")}</LinkBtn>
+                <LinkBtn onClick={backToEdit}>{t("link.modify")}</LinkBtn>
+                <LinkBtn onClick={restartPuzzle}>{t("link.restart")}</LinkBtn>
               </div>
             </div>
           )}
@@ -1898,14 +1887,13 @@ export default function App() {
               boxShadow: "0 12px 32px rgba(31,39,46,0.12)",
               padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 9,
             }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>⚠️ Cette grille a plusieurs solutions</div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{t("panel.multiSol.title")}</div>
               <p style={pStyle}>
-                Il manque très probablement un chiffre de l’énoncé (scan incomplet ou oubli de
-                saisie). Compare la grille avec ton magazine avant de jouer.
+                {t("panel.multiSol.body")}
               </p>
               <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                <Btn variant="primary" grow onClick={() => setMultiSolPrompt(false)}>✏️ Vérifier ma saisie</Btn>
-                <Btn grow onClick={playAnyway}>Jouer quand même</Btn>
+                <Btn variant="primary" grow onClick={() => setMultiSolPrompt(false)}>{t("btn.checkEntry")}</Btn>
+                <Btn grow onClick={playAnyway}>{t("btn.playAnyway")}</Btn>
               </div>
             </section>
           )}
@@ -1918,25 +1906,25 @@ export default function App() {
               boxShadow: "0 12px 32px rgba(31,39,46,0.12)",
               padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 9,
             }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>🎉 Grille terminée — bravo !</div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{t("panel.won.title")}</div>
               {gameLevel ? (
                 <>
-                  <p style={pStyle}>Tu viens de boucler une grille {LEVELS[gameLevel].name}. On enchaîne ?</p>
+                  <p style={pStyle}>{t("panel.won.body", { name: levelName(gameLevel) })}</p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Btn variant="accent" grow onClick={() => newGame(gameLevel)}>
-                      🎲 Nouvelle grille ({LEVELS[gameLevel].name})
+                      {t("btn.newSame", { name: levelName(gameLevel) })}
                     </Btn>
                     {gameLevel < MAX_LEVEL && (
                       <Btn variant="primary" grow onClick={() => newGame(gameLevel + 1)}>
-                        ⬆️ Niveau supérieur
+                        {t("btn.levelUp")}
                       </Btn>
                     )}
                   </div>
                 </>
               ) : (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <Btn variant="accent" grow onClick={() => setScreen("levels")}>🎲 Nouvelle grille</Btn>
-                  <Btn grow onClick={() => setScreen("home")}>Accueil</Btn>
+                  <Btn variant="accent" grow onClick={() => setScreen("levels")}>{t("btn.newGrid")}</Btn>
+                  <Btn grow onClick={() => setScreen("home")}>{t("btn.home")}</Btn>
                 </div>
               )}
             </section>
@@ -1953,7 +1941,7 @@ export default function App() {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 17 }}>🎓</span>
                 <div style={{ fontWeight: 800, fontSize: 15 }}>
-                  Coach{plan.target != null ? ` — ${cellName(plan.target)}` : ""}
+                  {t("coach.title")}{plan.target != null ? ` — ${cellName(plan.target)}` : ""}
                 </div>
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                   {plan.kind === "ok" && (
@@ -1961,7 +1949,7 @@ export default function App() {
                       fontSize: 11, fontWeight: 700, color: C.textSoft,
                       background: C.chipBg, borderRadius: 999, padding: "3px 9px",
                     }}>
-                      {level < 2 ? `Indice ${level + 1}/2` : "Solution"}
+                      {level < 2 ? t("coach.hintBadge", { n: level + 1 }) : t("coach.solution")}
                     </span>
                   )}
                   <button type="button" onClick={closePlan} style={{
@@ -1977,12 +1965,11 @@ export default function App() {
               {plan.kind === "stuckError" && (
                 <>
                   <p style={pStyle}>
-                    Je ne trouve plus de déduction — et la cause est probablement là : au moins un
-                    chiffre posé ne correspond pas à la solution. Vérifions ensemble.
+                    {t("coach.stuckError.body")}
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <Btn variant="primary" grow onClick={() => { closePlan(); checkErrors(); }}>🔍 Vérifier</Btn>
-                    <Btn grow onClick={closePlan}>Fermer</Btn>
+                    <Btn variant="primary" grow onClick={() => { closePlan(); checkErrors(); }}>{t("btn.check")}</Btn>
+                    <Btn grow onClick={closePlan}>{t("common.close")}</Btn>
                   </div>
                 </>
               )}
@@ -1990,14 +1977,12 @@ export default function App() {
               {plan.kind === "stuckAll" && (
                 <>
                   <p style={pStyle}>
-                    Plus aucune case n’est déductible avec les 17 techniques du coach ({frTechList()}).
-                    La suite demande des techniques au-delà du coach. Révèle une case pour te
-                    relancer, ou laisse-moi tout résoudre.
+                    {t("coach.stuckAll.body", { list: frTechList(getLang()) })}
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <Btn variant="primary" grow onClick={solveAll}>Tout résoudre</Btn>
-                    <Btn grow onClick={revealLeastCandidates}>💡 Révéler une case</Btn>
-                    <Btn grow onClick={closePlan}>Fermer</Btn>
+                    <Btn variant="primary" grow onClick={solveAll}>{t("btn.solveAllShort")}</Btn>
+                    <Btn grow onClick={revealLeastCandidates}>{t("btn.revealCell")}</Btn>
+                    <Btn grow onClick={closePlan}>{t("common.close")}</Btn>
                   </div>
                 </>
               )}
@@ -2005,12 +1990,12 @@ export default function App() {
               {plan.kind === "stuckMulti" && (
                 <>
                   <p style={pStyle}>
-                    <Rich text={"Sur une grille à plusieurs solutions, les cases où elles divergent sont **indéductibles** — aucune technique n’y peut rien. Le plus probable : un chiffre de l’énoncé manque."} />
+                    <Rich text={t("coach.stuckMulti.body")} />
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <Btn variant="primary" grow onClick={backToEdit}>✏️ Modifier la grille</Btn>
-                    <Btn grow onClick={() => (plan.target != null ? revealAnyway(plan.target) : revealLeastCandidates())}>💡 Révéler une case</Btn>
-                    <Btn grow onClick={closePlan}>Fermer</Btn>
+                    <Btn variant="primary" grow onClick={backToEdit}>{t("btn.editGrid")}</Btn>
+                    <Btn grow onClick={() => (plan.target != null ? revealAnyway(plan.target) : revealLeastCandidates())}>{t("btn.revealCell")}</Btn>
+                    <Btn grow onClick={closePlan}>{t("common.close")}</Btn>
                   </div>
                 </>
               )}
@@ -2018,13 +2003,11 @@ export default function App() {
               {plan.kind === "stuck" && (
                 <>
                   <p style={pStyle}>
-                    La case <strong>{cellName(plan.target)}</strong> n’est pas déductible pour l’instant
-                    avec les techniques du coach : il faut d’abord remplir d’autres cases (ou recourir
-                    à des chaînes de forçage).
+                    <Rich text={t("coach.stuck.body", { cell: cellName(plan.target) })} />
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <Btn variant="accent" grow onClick={randomHint}>👣 Étape suivante</Btn>
-                    <Btn grow onClick={() => revealAnyway(plan.target)}>Révéler quand même</Btn>
+                    <Btn variant="accent" grow onClick={randomHint}>{t("btn.nextStep")}</Btn>
+                    <Btn grow onClick={() => revealAnyway(plan.target)}>{t("btn.revealAnyway")}</Btn>
                   </div>
                 </>
               )}
@@ -2046,7 +2029,7 @@ export default function App() {
                     : plan.hint1 ? <p style={pStyle}><Rich text={plan.hint1} /></p> : null}
                   {plan.revealTech && (
                     <LinkBtn onClick={() => openLesson(plan.keyKind)}>
-                      📚 Revoir cette technique
+                      {t("btn.reviewTech")}
                     </LinkBtn>
                   )}
                   {level >= 1 && plan.hint2 ? <p style={pStyle}><Rich text={plan.hint2} /></p> : null}
@@ -2061,7 +2044,7 @@ export default function App() {
                             fontSize: 11, fontWeight: 800, letterSpacing: ".06em",
                             textTransform: "uppercase", color: C.hintInk,
                           }}>
-                            Étape {ixx + 1} — {s.title}
+                            {t("coach.stepTitle", { n: ixx + 1, title: s.title })}
                           </div>
                           <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.5 }}>
                             <Rich text={s.text} />
@@ -2082,23 +2065,23 @@ export default function App() {
                           {plan.digit}
                         </div>
                         <div style={{ fontSize: 13, color: C.gray }}>
-                          à placer en <strong style={{ color: C.ink }}>{cellName(plan.target)}</strong>
+                          {t("coach.toPlace")} <strong style={{ color: C.ink }}>{cellName(plan.target)}</strong>
                         </div>
                       </div>
                     </>
                   )}
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    {level === 0 && <Btn variant="accent" grow onClick={() => setLevel(1)}>💡 Un indice de plus</Btn>}
-                    {level < 2 && <Btn grow onClick={() => setLevel(2)}>Voir la solution</Btn>}
-                    {level >= 2 && <Btn variant="primary" grow onClick={placeFromPlan}>✏️ Placer le {plan.digit}</Btn>}
-                    {level >= 2 && <Btn grow onClick={closePlan}>Fermer</Btn>}
+                    {level === 0 && <Btn variant="accent" grow onClick={() => setLevel(1)}>{t("btn.oneMoreHint")}</Btn>}
+                    {level < 2 && <Btn grow onClick={() => setLevel(2)}>{t("btn.seeSolution")}</Btn>}
+                    {level >= 2 && <Btn variant="primary" grow onClick={placeFromPlan}>{t("btn.place", { d: plan.digit })}</Btn>}
+                    {level >= 2 && <Btn grow onClick={closePlan}>{t("common.close")}</Btn>}
                   </div>
                 </>
               )}
             </section>
           )}
 
-          <div style={{ fontSize: 11, color: C.faint }}>Sauvegarde automatique sur cet appareil.</div>
+          <div style={{ fontSize: 11, color: C.faint }}>{t("board.autosave")}</div>
         </>
       )}
       </div>
