@@ -15,6 +15,7 @@ import { isNative, haptic } from "./native.js";
 import { initPurchases, getOffer, buy, restore } from "./purchases.js";
 import { C_LIGHT, C_DARK, cssVars, META_COLOR } from "./theme.js";
 import { TECH_NAMES, frWithArticle, frTechList } from "./techNames.js";
+import { t, setLang, detectLang } from "./i18n.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
    Les hex vivent dans theme.js (C_LIGHT/C_DARK) ; ici chaque clé devient une
@@ -642,6 +643,11 @@ export default function App() {
       return next;
     });
   }
+  /* Langue : réglage manuel ou auto (navigator.language). setLang au RENDER,
+     pas en effet : les t() de ce render doivent déjà lire le bon dictionnaire. */
+  const lang = settings.lang === "en" || settings.lang === "fr" ? settings.lang : detectLang();
+  setLang(lang);
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
   const [grid, setGrid] = useState(Array(81).fill(0));
   const [givens, setGivens] = useState(Array(81).fill(false));
   const [notes, setNotes] = useState(Array.from({ length: 81 }, () => []));
@@ -1537,7 +1543,7 @@ export default function App() {
           </div>
           <div style={{ fontSize: 12, color: C.gray, marginTop: 1 }}>Résous, comprends, progresse.</div>
         </div>
-        <button type="button" aria-label="Réglages" title="Réglages"
+        <button type="button" aria-label={t("settings.aria")} title={t("settings.aria")}
           onClick={() => { setTab("play"); setScreen("settings"); }} style={{
             marginLeft: "auto", background: "none", border: "none", fontSize: 20,
             cursor: "pointer", padding: 0, minWidth: 44, minHeight: 44,
@@ -1548,7 +1554,7 @@ export default function App() {
 
       {/* ---------- Onglets ---------- */}
       <div style={{ width: W, display: "flex", background: C.tabsBg, borderRadius: 12, padding: 3 }}>
-        {[["play", "🎮 Jouer"], ["learn", "📚 Apprendre"]].map(([k, l]) => (
+        {[["play", t("tabs.play")], ["learn", t("tabs.learn")]].map(([k, l]) => (
           <button key={k} type="button" onClick={() => setTab(k)} style={{
             flex: 1, border: "none", borderRadius: 10, padding: "8px 0",
             fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit",
@@ -1631,14 +1637,25 @@ export default function App() {
         <>
           {/* ---------- Réglages ---------- */}
           <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>⚙️ Réglages</div>
-            <SegmentRow label="Thème" value={settings.theme}
-              options={[{ value: "auto", label: "Auto" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" }]}
+            <div style={{ fontWeight: 800, fontSize: 16 }}>{t("settings.title")}</div>
+            <SegmentRow label={t("settings.theme")} value={settings.theme}
+              options={[
+                { value: "auto", label: t("settings.theme.auto") },
+                { value: "light", label: t("settings.theme.light") },
+                { value: "dark", label: t("settings.theme.dark") },
+              ]}
               onChange={(v) => updateSettings({ theme: v })} />
-            <ToggleRow label="Masquer le chrono" hint="Le temps reste mesuré pour tes stats."
+            <SegmentRow label={t("settings.lang")} value={settings.lang === "fr" || settings.lang === "en" ? settings.lang : "auto"}
+              options={[
+                { value: "auto", label: t("settings.lang.auto") },
+                { value: "fr", label: "Français" },
+                { value: "en", label: "English" },
+              ]}
+              onChange={(v) => updateSettings({ lang: v })} />
+            <ToggleRow label={t("settings.hideTimer")} hint={t("settings.hideTimer.hint")}
               value={settings.hideTimer} onChange={(v) => updateSettings({ hideTimer: v })} />
           </div>
-          <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
+          <LinkBtn onClick={() => setScreen("home")}>{t("common.home")}</LinkBtn>
         </>
       ) : (
         <>

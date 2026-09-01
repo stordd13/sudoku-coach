@@ -19,6 +19,7 @@ import {
 import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "../src/stats.js";
 import { C_LIGHT, C_DARK, getPalette, cssVars, META_COLOR } from "../src/theme.js";
 import { TECH_NAMES, techName, frWithArticle, frTechList } from "../src/techNames.js";
+import { DICTS, t, setLang, getLang, detectLang } from "../src/i18n.js";
 import { readFileSync } from "node:fs";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
@@ -691,6 +692,36 @@ console.log("Noms de techniques :");
   const list = frTechList();
   ok(list.startsWith("candidat unique, single caché") && list.endsWith("coloriage, Sue de Coq")
     && list.split(", ").length === 17, "frTechList : les 17, dans l'ordre des leçons");
+}
+
+/* ---------- 5i. i18n : parité des dictionnaires, t(), replis ---------- */
+console.log("i18n :");
+{
+  const fk = Object.keys(DICTS.fr), ek = Object.keys(DICTS.en);
+  ok(fk.length === ek.length && fk.every((k) => ek.includes(k)),
+    `dictionnaires fr/en : mêmes clés (${fk.length})`);
+  const ph = (s) => (String(s).match(/\{\w+\}/g) || []).sort().join(",");
+  ok(fk.every((k) => ph(DICTS.fr[k]) === ph(DICTS.en[k])),
+    "mêmes placeholders {…} des deux côtés (clé par clé)");
+  ok(fk.every((k) => DICTS.fr[k] !== "" && DICTS.en[k] !== ""), "aucune traduction vide");
+  ok(getLang() === "fr", "langue par défaut : fr");
+  setLang("en");
+  ok(t("settings.theme") === "Theme", "t() lit le dictionnaire actif (en)");
+  setLang("fr");
+  ok(t("settings.theme") === "Thème", "retour au fr");
+  ok(t("clé.inexistante") === "clé.inexistante", "clé absente partout → clé brute");
+  // Node ≥ 21 expose navigator.language (locale de l'OS) : on vérifie juste
+  // que la détection renvoie une langue supportée, pas une valeur précise.
+  ok(detectLang() === "fr" || detectLang() === "en", "detectLang → fr ou en, jamais autre chose");
+  ok((setLang("xx"), getLang()) === "fr", "langue inconnue → fr");
+  // Interpolation et repli en → fr (clés temporaires, retirées ensuite).
+  DICTS.fr._tmp = "{n} restants"; DICTS.en._tmp = "{n} left"; DICTS.fr._onlyFr = "seulement fr";
+  ok(t("_tmp", { n: 3 }) === "3 restants", "interpolation {n} en fr");
+  setLang("en");
+  ok(t("_tmp", { n: 3 }) === "3 left", "interpolation {n} en en");
+  ok(t("_onlyFr") === "seulement fr", "clé absente en en → repli fr");
+  setLang("fr");
+  delete DICTS.fr._tmp; delete DICTS.en._tmp; delete DICTS.fr._onlyFr;
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
