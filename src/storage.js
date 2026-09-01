@@ -15,6 +15,7 @@ export const KEYS = {
   exos: "sudoku-coach-exos-v2",
   daily: "sudoku-coach-daily", // { done: { "YYYY-MM-DD": true }, puzzles: { [date]: grille } }
   settings: "sudoku-coach-settings", // { hideTimer, theme, lang }
+  stats: "sudoku-coach-stats", // agrégats de src/stats.js (started/finished/bestTime/hints)
 };
 
 /* L'ancien compteur de scans était stocké brut ("4") — c'est du JSON valide,

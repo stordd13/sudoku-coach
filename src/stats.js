@@ -19,3 +19,46 @@ export function formatClock(seconds) {
   const p2 = (n) => String(n).padStart(2, "0");
   return h ? `${h}:${p2(m)}:${p2(r)}` : `${m}:${p2(r)}`;
 }
+
+/* ---------- Agrégation des parties (par clé "1".."5" ou "custom") ---------- */
+
+export function emptyStats() {
+  return { started: {}, finished: {}, bestTime: {}, hints: 0, hintGames: 0 };
+}
+
+export function levelKey(gameLevel) {
+  return gameLevel >= 1 && gameLevel <= 5 ? String(gameLevel) : "custom";
+}
+
+/* Reducers IMMUABLES : l'objet d'entrée n'est jamais modifié (l'appelant
+   persiste le retour). */
+export function recordStart(stats, key) {
+  const s = stats || emptyStats();
+  return { ...s, started: { ...s.started, [key]: (s.started[key] || 0) + 1 } };
+}
+
+export function recordWin(stats, { levelKey: key, seconds, hints = 0, assisted = false }) {
+  const s = stats || emptyStats();
+  const next = {
+    ...s,
+    finished: { ...s.finished, [key]: (s.finished[key] || 0) + 1 },
+    bestTime: { ...s.bestTime },
+    hints: s.hints + hints,
+    hintGames: s.hintGames + (hints > 0 ? 1 : 0),
+  };
+  /* Choix produit : les indices 👣/🎯 ne privent PAS du record — on ne punit
+     pas l'apprentissage (le taux d'aide affiché remet le contexte). Seules
+     les parties « assistées » (Tout résoudre, Révéler une case) en excluent. */
+  const t = Number(seconds);
+  if (!assisted && Number.isFinite(t) && t > 0 && (next.bestTime[key] == null || t < next.bestTime[key])) {
+    next.bestTime[key] = t;
+  }
+  return next;
+}
+
+/* Nombre moyen d'indices par partie terminée. */
+export function helpRate(stats) {
+  const s = stats || emptyStats();
+  const totalFinished = Object.values(s.finished).reduce((a, b) => a + b, 0);
+  return totalFinished ? s.hints / totalFinished : 0;
+}

@@ -16,7 +16,7 @@ import {
   DAILY_LEVELS, dailySeed, dailyLevelFor, dailyPuzzle, localDateStr,
   currentStreak, bestStreak, monthCells,
 } from "../src/daily.js";
-import { addSegment, formatClock } from "../src/stats.js";
+import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "../src/stats.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
 
@@ -608,6 +608,36 @@ console.log("Chrono (stats.js) :");
     "timestamps invalides ignorés");
 }
 
+/* ---------- 5f. Stats : reducers purs et immuables ---------- */
+console.log("Stats (agrégation) :");
+{
+  ok(levelKey(3) === "3" && levelKey(null) === "custom" && levelKey(undefined) === "custom",
+    "levelKey : niveaux 1-5 → chaîne, sinon custom");
+  const s0 = emptyStats();
+  const s1 = recordStart(s0, "2");
+  const s2 = recordStart(s1, "2");
+  ok(s2.started["2"] === 2 && s0.started["2"] === undefined && s1.started["2"] === 1,
+    "recordStart compte par niveau sans muter l'entrée");
+  const w1 = recordWin(s2, { levelKey: "2", seconds: 300, hints: 2, assisted: false });
+  ok(w1.finished["2"] === 1 && w1.bestTime["2"] === 300, "première victoire : terminée + meilleur temps");
+  ok(s2.finished["2"] === undefined && s2.bestTime["2"] === undefined, "recordWin ne mute pas l'entrée");
+  const w2 = recordWin(w1, { levelKey: "2", seconds: 400, hints: 0, assisted: false });
+  ok(w2.bestTime["2"] === 300, "un temps plus lent ne régresse jamais le record");
+  const w3 = recordWin(w2, { levelKey: "2", seconds: 200, hints: 0, assisted: true });
+  ok(w3.bestTime["2"] === 300 && w3.finished["2"] === 3,
+    "partie assistée (Tout résoudre / Révéler) : terminée mais sans record");
+  const w4 = recordWin(w3, { levelKey: "2", seconds: 250, hints: 1, assisted: false });
+  ok(w4.bestTime["2"] === 250, "un meilleur temps honnête bat le record");
+  ok(w4.hints === 3 && w4.hintGames === 2, "cumul des indices (3) et des parties aidées (2)");
+  ok(Math.abs(helpRate(w4) - 3 / 4) < 1e-9, "taux d'aide = indices / parties terminées");
+  ok(helpRate(emptyStats()) === 0, "taux d'aide sans partie terminée = 0");
+  // Une partie abandonnée ne compte que « commencée » — choix assumé : pas de
+  // décompte d'abandon, le ratio terminées/commencées suffit.
+  ok(recordStart(emptyStats(), "custom").started.custom === 1
+    && recordStart(emptyStats(), "custom").finished.custom === undefined,
+    "partie abandonnée = commencée seulement (clé custom)");
+}
+
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
 // Invariants d'un exercice, revérifiés par le finder — partagé par les
 // sections 6 (recherche), 8 (constructif) et 9 (acceptation getExercise).
@@ -811,6 +841,11 @@ console.log("Stockage (implémentation web) :");
 
   await persist(KEYS.settings, { hideTimer: true, theme: "auto", lang: "auto" });
   ok((await loadAll())[KEYS.settings].hideTimer === true, "KEYS.settings : round-trip persist/loadAll");
+
+  const st = recordWin(recordStart(emptyStats(), "3"), { levelKey: "3", seconds: 421, hints: 1 });
+  await persist(KEYS.stats, st);
+  ok(JSON.stringify((await loadAll())[KEYS.stats]) === JSON.stringify(st),
+    "KEYS.stats : round-trip persist/loadAll");
 
   backing.set(KEYS.scans, "6"); // valeur héritée de l'ancien code (brute, sans JSON)
   ok(readSync(KEYS.scans) === 6, "compteur hérité de l'ancien format relu tel quel");

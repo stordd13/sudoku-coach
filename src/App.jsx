@@ -4,8 +4,8 @@ import {
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, stuckPanelKind, SAMPLES,
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
-import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak } from "./daily.js";
-import { addSegment, formatClock } from "./stats.js";
+import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak, bestStreak } from "./daily.js";
+import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "./stats.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
 import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
 import { LESSONS } from "./lessons.js";
@@ -142,6 +142,75 @@ function DailyDots({ cells, done, today }) {
     </div>
   );
 }
+/* ---------- Écran 📊 Stats : cartes chiffres-clés + détail par niveau ---------- */
+function StatTile({ value, label }) {
+  return (
+    <div style={{
+      background: "#fff", border: "1px solid #E2E7E5", borderRadius: 14,
+      padding: "12px 8px", display: "flex", flexDirection: "column",
+      alignItems: "center", gap: 2, minWidth: 0,
+    }}>
+      <span style={{ fontSize: 22, fontWeight: 800, fontFamily: NUMFONT, fontVariantNumeric: "tabular-nums" }}>
+        {value}
+      </span>
+      <span style={{ fontSize: 11, color: "#5A6763", textAlign: "center", lineHeight: 1.3 }}>{label}</span>
+    </div>
+  );
+}
+function StatsView({ stats, dailyDone }) {
+  const s = stats || emptyStats();
+  const totalFinished = Object.values(s.finished).reduce((a, b) => a + b, 0);
+  const streak = currentStreak(dailyDone, localDateStr());
+  const record = bestStreak(dailyDone);
+  const rate = helpRate(s);
+  const rows = ["1", "2", "3", "4", "5", "custom"].filter((k) => s.started[k] || s.finished[k]);
+  const rowName = (k) => (k === "custom" ? "Perso / scan" : LEVELS[Number(k)].name);
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        <StatTile value={totalFinished} label="parties terminées" />
+        <StatTile value={streak ? `${streak} 🔥` : "0"} label="série défi en cours" />
+        <StatTile value={record} label="record de série" />
+      </div>
+      <div style={{
+        background: "#fff", border: "1px solid #E2E7E5", borderRadius: 14,
+        padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8,
+      }}>
+        {rows.length === 0 ? (
+          <div style={{ fontSize: 13, color: "#5A6763" }}>
+            Joue ta première grille — tes chiffres apparaîtront ici.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", fontSize: 11, fontWeight: 700, color: "#98A29D", textTransform: "uppercase", letterSpacing: ".04em" }}>
+              <span style={{ flex: 1 }}>Niveau</span>
+              <span style={{ width: 86, textAlign: "right" }}>Terminées</span>
+              <span style={{ width: 86, textAlign: "right" }}>Meilleur temps</span>
+            </div>
+            {rows.map((k) => (
+              <div key={k} style={{ display: "flex", fontSize: 13.5, alignItems: "baseline" }}>
+                <span style={{ flex: 1, fontWeight: 700 }}>{rowName(k)}</span>
+                <span style={{ width: 86, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  {s.finished[k] || 0} / {s.started[k] || 0}
+                </span>
+                <span style={{ width: 86, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: s.bestTime[k] != null ? C.teal : "#98A29D" }}>
+                  {s.bestTime[k] != null ? formatClock(s.bestTime[k]) : "—"}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+      {totalFinished > 0 && (
+        <div style={{ fontSize: 12, color: "#5A6763", textAlign: "center" }}>
+          {rate ? `En moyenne ${rate.toFixed(1)} indice${rate >= 2 ? "s" : ""} du coach par partie terminée.`
+            : "Aucun indice utilisé — chapeau 👏"}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* Rangée de réglage avec interrupteur (écran ⚙️ Réglages). */
 function ToggleRow({ label, hint, value, onChange }) {
   return (
@@ -548,7 +617,7 @@ function LearnView({ ix, onSelectIx }) {
 export default function App() {
   const [tab, setTab] = useState("play");
   const [lessonIx, setLessonIx] = useState(0); // leçon affichée dans Apprendre (remonté pour 📚 Revoir)
-  const [screen, setScreen] = useState("home"); // 'home' | 'levels' | 'board' | 'settings'
+  const [screen, setScreen] = useState("home"); // 'home' | 'levels' | 'board' | 'stats' | 'settings'
   /* Synchrone sur le web (localStorage) ; en natif le miroir mémoire est vide
      au premier rendu — corrigé juste après par loadAll() au boot. */
   const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS, ...(readSync(KEYS.settings) || {}) }));
@@ -568,8 +637,11 @@ export default function App() {
      Persisté dans KEYS.save — un défi repris le lendemain garde sa réussite. */
   const [gameOrigin, setGameOrigin] = useState(null);
   const [dailyDone, setDailyDone] = useState({}); // { "YYYY-MM-DD": true }
-  const [elapsed, setElapsed] = useState(0); // secondes de jeu (segments fermés uniquement)
+  const [elapsed, setElapsed] = useState(0); // miroir d'elapsedRef pour affichage + persistance
   const [, setClockTick] = useState(0); // re-render 1 s pour l'affichage du chrono
+  const [stats, setStats] = useState(() => readSync(KEYS.stats) || emptyStats());
+  const [hintsUsed, setHintsUsed] = useState(0); // 👣/🎯 utilisés dans la partie courante
+  const [assisted, setAssisted] = useState(false); // Tout résoudre / Révéler → pas de record
   const [generating, setGenerating] = useState(false);
   const [sel, setSel] = useState(null);
   const [noteMode, setNoteMode] = useState(false);
@@ -601,6 +673,7 @@ export default function App() {
   const histRef = useRef([]);
   const wonHandledRef = useRef(false); // garde StrictMode/re-renders de l'effet de victoire
   const segStartRef = useRef(null); // timestamp du segment de chrono ouvert (jamais persisté)
+  const elapsedRef = useRef(0); // total en secondes — source de vérité, lue à la victoire
   const fileRef = useRef(null);
   const panelRef = useRef(null);
   const msgTimer = useRef(null);
@@ -636,11 +709,24 @@ export default function App() {
     sweepTimer.current = setTimeout(() => setSweep(null), 9 * 40 + 700);
   }
 
-  /* ----- chrono : remise à zéro (nouvelle grille, verrouillage, recommencer) ----- */
+  /* ----- compteurs de partie : remise à zéro (nouvelle grille, verrouillage,
+     recommencer) — chrono, indices utilisés, drapeau « assistée » ----- */
   function resetClock() {
+    elapsedRef.current = 0;
     setElapsed(0);
     // Segment ouvert : repart de maintenant, la fermeture n'ajoutera donc ~rien.
     if (segStartRef.current != null) segStartRef.current = Date.now();
+    setHintsUsed(0);
+    setAssisted(false);
+  }
+
+  /* ----- stats : mise à jour + persistance en un point unique ----- */
+  function bumpStats(fn) {
+    setStats((s) => {
+      const next = fn(s || emptyStats());
+      persist(KEYS.stats, next);
+      return next;
+    });
   }
 
   /* ----- messages ----- */
@@ -745,6 +831,7 @@ export default function App() {
         setGameLevel(p.level);
         setGameOrigin(null);
         resetClock();
+        bumpStats((s) => recordStart(s, levelKey(p.level)));
         histRef.current = [];
         if (p.level === lvl) flash(`🎲 Grille ${LEVELS[p.level].name} — à toi de jouer ✏️`, "success");
         else flash(`Le niveau ${LEVELS[lvl].name} n'est pas sorti cette fois — voici une grille ${LEVELS[p.level].name}.`, "warn");
@@ -784,6 +871,7 @@ export default function App() {
         setGameLevel(p.level);
         setGameOrigin({ type: "daily", date: today });
         resetClock();
+        bumpStats((s) => recordStart(s, levelKey(p.level)));
         histRef.current = [];
         if (p.level === p.targetLevel) flash(`🗓️ Défi du ${fmtDailyDate(today)} — grille ${LEVELS[p.level].name}. À toi de jouer ✏️`, "success");
         else flash(`Le niveau ${LEVELS[p.targetLevel].name} n’est pas sorti aujourd’hui — le défi est une grille ${LEVELS[p.level].name}.`, "warn");
@@ -800,6 +888,7 @@ export default function App() {
     setGameLevel(null);
     setGameOrigin(null);
     resetClock();
+    bumpStats((s) => recordStart(s, "custom"));
     histRef.current = [];
     setPlan(null); setNoteMode(false);
     if (multi) flash("Grille verrouillée — garde un œil sur le badge ⚠️ plusieurs solutions.", "warn");
@@ -860,6 +949,7 @@ export default function App() {
     const { count, solution } = solveGrid(baseGrid);
     if (!solution) { flash("Grille insoluble — corrige la saisie.", "warn"); return; }
     pushHist();
+    if (phase === "play") setAssisted(true); // complétée par le solveur : pas de record
     let wrong = 0;
     if (phase === "play") grid.forEach((v, i) => { if (v && !givens[i] && v !== solution[i]) wrong++; });
     setGrid(solution);
@@ -892,7 +982,7 @@ export default function App() {
       return;
     }
     const p = buildPlan(grid, t);
-    if (p && (!solRef || multiSol || p.digit === solRef[t])) { setPlan(p); setLevel(0); }
+    if (p && (!solRef || multiSol || p.digit === solRef[t])) { setPlan(p); setLevel(0); setHintsUsed((h) => h + 1); }
     else {
       const kind = stuckPlanFor(false);
       if (kind === "wrong-digit") setPlan({ kind: "stuckError" });
@@ -933,6 +1023,7 @@ export default function App() {
     const p = easiest[Math.floor(Math.random() * easiest.length)];
     p.revealTech = true; // leçon guidée : la technique est annoncée dès l'indice 1
     setSel(p.target); setPlan(p); setLevel(0);
+    setHintsUsed((h) => h + 1);
   }
   // 📚 Revoir cette technique (👣) : bascule sur l'onglet Apprendre, leçon du keyKind.
   function openLesson(kind) {
@@ -944,6 +1035,7 @@ export default function App() {
   }
   function revealAnyway(t) {
     if (!solRef) { flash("Solution indisponible pour cette grille.", "warn"); return; }
+    setAssisted(true); // chiffre révélé : la partie n'entre plus au tableau des records
     let d = solRef[t];
     if (multiSol) {
       // solRef peut contredire la branche (valide) suivie par le joueur :
@@ -1193,12 +1285,19 @@ export default function App() {
           if (s.origin && s.origin.type === "daily" && typeof s.origin.date === "string") {
             setGameOrigin({ type: "daily", date: s.origin.date });
           }
-          if (Number.isFinite(s.elapsed) && s.elapsed > 0) setElapsed(s.elapsed);
+          if (Number.isFinite(s.elapsed) && s.elapsed > 0) {
+            elapsedRef.current = s.elapsed;
+            setElapsed(s.elapsed);
+          }
+          if (Number.isFinite(s.hintsUsed) && s.hintsUsed > 0) setHintsUsed(s.hintsUsed);
+          if (s.assisted === true) setAssisted(true);
         }
         const d = data[KEYS.daily];
         if (d && d.done && typeof d.done === "object") setDailyDone(d.done);
         const st = data[KEYS.settings];
         if (st && typeof st === "object") setSettings((s) => ({ ...s, ...st }));
+        const sd = data[KEYS.stats];
+        if (sd && typeof sd === "object") setStats(sd);
         const used = Number(data[KEYS.scans]);
         if (Number.isFinite(used) && used > 0) setScansUsed(used);
       } catch (e) { /* première visite ou stockage indisponible */ }
@@ -1215,16 +1314,20 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      persist(KEYS.save, { grid, givens, notes, phase, level: gameLevel, origin: gameOrigin, elapsed });
+      persist(KEYS.save, { grid, givens, notes, phase, level: gameLevel, origin: gameOrigin, elapsed, hintsUsed, assisted });
     }, 400);
     return () => clearTimeout(t);
-  }, [grid, givens, notes, phase, gameLevel, gameOrigin, elapsed, loaded]);
+  }, [grid, givens, notes, phase, gameLevel, gameOrigin, elapsed, hintsUsed, assisted, loaded]);
 
-  /* ----- défi du jour : marquer la réussite (une fois par victoire) ----- */
+  /* ----- victoire : stats + réussite du défi (une fois par victoire) ----- */
   useEffect(() => {
     if (!won) { wonHandledRef.current = false; return; }
     if (wonHandledRef.current) return; // StrictMode et re-renders
     wonHandledRef.current = true;
+    // Temps final : l'effet chrono (défini avant celui-ci) a déjà replié le
+    // segment ouvert dans elapsedRef ; addSegment couvre l'ordre inverse.
+    const seconds = addSegment(elapsedRef.current, segStartRef.current, Date.now());
+    bumpStats((s) => recordWin(s, { levelKey: levelKey(gameLevel), seconds, hints: hintsUsed, assisted }));
     if (gameOrigin && gameOrigin.type === "daily" && !dailyDone[gameOrigin.date]) {
       const nextDone = { ...dailyDone, [gameOrigin.date]: true };
       setDailyDone(nextDone);
@@ -1233,7 +1336,7 @@ export default function App() {
       const streak = currentStreak(nextDone, localDateStr());
       flash(streak > 1 ? `🗓️ Défi du jour réussi — série de ${streak} jours 🔥` : "🗓️ Défi du jour réussi ✓", "success", 7000);
     }
-  }, [won, gameOrigin, dailyDone]);
+  }, [won, gameOrigin, dailyDone, gameLevel, hintsUsed, assisted]);
 
   /* ----- clavier (desktop) ----- */
   useEffect(() => {
@@ -1285,7 +1388,10 @@ export default function App() {
     const close = () => {
       const t0 = segStartRef.current;
       segStartRef.current = null;
-      if (t0 != null) setElapsed((e) => addSegment(e, t0, Date.now()));
+      if (t0 != null) {
+        elapsedRef.current = addSegment(elapsedRef.current, t0, Date.now());
+        setElapsed(elapsedRef.current);
+      }
     };
     // App en arrière-plan (ou onglet caché) : le temps ne court pas.
     const onVis = () => {
@@ -1306,7 +1412,8 @@ export default function App() {
       if (n % 15 === 0 && segStartRef.current != null && document.visibilityState !== "hidden") {
         const t0 = segStartRef.current;
         segStartRef.current = Date.now();
-        setElapsed((e) => addSegment(e, t0, segStartRef.current));
+        elapsedRef.current = addSegment(elapsedRef.current, t0, segStartRef.current);
+        setElapsed(elapsedRef.current);
       } else {
         setClockTick((t) => t + 1);
       }
@@ -1460,6 +1567,8 @@ export default function App() {
             <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
             <Card emoji="📚" title="Apprendre" sub={`${LESSONS.length} leçons, des bases aux techniques expertes`}
               onClick={() => setTab("learn")} />
+            <Card emoji="📊" title="Stats" sub="Tes parties, records et séries"
+              onClick={() => setScreen("stats")} />
           </div>
           <LinkBtn onClick={() => { if (phase === "play") clearAll(); setScreen("board"); }}>
             ✏️ Saisir une grille à la main
@@ -1475,6 +1584,15 @@ export default function App() {
               <Card key={n} emoji={["🟢", "🟡", "🟠", "🔴", "🟣"][i] || "🎲"} title={l.name} sub={l.desc}
                 onClick={() => newGame(Number(n))} />
             ))}
+          </div>
+          <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
+        </>
+      ) : screen === "stats" ? (
+        <>
+          {/* ---------- Stats ---------- */}
+          <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>📊 Stats</div>
+            <StatsView stats={stats} dailyDone={dailyDone} />
           </div>
           <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
         </>
