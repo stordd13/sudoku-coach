@@ -63,6 +63,7 @@ sans compte ni serveur.
 npm install
 npm run dev        # http://localhost:5173 (le scan nécessite Vercel ou `vercel dev`)
 npm run check      # tests : moteur, leçons, exercices, coach 👣, stockage, API (seedés)
+                   # run complet : 1 à 3 min selon la machine
 npm run build      # build de production
 ```
 
