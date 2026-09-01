@@ -744,6 +744,61 @@ console.log("A11y (cellAriaLabel) :");
   setLang("fr");
 }
 
+/* ---------- 5k. A11y : contraste AA des deux thèmes (WCAG 2.x) ---------- */
+console.log("Contraste AA :");
+{
+  const srgbLuminance = (hex) => {
+    const lin = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+    const n = parseInt(hex.slice(1), 16);
+    return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  };
+  const contrastRatio = (a, b) => {
+    const la = srgbLuminance(a), lb = srgbLuminance(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  };
+  ok(Math.abs(contrastRatio("#FFFFFF", "#000000") - 21) < 0.01, "sanité : blanc/noir = 21:1");
+  // Paires (fg, bg, seuil, usage). 4.5 = texte essentiel ; 3.0 = secondaire
+  // (notes décoratives, icônes) — `faint` est assumé décoratif, pas AA-texte.
+  const PAIRS = [
+    ["ink", "paper", 4.5, "texte principal / fond papier"],
+    ["ink", "surface", 4.5, "texte principal / cartes"],
+    ["textStrong", "surface", 4.5, "paragraphes de leçon"],
+    ["textSoft", "surface", 4.5, "sous-titres de cartes"],
+    ["textSoft", "chipBg", 4.5, "badge niveau, chip chrono"],
+    ["textSoft", "tabsBg", 4.5, "onglet inactif"],
+    ["blue", "surface", 4.5, "chiffres posés"],
+    ["blue", "blueSoft", 4.5, "chiffre surligné même valeur"],
+    ["blue", "yellowSoft", 4.5, "chiffre posé en zone de plan"],
+    ["blue", "tealSoft", 4.5, "chiffre posé sélectionné"],
+    ["red", "surface", 4.5, "chiffre en conflit"],
+    ["red", "redSoft", 4.5, "chiffre en conflit, fond conflit"],
+    ["ink", "givenBg", 4.5, "données de départ"],
+    ["ink", "tealSoft", 4.5, "donnée sélectionnée"],
+    ["ink", "yellowSoft", 4.5, "donnée en zone de plan"],
+    ["onInk", "ink", 4.5, "bouton primaire"],
+    ["onAccent", "teal", 4.5, "bouton accent / chip active"],
+    ["teal", "surface", 4.5, "meilleurs temps (stats)"],
+    ["hintInk", "hintBg", 4.5, "titres des cartes d'étape"],
+    ["techInk", "yellowSoft", 4.5, "pastille technique"],
+    ["warnInk", "warnBg", 4.5, "avertissements"],
+    ["msgInfoFg", "msgInfoBg", 4.5, "bandeau info"],
+    ["msgSuccessFg", "msgSuccessBg", 4.5, "bandeau succès"],
+    ["gray", "surface", 3.0, "notes dans les cases (secondaire)"],
+    ["iconMuted", "surface", 3.0, "✕ de fermeture (icône)"],
+    ["faint", "paper", 3.0, "notes discrètes — décoratif, exempté 4.5"],
+    ["faint", "surface", 3.0, "compteur de scans, mois du calendrier"],
+  ];
+  for (const [name, palette] of [["clair", C_LIGHT], ["sombre", C_DARK]]) {
+    let worst = { r: 99 }, failures0 = failures;
+    for (const [fg, bg, min, label] of PAIRS) {
+      const r = contrastRatio(palette[fg], palette[bg]);
+      ok(r >= min, `thème ${name} : ${fg}/${bg} = ${r.toFixed(2)} ≥ ${min} (${label})`);
+      if (r < worst.r) worst = { r, fg, bg };
+    }
+    console.log(`  ℹ thème ${name} : pire paire ${worst.fg}/${worst.bg} à ${worst.r.toFixed(2)}${failures === failures0 ? "" : " — ÉCHECS ci-dessus"}`);
+  }
+}
+
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
 // Invariants d'un exercice, revérifiés par le finder — partagé par les
 // sections 6 (recherche), 8 (constructif) et 9 (acceptation getExercise).

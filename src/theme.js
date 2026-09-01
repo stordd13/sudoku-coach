@@ -22,7 +22,7 @@ export const C_LIGHT = {
   peer: "#F3F6F5",        // cases voisines de la sélection
   textStrong: "#3C464D",  // paragraphes de leçon
   textSoft: "#5A6763",    // sous-titres, légendes
-  faint: "#98A29D",       // notes discrètes (version, sauvegarde)
+  faint: "#7F8A86",       // notes discrètes — assombri depuis #98A29D (2,4:1, échec AA 3:1)
   iconMuted: "#8A948F",   // ✕ de fermeture
   border: "#D8DEDC",      // bordures de boutons/pavé
   borderSoft: "#E2E7E5",  // bordures de cartes/panneaux

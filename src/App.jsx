@@ -183,7 +183,7 @@ function StatsView({ stats, dailyDone }) {
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", fontSize: 11, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: ".04em" }}>
+            <div style={{ display: "flex", fontSize: 11, fontWeight: 700, color: C.textSoft, textTransform: "uppercase", letterSpacing: ".04em" }}>
               <span style={{ flex: 1 }}>{t("stats.colLevel")}</span>
               <span style={{ width: 86, textAlign: "right" }}>{t("stats.colDone")}</span>
               <span style={{ width: 86, textAlign: "right" }}>{t("stats.colBest")}</span>
