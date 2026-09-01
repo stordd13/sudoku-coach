@@ -16,6 +16,7 @@ import { initPurchases, getOffer, buy, restore } from "./purchases.js";
 import { C_LIGHT, C_DARK, cssVars, META_COLOR } from "./theme.js";
 import { TECH_NAMES, withArticle, frTechList } from "./techNames.js";
 import { t, setLang, getLang, detectLang } from "./i18n.js";
+import { cellAriaLabel } from "./a11y.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
    Les hex vivent dans theme.js (C_LIGHT/C_DARK) ; ici chaque clé devient une
@@ -58,7 +59,7 @@ function Rich({ text }) {
     </>
   );
 }
-function Btn({ children, onClick, variant = "ghost", disabled, active, grow, title }) {
+function Btn({ children, onClick, variant = "ghost", disabled, active, grow, title, ariaLabel, ariaPressed }) {
   const base = {
     fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, padding: "10px 12px",
     borderRadius: 12, border: "1px solid", cursor: disabled ? "default" : "pointer",
@@ -75,7 +76,8 @@ function Btn({ children, onClick, variant = "ghost", disabled, active, grow, tit
   const st = { ...base, ...styles[variant] };
   if (active) { st.background = C.teal; st.color = C.onAccent; st.borderColor = C.teal; }
   return (
-    <button type="button" title={title} disabled={disabled} onClick={onClick} style={st}>
+    <button type="button" title={title} aria-label={ariaLabel} aria-pressed={ariaPressed}
+      disabled={disabled} onClick={onClick} style={st}>
       {children}
     </button>
   );
@@ -128,7 +130,7 @@ function DailyDots({ cells, done, today }) {
         {month[0].toUpperCase() + month.slice(1)}
         {doneCount ? tn("daily.month", doneCount) : ""}
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, justifyContent: "center" }}>
+      <div aria-hidden="true" style={{ display: "flex", flexWrap: "wrap", gap: 5, justifyContent: "center" }}>
         {cells.map((c) => (
           <span key={c.dateStr} style={{
             width: 9, height: 9, borderRadius: 999,
@@ -220,7 +222,8 @@ function SegmentRow({ label, options, value, onChange }) {
       <span style={{ fontWeight: 700, fontSize: 14 }}>{label}</span>
       <div style={{ display: "flex", background: C.tabsBg, borderRadius: 10, padding: 3 }}>
         {options.map((o) => (
-          <button key={o.value} type="button" onClick={() => onChange(o.value)} style={{
+          <button key={o.value} type="button" aria-pressed={value === o.value}
+            onClick={() => onChange(o.value)} style={{
             flex: 1, border: "none", borderRadius: 8, padding: "7px 0",
             fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit",
             background: value === o.value ? C.surface : "transparent",
@@ -1504,6 +1507,7 @@ export default function App() {
     }}>
       <style>{`:root{${cssVars(C_LIGHT)}}
 :root[data-theme="dark"]{${cssVars(C_DARK)}}
+button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-teal);outline-offset:-2px}
 @keyframes scspin{to{transform:rotate(360deg)}} summary::-webkit-details-marker{display:none}
 @media (prefers-reduced-motion: no-preference){
   .sc-pop{animation:scpop .14s ease-out}
@@ -1545,9 +1549,9 @@ export default function App() {
       </header>
 
       {/* ---------- Onglets ---------- */}
-      <div style={{ width: W, display: "flex", background: C.tabsBg, borderRadius: 12, padding: 3 }}>
+      <div role="tablist" style={{ width: W, display: "flex", background: C.tabsBg, borderRadius: 12, padding: 3 }}>
         {[["play", t("tabs.play")], ["learn", t("tabs.learn")]].map(([k, l]) => (
-          <button key={k} type="button" onClick={() => setTab(k)} style={{
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} style={{
             flex: 1, border: "none", borderRadius: 10, padding: "8px 0",
             fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit",
             background: tab === k ? C.surface : "transparent",
@@ -1653,7 +1657,7 @@ export default function App() {
         <>
           {/* ---------- Message / bannière ---------- */}
           {msg ? (
-            <div style={{
+            <div role="status" aria-live="polite" style={{
               width: W, fontSize: 13, fontWeight: 600, lineHeight: 1.45,
               background: msgColors[msg.type].bg, color: msgColors[msg.type].fg,
               borderRadius: 10, padding: "9px 12px",
@@ -1707,7 +1711,7 @@ export default function App() {
 
           {/* ---------- Grille ---------- */}
           <div style={{ position: "relative" }}>
-            <div style={{
+            <div role="group" aria-label={t("a11y.grid")} style={{
               width: W, aspectRatio: "1 / 1", display: "grid",
               gridTemplateColumns: "repeat(9, 1fr)", gridTemplateRows: "repeat(9, 1fr)",
               border: `2.5px solid ${C.ink}`, borderRadius: 10, overflow: "hidden",
@@ -1720,6 +1724,15 @@ export default function App() {
                 const sweepMs = sweep ? sweep.delays.get(i) : undefined;
                 return (
                   <div key={shaking ? `${i}s${shake.stamp}` : i} onClick={() => setSel(i)}
+                    role="button"
+                    aria-label={cellAriaLabel({
+                      index: i, value: v, given: phase === "play" && givens[i],
+                      noteDigits: notes[i], conflict: conflicts.has(i),
+                    }, t)}
+                    tabIndex={i === (sel ?? 40) ? 0 : -1}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(i); }
+                    }}
                     className={shaking ? "sc-shake" : undefined} style={cellStyle(i)}>
                     {v !== 0 ? (
                       <span
@@ -1807,6 +1820,7 @@ export default function App() {
               return (
                 <button key={pulsing ? `${d}p${padPulse.stamp}` : d} type="button"
                   className={pulsing ? "sc-pulse" : undefined}
+                  aria-label={remaining > 0 ? tn("a11y.pad.digit", remaining, { d }) : t("a11y.pad.digitDone", { d })}
                   onClick={() => padPress(d)} style={{
                   background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
                   padding: "7px 0 5px", display: "flex", flexDirection: "column",
@@ -1824,7 +1838,7 @@ export default function App() {
                 </button>
               );
             })}
-            <button type="button" onClick={eraseSel} style={{
+            <button type="button" onClick={eraseSel} aria-label={t("a11y.pad.erase")} style={{
               background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
               padding: "7px 0 5px", display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center", gap: 1, cursor: "pointer",
@@ -1858,13 +1872,13 @@ export default function App() {
                 <Btn grow onClick={randomHint}>{t("btn.nextStep")}</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn grow active={noteMode} onClick={() => setNoteMode((m) => !m)}>{t("btn.notes")}</Btn>
-                <Btn grow active={hasNotes} onClick={autoNotes}>{t("btn.autoNotes")}</Btn>
+                <Btn grow active={noteMode} ariaPressed={noteMode} onClick={() => setNoteMode((m) => !m)}>{t("btn.notes")}</Btn>
+                <Btn grow active={hasNotes} ariaPressed={hasNotes} onClick={autoNotes}>{t("btn.autoNotes")}</Btn>
                 <Btn grow onClick={snyderMode}>{t("btn.snyder")}</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow onClick={checkErrors}>{t("btn.check")}</Btn>
-                <Btn onClick={undo} title={t("btn.undo")}>↩︎</Btn>
+                <Btn onClick={undo} title={t("btn.undo")} ariaLabel={t("btn.undo")}>↩︎</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow onClick={openScan} disabled={scanning || !scansLeft}>{t("btn.scan")}</Btn>
@@ -1952,7 +1966,7 @@ export default function App() {
                       {level < 2 ? t("coach.hintBadge", { n: level + 1 }) : t("coach.solution")}
                     </span>
                   )}
-                  <button type="button" onClick={closePlan} style={{
+                  <button type="button" onClick={closePlan} aria-label={t("a11y.closeCoach")} style={{
                     background: "none", border: "none", fontSize: 16, color: C.iconMuted,
                     cursor: "pointer", padding: 0, fontFamily: "inherit",
                     minWidth: 44, minHeight: 44, margin: "-10px -12px -10px -4px",

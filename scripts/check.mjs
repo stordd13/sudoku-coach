@@ -20,6 +20,7 @@ import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, 
 import { C_LIGHT, C_DARK, getPalette, cssVars, META_COLOR } from "../src/theme.js";
 import { TECH_NAMES, techName, frWithArticle, frTechList } from "../src/techNames.js";
 import { DICTS, t, setLang, getLang, detectLang } from "../src/i18n.js";
+import { cellAriaLabel } from "../src/a11y.js";
 import { readFileSync } from "node:fs";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
@@ -722,6 +723,25 @@ console.log("i18n :");
   ok(t("_onlyFr") === "seulement fr", "clé absente en en → repli fr");
   setLang("fr");
   delete DICTS.fr._tmp; delete DICTS.en._tmp; delete DICTS.fr._onlyFr;
+}
+
+/* ---------- 5j. A11y : labels de cases (jamais les candidats calculés) ---------- */
+console.log("A11y (cellAriaLabel) :");
+{
+  const mk = (o) => cellAriaLabel(o, t);
+  ok(mk({ index: 20, value: 0 }) === "Ligne 3, colonne 3 — vide", "case vide");
+  ok(mk({ index: 20, value: 0, noteDigits: [5] }) === "Ligne 3, colonne 3 — vide, note 5", "une note");
+  ok(mk({ index: 20, value: 0, noteDigits: [2, 5] }) === "Ligne 3, colonne 3 — vide, notes 2 et 5",
+    "notes du joueur (la source est notes[i], jamais candidatesFromGrid)");
+  ok(mk({ index: 20, value: 0, noteDigits: [2, 3, 5] }) === "Ligne 3, colonne 3 — vide, notes 2, 3 et 5",
+    "trois notes : virgules puis « et »");
+  ok(mk({ index: 3, value: 8, given: true }) === "Ligne 1, colonne 4 — 8, donnée de départ", "donnée de départ");
+  ok(mk({ index: 3, value: 4, conflict: true }) === "Ligne 1, colonne 4 — 4, posé, en conflit", "posé, en conflit");
+  setLang("en");
+  ok(mk({ index: 20, value: 0, noteDigits: [2, 5] }) === "Row 3, column 3 — empty, notes 2 and 5", "EN : notes");
+  ok(mk({ index: 3, value: 8, given: true }) === "Row 1, column 4 — 8, given", "EN : given");
+  ok(mk({ index: 3, value: 4, conflict: true }) === "Row 1, column 4 — 4, placed, in conflict", "EN : conflit");
+  setLang("fr");
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
