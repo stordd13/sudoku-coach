@@ -16,6 +16,7 @@ import {
   DAILY_LEVELS, dailySeed, dailyLevelFor, dailyPuzzle, localDateStr,
   currentStreak, bestStreak, monthCells,
 } from "../src/daily.js";
+import { addSegment, formatClock } from "../src/stats.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
 
@@ -592,6 +593,21 @@ console.log("Défi du jour :");
     + ` (${worst.ms} ms, ${worst.attempts} tentatives, niveau ${worst.level}), fallbacks : ${fallbacks}`);
 }
 
+/* ---------- 5e. Chrono : segments horodatés et affichage ---------- */
+console.log("Chrono (stats.js) :");
+{
+  ok(formatClock(0) === "0:00", "formatClock(0) = 0:00");
+  ok(formatClock(67) === "1:07", "formatClock(67) = 1:07");
+  ok(formatClock(727) === "12:07", "formatClock(727) = 12:07");
+  ok(formatClock(3727) === "1:02:07", "formatClock(3727) = 1:02:07 (heures si nécessaires)");
+  ok(formatClock(-5) === "0:00" && formatClock(NaN) === "0:00", "valeurs dégénérées → 0:00");
+  ok(addSegment(10, 1000, 6000) === 15, "addSegment : 10 s + segment de 5 s = 15 s");
+  ok(addSegment(10, 6000, 1000) === 10, "segment négatif (horloge qui recule) ignoré");
+  ok(addSegment(10, 5000, 5000) === 10, "segment nul ignoré");
+  ok(addSegment(10, NaN, 6000) === 10 && addSegment(10, 1000, undefined) === 10,
+    "timestamps invalides ignorés");
+}
+
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
 // Invariants d'un exercice, revérifiés par le finder — partagé par les
 // sections 6 (recherche), 8 (constructif) et 9 (acceptation getExercise).
@@ -792,6 +808,9 @@ console.log("Stockage (implémentation web) :");
   await persist(KEYS.daily, daily);
   ok(JSON.stringify((await loadAll())[KEYS.daily]) === JSON.stringify(daily),
     "KEYS.daily : round-trip persist/loadAll (réussites + grille du jour)");
+
+  await persist(KEYS.settings, { hideTimer: true, theme: "auto", lang: "auto" });
+  ok((await loadAll())[KEYS.settings].hideTimer === true, "KEYS.settings : round-trip persist/loadAll");
 
   backing.set(KEYS.scans, "6"); // valeur héritée de l'ancien code (brute, sans JSON)
   ok(readSync(KEYS.scans) === 6, "compteur hérité de l'ancien format relu tel quel");

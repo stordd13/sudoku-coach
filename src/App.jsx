@@ -5,6 +5,7 @@ import {
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
 import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak } from "./daily.js";
+import { addSegment, formatClock } from "./stats.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
 import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
 import { LESSONS } from "./lessons.js";
@@ -34,6 +35,9 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
    suffit). La vraie protection de la clé API, c'est la limite par IP de /api/ocr
    et le plafond de dépense Anthropic — ici on dose juste l'usage gratuit. */
 const FREE_SCANS = 5;
+
+/* ---------- Réglages (persistés via KEYS.settings) ---------- */
+const DEFAULT_SETTINGS = { hideTimer: false, theme: "auto", lang: "auto" };
 
 /* ---------- Niveaux de difficulté (générateur) ---------- */
 const LEVELS = {
@@ -135,6 +139,32 @@ function DailyDots({ cells, done, today }) {
           }} />
         ))}
       </div>
+    </div>
+  );
+}
+/* Rangée de réglage avec interrupteur (écran ⚙️ Réglages). */
+function ToggleRow({ label, hint, value, onChange }) {
+  return (
+    <div style={{
+      width: "100%", background: "#fff", border: "1px solid #E2E7E5", borderRadius: 14,
+      padding: "12px 16px", display: "flex", alignItems: "center", gap: 12,
+    }}>
+      <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>{label}</span>
+        {hint ? <span style={{ fontSize: 12, color: "#5A6763", lineHeight: 1.4 }}>{hint}</span> : null}
+      </span>
+      <button type="button" onClick={() => onChange(!value)} aria-pressed={value} style={{
+        marginLeft: "auto", flex: "none", width: 46, height: 28, borderRadius: 999,
+        border: "none", background: value ? C.teal : "#D8DEDC", cursor: "pointer",
+        position: "relative", transition: "background .15s", padding: 0,
+        WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+      }}>
+        <span style={{
+          position: "absolute", top: 3, left: value ? 21 : 3, width: 22, height: 22,
+          borderRadius: 999, background: "#fff", transition: "left .15s",
+          boxShadow: "0 1px 3px rgba(31,39,46,0.25)",
+        }} />
+      </button>
     </div>
   );
 }
@@ -518,7 +548,17 @@ function LearnView({ ix, onSelectIx }) {
 export default function App() {
   const [tab, setTab] = useState("play");
   const [lessonIx, setLessonIx] = useState(0); // leçon affichée dans Apprendre (remonté pour 📚 Revoir)
-  const [screen, setScreen] = useState("home"); // 'home' | 'levels' | 'board'
+  const [screen, setScreen] = useState("home"); // 'home' | 'levels' | 'board' | 'settings'
+  /* Synchrone sur le web (localStorage) ; en natif le miroir mémoire est vide
+     au premier rendu — corrigé juste après par loadAll() au boot. */
+  const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS, ...(readSync(KEYS.settings) || {}) }));
+  function updateSettings(patch) {
+    setSettings((s) => {
+      const next = { ...s, ...patch };
+      persist(KEYS.settings, next);
+      return next;
+    });
+  }
   const [grid, setGrid] = useState(Array(81).fill(0));
   const [givens, setGivens] = useState(Array(81).fill(false));
   const [notes, setNotes] = useState(Array.from({ length: 81 }, () => []));
@@ -528,6 +568,8 @@ export default function App() {
      Persisté dans KEYS.save — un défi repris le lendemain garde sa réussite. */
   const [gameOrigin, setGameOrigin] = useState(null);
   const [dailyDone, setDailyDone] = useState({}); // { "YYYY-MM-DD": true }
+  const [elapsed, setElapsed] = useState(0); // secondes de jeu (segments fermés uniquement)
+  const [, setClockTick] = useState(0); // re-render 1 s pour l'affichage du chrono
   const [generating, setGenerating] = useState(false);
   const [sel, setSel] = useState(null);
   const [noteMode, setNoteMode] = useState(false);
@@ -558,6 +600,7 @@ export default function App() {
 
   const histRef = useRef([]);
   const wonHandledRef = useRef(false); // garde StrictMode/re-renders de l'effet de victoire
+  const segStartRef = useRef(null); // timestamp du segment de chrono ouvert (jamais persisté)
   const fileRef = useRef(null);
   const panelRef = useRef(null);
   const msgTimer = useRef(null);
@@ -591,6 +634,13 @@ export default function App() {
     setSweep({ delays, stamp: Date.now() });
     if (sweepTimer.current) clearTimeout(sweepTimer.current);
     sweepTimer.current = setTimeout(() => setSweep(null), 9 * 40 + 700);
+  }
+
+  /* ----- chrono : remise à zéro (nouvelle grille, verrouillage, recommencer) ----- */
+  function resetClock() {
+    setElapsed(0);
+    // Segment ouvert : repart de maintenant, la fermeture n'ajoutera donc ~rien.
+    if (segStartRef.current != null) segStartRef.current = Date.now();
   }
 
   /* ----- messages ----- */
@@ -694,6 +744,7 @@ export default function App() {
         setPhase("play");
         setGameLevel(p.level);
         setGameOrigin(null);
+        resetClock();
         histRef.current = [];
         if (p.level === lvl) flash(`🎲 Grille ${LEVELS[p.level].name} — à toi de jouer ✏️`, "success");
         else flash(`Le niveau ${LEVELS[lvl].name} n'est pas sorti cette fois — voici une grille ${LEVELS[p.level].name}.`, "warn");
@@ -732,6 +783,7 @@ export default function App() {
         setPhase("play");
         setGameLevel(p.level);
         setGameOrigin({ type: "daily", date: today });
+        resetClock();
         histRef.current = [];
         if (p.level === p.targetLevel) flash(`🗓️ Défi du ${fmtDailyDate(today)} — grille ${LEVELS[p.level].name}. À toi de jouer ✏️`, "success");
         else flash(`Le niveau ${LEVELS[p.targetLevel].name} n’est pas sorti aujourd’hui — le défi est une grille ${LEVELS[p.level].name}.`, "warn");
@@ -747,6 +799,7 @@ export default function App() {
     setPhase("play");
     setGameLevel(null);
     setGameOrigin(null);
+    resetClock();
     histRef.current = [];
     setPlan(null); setNoteMode(false);
     if (multi) flash("Grille verrouillée — garde un œil sur le badge ⚠️ plusieurs solutions.", "warn");
@@ -771,6 +824,7 @@ export default function App() {
   function backToEdit() {
     setPhase("edit"); setGivens(Array(81).fill(false));
     setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setNoteMode(false); setGameLevel(null); setGameOrigin(null);
+    resetClock();
     flash("Mode saisie : modifie librement, puis « Commencer ».");
   }
   function clearAll() {
@@ -779,12 +833,14 @@ export default function App() {
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
     setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null); setGameOrigin(null);
+    resetClock();
   }
   function restartPuzzle() {
     pushHist();
     setGrid(grid.map((v, i) => (givens[i] ? v : 0)));
     setNotes(Array.from({ length: 81 }, () => []));
     setPlan(null);
+    resetClock();
     flash("Grille réinitialisée à l’énoncé.");
   }
   function loadSample() {
@@ -1137,9 +1193,12 @@ export default function App() {
           if (s.origin && s.origin.type === "daily" && typeof s.origin.date === "string") {
             setGameOrigin({ type: "daily", date: s.origin.date });
           }
+          if (Number.isFinite(s.elapsed) && s.elapsed > 0) setElapsed(s.elapsed);
         }
         const d = data[KEYS.daily];
         if (d && d.done && typeof d.done === "object") setDailyDone(d.done);
+        const st = data[KEYS.settings];
+        if (st && typeof st === "object") setSettings((s) => ({ ...s, ...st }));
         const used = Number(data[KEYS.scans]);
         if (Number.isFinite(used) && used > 0) setScansUsed(used);
       } catch (e) { /* première visite ou stockage indisponible */ }
@@ -1156,10 +1215,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      persist(KEYS.save, { grid, givens, notes, phase, level: gameLevel, origin: gameOrigin });
+      persist(KEYS.save, { grid, givens, notes, phase, level: gameLevel, origin: gameOrigin, elapsed });
     }, 400);
     return () => clearTimeout(t);
-  }, [grid, givens, notes, phase, gameLevel, gameOrigin, loaded]);
+  }, [grid, givens, notes, phase, gameLevel, gameOrigin, elapsed, loaded]);
 
   /* ----- défi du jour : marquer la réussite (une fois par victoire) ----- */
   useEffect(() => {
@@ -1217,6 +1276,45 @@ export default function App() {
     return m;
   }, [grid]);
   const hasNotes = useMemo(() => notes.some((a) => a.length), [notes]);
+
+  /* ----- chrono : segments horodatés, en pause hors écran ----- */
+  const timerRunning = phase === "play" && tab === "play" && screen === "board" && !won;
+  useEffect(() => {
+    if (!timerRunning) return;
+    segStartRef.current = Date.now();
+    const close = () => {
+      const t0 = segStartRef.current;
+      segStartRef.current = null;
+      if (t0 != null) setElapsed((e) => addSegment(e, t0, Date.now()));
+    };
+    // App en arrière-plan (ou onglet caché) : le temps ne court pas.
+    const onVis = () => {
+      if (document.visibilityState === "hidden") close();
+      else if (segStartRef.current == null) segStartRef.current = Date.now();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { document.removeEventListener("visibilitychange", onVis); close(); };
+  }, [timerRunning]);
+  useEffect(() => {
+    if (!timerRunning) return;
+    // Tick d'affichage 1 s ; toutes les 15 s, replie le segment ouvert dans
+    // `elapsed` (persisté avec la sauvegarde) : un kill de l'app ne perd
+    // jamais plus de 15 s de jeu. Le comptage, lui, reste horodaté.
+    let n = 0;
+    const id = setInterval(() => {
+      n++;
+      if (n % 15 === 0 && segStartRef.current != null && document.visibilityState !== "hidden") {
+        const t0 = segStartRef.current;
+        segStartRef.current = Date.now();
+        setElapsed((e) => addSegment(e, t0, segStartRef.current));
+      } else {
+        setClockTick((t) => t + 1);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerRunning]);
+  const shownSeconds = elapsed + (timerRunning && segStartRef.current != null
+    ? Math.max(0, Math.round((Date.now() - segStartRef.current) / 1000)) : 0);
   const planHL = useMemo(() => {
     const res = { unit: new Set(), chain: new Set(), target: null };
     if (!plan) return res;
@@ -1301,6 +1399,13 @@ export default function App() {
           </div>
           <div style={{ fontSize: 12, color: C.gray, marginTop: 1 }}>Résous, comprends, progresse.</div>
         </div>
+        <button type="button" aria-label="Réglages" title="Réglages"
+          onClick={() => { setTab("play"); setScreen("settings"); }} style={{
+            marginLeft: "auto", background: "none", border: "none", fontSize: 20,
+            cursor: "pointer", padding: 0, minWidth: 44, minHeight: 44,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "inherit", WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+          }}>⚙️</button>
       </header>
 
       {/* ---------- Onglets ---------- */}
@@ -1373,6 +1478,16 @@ export default function App() {
           </div>
           <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
         </>
+      ) : screen === "settings" ? (
+        <>
+          {/* ---------- Réglages ---------- */}
+          <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>⚙️ Réglages</div>
+            <ToggleRow label="Masquer le chrono" hint="Le temps reste mesuré pour tes stats."
+              value={settings.hideTimer} onChange={(v) => updateSettings({ hideTimer: v })} />
+          </div>
+          <LinkBtn onClick={() => setScreen("home")}>← Accueil</LinkBtn>
+        </>
       ) : (
         <>
           {/* ---------- Message / bannière ---------- */}
@@ -1393,9 +1508,9 @@ export default function App() {
             </div>
           ) : null}
 
-          {/* ---------- Badges : niveau (générée) / plusieurs solutions (saisie) ---------- */}
-          {phase === "play" && (gameLevel || multiSol) ? (
-            <div style={{ width: W, display: "flex", gap: 8 }}>
+          {/* ---------- Badges : niveau (générée) / plusieurs solutions / chrono ---------- */}
+          {phase === "play" && (gameLevel || multiSol || !settings.hideTimer) ? (
+            <div style={{ width: W, display: "flex", alignItems: "center", gap: 8 }}>
               {gameLevel ? (
                 <span key={celebrate ? `b${celebrate}` : "lvl"}
                   className={celebrate ? "sc-pulse" : undefined} style={{
@@ -1419,6 +1534,15 @@ export default function App() {
                 }}>
                   ⚠️ plusieurs solutions
                 </button>
+              ) : null}
+              {!settings.hideTimer ? (
+                <span style={{
+                  marginLeft: "auto", fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                  color: "#5A6763", background: "#EFF2F1", border: "1px solid #E2E7E5",
+                  borderRadius: 999, padding: "3px 10px",
+                }}>
+                  ⏱ {formatClock(shownSeconds)}
+                </span>
               ) : null}
             </div>
           ) : null}
