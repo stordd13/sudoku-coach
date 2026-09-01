@@ -594,7 +594,7 @@ function LearnView({ ix, onSelectIx }) {
           {!revealed && <Btn variant="accent" grow onClick={() => setRevealed(true)} disabled={exo === "searching"}>Voir la solution</Btn>}
           {revealed && <Btn grow onClick={() => { setRevealed(false); setShowHint(false); }}>Masquer</Btn>}
           {revealed && !isExo && ix < LESSONS.length - 1 && (
-            <Btn variant="primary" grow onClick={() => setIx(ix + 1)}>Technique suivante →</Btn>
+            <Btn variant="primary" grow onClick={() => onSelectIx(ix + 1)}>Technique suivante →</Btn>
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
