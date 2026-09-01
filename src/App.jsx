@@ -13,16 +13,13 @@ import { version as APP_VERSION } from "../package.json";
 import { KEYS, loadAll, readSync, persist } from "./storage.js";
 import { isNative, haptic } from "./native.js";
 import { initPurchases, getOffer, buy, restore } from "./purchases.js";
+import { C_LIGHT, C_DARK, cssVars, META_COLOR } from "./theme.js";
 
-/* ---------- Palette « papier quadrillé + surligneur » ---------- */
-const C = {
-  paper: "#F1F4F3", surface: "#FFFFFF", ink: "#1F272E",
-  line: "#C9D1CE", teal: "#12766F", tealSoft: "#DDEFEC",
-  blue: "#2B6CB0", blueSoft: "#E4ECF7",
-  red: "#B3372E", redSoft: "#F9E3E1",
-  yellow: "#F2C40F", yellowSoft: "#FFF3B8",
-  gray: "#7C8894", givenBg: "#F6F8F7",
-};
+/* ---------- Palette « papier quadrillé + surligneur » ----------
+   Les hex vivent dans theme.js (C_LIGHT/C_DARK) ; ici chaque clé devient une
+   variable CSS — les styles inline restent identiques, et le thème bascule
+   en posant data-theme sur <html> (effet plus bas), sans re-render. */
+const C = Object.fromEntries(Object.keys(C_LIGHT).map((k) => [k, `var(--sc-${k})`]));
 const NUMFONT = `'Avenir Next', 'Futura', 'Century Gothic', -apple-system, sans-serif`;
 const DISPLAYFONT = `'Futura', 'Century Gothic', 'Trebuchet MS', sans-serif`;
 const W = "min(94vw, 430px)";
@@ -70,12 +67,12 @@ function Btn({ children, onClick, variant = "ghost", disabled, active, grow, tit
     minHeight: 44, touchAction: "manipulation",
   };
   const styles = {
-    primary: { background: C.ink, color: "#fff", borderColor: C.ink },
-    accent: { background: C.teal, color: "#fff", borderColor: C.teal },
-    ghost: { background: "#fff", color: C.ink, borderColor: "#D8DEDC" },
+    primary: { background: C.ink, color: C.onInk, borderColor: C.ink },
+    accent: { background: C.teal, color: C.onAccent, borderColor: C.teal },
+    ghost: { background: C.surface, color: C.ink, borderColor: C.border },
   };
   const st = { ...base, ...styles[variant] };
-  if (active) { st.background = C.teal; st.color = "#fff"; st.borderColor = C.teal; }
+  if (active) { st.background = C.teal; st.color = C.onAccent; st.borderColor = C.teal; }
   return (
     <button type="button" title={title} disabled={disabled} onClick={onClick} style={st}>
       {children}
@@ -85,7 +82,7 @@ function Btn({ children, onClick, variant = "ghost", disabled, active, grow, tit
 function LinkBtn({ children, onClick }) {
   return (
     <button type="button" onClick={onClick}
-      style={{ background: "none", border: "none", color: "#5A6763", textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: "13px 8px", fontFamily: "inherit", minHeight: 44, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
+      style={{ background: "none", border: "none", color: C.textSoft, textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: "13px 8px", fontFamily: "inherit", minHeight: 44, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
       {children}
     </button>
   );
@@ -93,8 +90,8 @@ function LinkBtn({ children, onClick }) {
 function Card({ emoji, title, sub, onClick, accent }) {
   return (
     <button type="button" onClick={onClick} style={{
-      width: "100%", textAlign: "left", background: "#fff", color: C.ink,
-      border: `1px solid ${accent ? C.teal : "#E2E7E5"}`, borderRadius: 14,
+      width: "100%", textAlign: "left", background: C.surface, color: C.ink,
+      border: `1px solid ${accent ? C.teal : C.borderSoft}`, borderRadius: 14,
       padding: "14px 16px", display: "flex", alignItems: "center", gap: 14,
       cursor: "pointer", fontFamily: "inherit",
       boxShadow: accent ? `0 8px 24px rgba(18,118,111,0.16)` : "0 8px 24px rgba(31,39,46,0.08)",
@@ -103,7 +100,7 @@ function Card({ emoji, title, sub, onClick, accent }) {
       <span style={{ fontSize: 26, lineHeight: 1 }}>{emoji}</span>
       <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
         <span style={{ fontWeight: 800, fontSize: 15.5 }}>{title}</span>
-        {sub ? <span style={{ fontSize: 12.5, color: "#5A6763", lineHeight: 1.4 }}>{sub}</span> : null}
+        {sub ? <span style={{ fontSize: 12.5, color: C.textSoft, lineHeight: 1.4 }}>{sub}</span> : null}
       </span>
       <span style={{ marginLeft: "auto", color: C.gray, fontSize: 16 }}>›</span>
     </button>
@@ -121,11 +118,11 @@ function DailyDots({ cells, done, today }) {
   const month = new Date(today + "T00:00:00").toLocaleDateString("fr-FR", { month: "long" });
   return (
     <div style={{
-      width: "100%", background: "rgba(255,255,255,0.8)", border: "1px solid #E2E7E5",
+      width: "100%", background: C.glass, border: `1px solid ${C.borderSoft}`,
       borderRadius: 10, padding: "8px 12px", display: "flex", flexDirection: "column",
       gap: 6, alignItems: "center",
     }}>
-      <div style={{ fontSize: 11, color: "#98A29D", fontWeight: 600 }}>
+      <div style={{ fontSize: 11, color: C.faint, fontWeight: 600 }}>
         {month[0].toUpperCase() + month.slice(1)}
         {doneCount ? ` — ${doneCount} défi${doneCount > 1 ? "s" : ""} réussi${doneCount > 1 ? "s" : ""}` : ""}
       </div>
@@ -133,7 +130,7 @@ function DailyDots({ cells, done, today }) {
         {cells.map((c) => (
           <span key={c.dateStr} style={{
             width: 9, height: 9, borderRadius: 999,
-            background: done[c.dateStr] ? C.teal : "#E2E7E5",
+            background: done[c.dateStr] ? C.teal : C.borderSoft,
             boxShadow: c.dateStr === today ? `0 0 0 2px ${C.tealSoft}, 0 0 0 3px ${C.teal}` : "none",
             opacity: c.dateStr > today ? 0.35 : 1,
           }} />
@@ -146,14 +143,14 @@ function DailyDots({ cells, done, today }) {
 function StatTile({ value, label }) {
   return (
     <div style={{
-      background: "#fff", border: "1px solid #E2E7E5", borderRadius: 14,
+      background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 14,
       padding: "12px 8px", display: "flex", flexDirection: "column",
       alignItems: "center", gap: 2, minWidth: 0,
     }}>
       <span style={{ fontSize: 22, fontWeight: 800, fontFamily: NUMFONT, fontVariantNumeric: "tabular-nums" }}>
         {value}
       </span>
-      <span style={{ fontSize: 11, color: "#5A6763", textAlign: "center", lineHeight: 1.3 }}>{label}</span>
+      <span style={{ fontSize: 11, color: C.textSoft, textAlign: "center", lineHeight: 1.3 }}>{label}</span>
     </div>
   );
 }
@@ -173,16 +170,16 @@ function StatsView({ stats, dailyDone }) {
         <StatTile value={record} label="record de série" />
       </div>
       <div style={{
-        background: "#fff", border: "1px solid #E2E7E5", borderRadius: 14,
+        background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 14,
         padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8,
       }}>
         {rows.length === 0 ? (
-          <div style={{ fontSize: 13, color: "#5A6763" }}>
+          <div style={{ fontSize: 13, color: C.textSoft }}>
             Joue ta première grille — tes chiffres apparaîtront ici.
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", fontSize: 11, fontWeight: 700, color: "#98A29D", textTransform: "uppercase", letterSpacing: ".04em" }}>
+            <div style={{ display: "flex", fontSize: 11, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: ".04em" }}>
               <span style={{ flex: 1 }}>Niveau</span>
               <span style={{ width: 86, textAlign: "right" }}>Terminées</span>
               <span style={{ width: 86, textAlign: "right" }}>Meilleur temps</span>
@@ -193,7 +190,7 @@ function StatsView({ stats, dailyDone }) {
                 <span style={{ width: 86, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {s.finished[k] || 0} / {s.started[k] || 0}
                 </span>
-                <span style={{ width: 86, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: s.bestTime[k] != null ? C.teal : "#98A29D" }}>
+                <span style={{ width: 86, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: s.bestTime[k] != null ? C.teal : C.faint }}>
                   {s.bestTime[k] != null ? formatClock(s.bestTime[k]) : "—"}
                 </span>
               </div>
@@ -202,7 +199,7 @@ function StatsView({ stats, dailyDone }) {
         )}
       </div>
       {totalFinished > 0 && (
-        <div style={{ fontSize: 12, color: "#5A6763", textAlign: "center" }}>
+        <div style={{ fontSize: 12, color: C.textSoft, textAlign: "center" }}>
           {rate ? `En moyenne ${rate.toFixed(1)} indice${rate >= 2 ? "s" : ""} du coach par partie terminée.`
             : "Aucun indice utilisé — chapeau 👏"}
         </div>
@@ -211,20 +208,43 @@ function StatsView({ stats, dailyDone }) {
   );
 }
 
+/* Rangée de réglage à choix multiples (Thème, Langue…). */
+function SegmentRow({ label, options, value, onChange }) {
+  return (
+    <div style={{
+      width: "100%", background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 14,
+      padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8,
+    }}>
+      <span style={{ fontWeight: 700, fontSize: 14 }}>{label}</span>
+      <div style={{ display: "flex", background: C.tabsBg, borderRadius: 10, padding: 3 }}>
+        {options.map((o) => (
+          <button key={o.value} type="button" onClick={() => onChange(o.value)} style={{
+            flex: 1, border: "none", borderRadius: 8, padding: "7px 0",
+            fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit",
+            background: value === o.value ? C.surface : "transparent",
+            color: value === o.value ? C.ink : C.textSoft,
+            boxShadow: value === o.value ? "0 1px 4px rgba(31,39,46,0.12)" : "none",
+            WebkitTapHighlightColor: "transparent", minHeight: 36, touchAction: "manipulation",
+          }}>{o.label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 /* Rangée de réglage avec interrupteur (écran ⚙️ Réglages). */
 function ToggleRow({ label, hint, value, onChange }) {
   return (
     <div style={{
-      width: "100%", background: "#fff", border: "1px solid #E2E7E5", borderRadius: 14,
+      width: "100%", background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 14,
       padding: "12px 16px", display: "flex", alignItems: "center", gap: 12,
     }}>
       <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
         <span style={{ fontWeight: 700, fontSize: 14 }}>{label}</span>
-        {hint ? <span style={{ fontSize: 12, color: "#5A6763", lineHeight: 1.4 }}>{hint}</span> : null}
+        {hint ? <span style={{ fontSize: 12, color: C.textSoft, lineHeight: 1.4 }}>{hint}</span> : null}
       </span>
       <button type="button" onClick={() => onChange(!value)} aria-pressed={value} style={{
         marginLeft: "auto", flex: "none", width: 46, height: 28, borderRadius: 999,
-        border: "none", background: value ? C.teal : "#D8DEDC", cursor: "pointer",
+        border: "none", background: value ? C.teal : C.border, cursor: "pointer",
         position: "relative", transition: "background .15s", padding: 0,
         WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
       }}>
@@ -242,8 +262,8 @@ function ScanQuotaNote({ left, onUnlocked }) {
     if (isNative()) return <PaywallCard onUnlocked={onUnlocked} />;
     return (
       <div style={{
-        width: "100%", fontSize: 12.5, color: "#5A6763", background: "rgba(255,255,255,0.8)",
-        border: "1px dashed #B9C4C0", borderRadius: 10, padding: "10px 12px", textAlign: "center",
+        width: "100%", fontSize: 12.5, color: C.textSoft, background: C.glass,
+        border: `1px dashed ${C.dashed}`, borderRadius: 10, padding: "10px 12px", textAlign: "center",
       }}>
         📷 Scans gratuits épuisés — le scan illimité arrive bientôt ✨
       </div>
@@ -251,7 +271,7 @@ function ScanQuotaNote({ left, onUnlocked }) {
   }
   if (left < 3) {
     return (
-      <div style={{ width: "100%", fontSize: 11.5, color: "#98A29D", textAlign: "center" }}>
+      <div style={{ width: "100%", fontSize: 11.5, color: C.faint, textAlign: "center" }}>
         {left === 1 ? "1 scan gratuit restant" : `${left} scans gratuits restants`}
       </div>
     );
@@ -288,19 +308,19 @@ function PaywallCard({ onUnlocked }) {
     setBusy(null);
   }
   const box = {
-    width: "100%", background: "rgba(255,255,255,0.8)", border: "1px dashed #B9C4C0",
+    width: "100%", background: C.glass, border: `1px dashed ${C.dashed}`,
     borderRadius: 10, padding: "12px", textAlign: "center",
     display: "flex", flexDirection: "column", gap: 8,
   };
   if (offer === null) {
-    return <div style={box}><div style={{ fontSize: 12.5, color: "#5A6763" }}>📷 Un instant, on charge l’offre…</div></div>;
+    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>📷 Un instant, on charge l’offre…</div></div>;
   }
   if (offer === false) {
-    return <div style={box}><div style={{ fontSize: 12.5, color: "#5A6763" }}>📷 Scans gratuits épuisés — le scan illimité arrive bientôt ✨</div></div>;
+    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>📷 Scans gratuits épuisés — le scan illimité arrive bientôt ✨</div></div>;
   }
   return (
     <div style={box}>
-      <div style={{ fontSize: 12.5, color: "#5A6763" }}>📷 Tes {FREE_SCANS} scans gratuits sont utilisés.</div>
+      <div style={{ fontSize: 12.5, color: C.textSoft }}>📷 Tes {FREE_SCANS} scans gratuits sont utilisés.</div>
       <Btn variant="accent" grow disabled={!!busy} onClick={onBuy}>
         {busy === "buy" ? "Un instant…" : `✨ Débloquer le scan illimité — ${offer.price}`}
       </Btn>
@@ -310,7 +330,7 @@ function PaywallCard({ onUnlocked }) {
         </LinkBtn>
       </div>
       {note && <div style={{ fontSize: 12, color: C.red }}>{note}</div>}
-      <div style={{ fontSize: 11, color: "#98A29D" }}>Achat unique — pas d’abonnement.</div>
+      <div style={{ fontSize: 11, color: C.faint }}>Achat unique — pas d’abonnement.</div>
     </div>
   );
 }
@@ -470,12 +490,12 @@ function LearnView({ ix, onSelectIx }) {
                   flex: "0 0 auto", fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
                   textTransform: "uppercase", color: C.gray, whiteSpace: "nowrap",
                   padding: i === 0 ? "0 2px" : "0 4px 0 8px",
-                  borderLeft: i === 0 ? "none" : "1px solid #E2E7E5",
+                  borderLeft: i === 0 ? "none" : `1px solid ${C.borderSoft}`,
                 }}>{sectionLabel}</span>
               )}
               <button type="button" onClick={() => onSelectIx(i)} style={{
-                flex: "0 0 auto", border: `1px solid ${i === ix ? C.teal : "#D8DEDC"}`,
-                background: i === ix ? C.teal : "#fff", color: i === ix ? "#fff" : C.ink,
+                flex: "0 0 auto", border: `1px solid ${i === ix ? C.teal : C.border}`,
+                background: i === ix ? C.teal : C.surface, color: i === ix ? C.onAccent : C.ink,
                 borderRadius: 999, padding: "7px 12px", fontSize: 12.5, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
                 WebkitTapHighlightColor: "transparent",
@@ -489,27 +509,27 @@ function LearnView({ ix, onSelectIx }) {
       </div>
 
       <div style={{
-        width: W, background: "#fff", border: "1px solid #E2E7E5", borderRadius: 14,
+        width: W, background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 14,
         padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6,
         boxShadow: "0 8px 24px rgba(31,39,46,0.08)",
       }}>
         <div style={{ fontWeight: 800, fontSize: 16 }}>{L.title}</div>
-        <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0, color: "#3C464D" }}>{L.concept}</p>
+        <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0, color: C.textStrong }}>{L.concept}</p>
       </div>
 
       <div style={{ position: "relative" }}>
         <LessonBoard lesson={board} revealed={revealed} />
         {exo === "searching" && (
           <div style={{
-            position: "absolute", inset: 0, background: "rgba(241,244,243,0.85)",
+            position: "absolute", inset: 0, background: C.overlay,
             borderRadius: 10, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10, zIndex: 5,
           }}>
             <div style={{
-              width: 34, height: 34, border: "3px solid #C9D1CE", borderTopColor: C.teal,
+              width: 34, height: 34, border: `3px solid ${C.line}`, borderTopColor: C.teal,
               borderRadius: "50%", animation: "scspin .9s linear infinite",
             }} />
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#2B4A44" }}>Recherche d’un exemple…</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.msgInfoFg }}>Recherche d’un exemple…</div>
           </div>
         )}
       </div>
@@ -528,20 +548,20 @@ function LearnView({ ix, onSelectIx }) {
       )}
 
       <div style={{
-        width: W, background: "#fff", border: "1px solid #E2E7E5",
+        width: W, background: C.surface, border: `1px solid ${C.borderSoft}`,
         borderTop: `5px solid ${C.yellow}`, borderRadius: 14, padding: "12px 14px",
         display: "flex", flexDirection: "column", gap: 9,
         boxShadow: "0 8px 24px rgba(31,39,46,0.08)",
       }}>
         <div style={{ fontWeight: 700, fontSize: 14.5 }}>🎓 {question}</div>
         {showHint && !revealed && (
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#5A6763" }}>💡 <Rich text={hint} /></p>
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: C.textSoft }}>💡 <Rich text={hint} /></p>
         )}
         {revealed && !isExo && (
           <>
             {L.steps.map((s, i) => (
               <div key={i} style={{
-                border: "1px solid #EBDB9B", background: "#FFFBEA",
+                border: `1px solid ${C.hintBorder}`, background: C.hintBg,
                 borderRadius: 10, padding: "8px 10px", fontSize: 13.5, lineHeight: 1.5,
               }}>
                 <Rich text={s} />
@@ -549,7 +569,7 @@ function LearnView({ ix, onSelectIx }) {
             ))}
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{
-                width: 44, height: 44, borderRadius: 12, background: C.ink, color: "#fff",
+                width: 44, height: 44, borderRadius: 12, background: C.ink, color: C.onInk,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
               }}>{L.answer}</div>
@@ -563,7 +583,7 @@ function LearnView({ ix, onSelectIx }) {
           <>
             {exo.explain.map((s, i) => (
               <div key={i} style={{
-                border: "1px solid #EBDB9B", background: "#FFFBEA",
+                border: `1px solid ${C.hintBorder}`, background: C.hintBg,
                 borderRadius: 10, padding: "8px 10px", fontSize: 13.5, lineHeight: 1.5,
               }}>
                 <Rich text={s} />
@@ -572,7 +592,7 @@ function LearnView({ ix, onSelectIx }) {
             {exo.target != null && (
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{
-                  width: 44, height: 44, borderRadius: 12, background: C.ink, color: "#fff",
+                  width: 44, height: 44, borderRadius: 12, background: C.ink, color: C.onInk,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
                 }}>{exo.answer}</div>
@@ -1319,24 +1339,20 @@ export default function App() {
     return () => clearTimeout(t);
   }, [grid, givens, notes, phase, gameLevel, gameOrigin, elapsed, hintsUsed, assisted, loaded]);
 
-  /* ----- victoire : stats + réussite du défi (une fois par victoire) ----- */
+  /* ----- thème : Auto suit le système ; data-theme pilote les variables CSS ----- */
   useEffect(() => {
-    if (!won) { wonHandledRef.current = false; return; }
-    if (wonHandledRef.current) return; // StrictMode et re-renders
-    wonHandledRef.current = true;
-    // Temps final : l'effet chrono (défini avant celui-ci) a déjà replié le
-    // segment ouvert dans elapsedRef ; addSegment couvre l'ordre inverse.
-    const seconds = addSegment(elapsedRef.current, segStartRef.current, Date.now());
-    bumpStats((s) => recordWin(s, { levelKey: levelKey(gameLevel), seconds, hints: hintsUsed, assisted }));
-    if (gameOrigin && gameOrigin.type === "daily" && !dailyDone[gameOrigin.date]) {
-      const nextDone = { ...dailyDone, [gameOrigin.date]: true };
-      setDailyDone(nextDone);
-      const store = readSync(KEYS.daily) || {};
-      persist(KEYS.daily, { ...store, done: nextDone });
-      const streak = currentStreak(nextDone, localDateStr());
-      flash(streak > 1 ? `🗓️ Défi du jour réussi — série de ${streak} jours 🔥` : "🗓️ Défi du jour réussi ✓", "success", 7000);
-    }
-  }, [won, gameOrigin, dailyDone, gameLevel, hintsUsed, assisted]);
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const resolved = settings.theme === "dark" || (settings.theme !== "light" && mq.matches) ? "dark" : "light";
+      document.documentElement.dataset.theme = resolved;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", META_COLOR[resolved]);
+    };
+    apply();
+    if (settings.theme !== "auto") return;
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [settings.theme]);
 
   /* ----- clavier (desktop) ----- */
   useEffect(() => {
@@ -1422,6 +1438,25 @@ export default function App() {
   }, [timerRunning]);
   const shownSeconds = elapsed + (timerRunning && segStartRef.current != null
     ? Math.max(0, Math.round((Date.now() - segStartRef.current) / 1000)) : 0);
+
+  /* ----- victoire : stats + réussite du défi (une fois par victoire).
+     Déclaré APRÈS le useMemo de `won` (deps lues au render) et après l'effet
+     chrono : son cleanup a déjà replié le segment ouvert dans elapsedRef. ----- */
+  useEffect(() => {
+    if (!won) { wonHandledRef.current = false; return; }
+    if (wonHandledRef.current) return; // StrictMode et re-renders
+    wonHandledRef.current = true;
+    const seconds = addSegment(elapsedRef.current, segStartRef.current, Date.now());
+    bumpStats((s) => recordWin(s, { levelKey: levelKey(gameLevel), seconds, hints: hintsUsed, assisted }));
+    if (gameOrigin && gameOrigin.type === "daily" && !dailyDone[gameOrigin.date]) {
+      const nextDone = { ...dailyDone, [gameOrigin.date]: true };
+      setDailyDone(nextDone);
+      const store = readSync(KEYS.daily) || {};
+      persist(KEYS.daily, { ...store, done: nextDone });
+      const streak = currentStreak(nextDone, localDateStr());
+      flash(streak > 1 ? `🗓️ Défi du jour réussi — série de ${streak} jours 🔥` : "🗓️ Défi du jour réussi ✓", "success", 7000);
+    }
+  }, [won, gameOrigin, dailyDone, gameLevel, hintsUsed, assisted]);
   const planHL = useMemo(() => {
     const res = { unit: new Set(), chain: new Set(), target: null };
     if (!plan) return res;
@@ -1437,7 +1472,7 @@ export default function App() {
     const r = rowOf(i), c = colOf(i);
     let bg = C.surface;
     if (phase === "play" && givens[i]) bg = C.givenBg;
-    if (sel !== null && i !== sel && PEERS[sel].has(i)) bg = "#F3F6F5";
+    if (sel !== null && i !== sel && PEERS[sel].has(i)) bg = C.peer;
     const sv = sel !== null ? grid[sel] : 0;
     if (sv && grid[i] === sv && i !== sel) bg = C.blueSoft;
     if (planHL.unit.has(i)) bg = C.yellowSoft;
@@ -1458,9 +1493,9 @@ export default function App() {
   }
 
   const msgColors = {
-    info: { bg: "#E9F0EE", fg: "#2B4A44" },
-    success: { bg: "#E1F3E8", fg: "#176A45" },
-    warn: { bg: "#FBEFDD", fg: "#8A5A16" },
+    info: { bg: C.msgInfoBg, fg: C.msgInfoFg },
+    success: { bg: C.msgSuccessBg, fg: C.msgSuccessFg },
+    warn: { bg: C.warnBg, fg: C.warnInk },
   };
   const pStyle = { fontSize: 14, lineHeight: 1.55, margin: 0 };
 
@@ -1468,14 +1503,16 @@ export default function App() {
   return (
     <div style={{
       minHeight: "100vh", backgroundColor: C.paper,
-      backgroundImage: "linear-gradient(#E5EAE8 1px, transparent 1px), linear-gradient(90deg, #E5EAE8 1px, transparent 1px)",
+      backgroundImage: `linear-gradient(${C.gridPaper} 1px, transparent 1px), linear-gradient(90deg, ${C.gridPaper} 1px, transparent 1px)`,
       backgroundSize: "26px 26px",
       padding: "calc(14px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(44px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))",
       display: "flex", flexDirection: "column",
       alignItems: "center", gap: 12, color: C.ink,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     }}>
-      <style>{`@keyframes scspin{to{transform:rotate(360deg)}} summary::-webkit-details-marker{display:none}
+      <style>{`:root{${cssVars(C_LIGHT)}}
+:root[data-theme="dark"]{${cssVars(C_DARK)}}
+@keyframes scspin{to{transform:rotate(360deg)}} summary::-webkit-details-marker{display:none}
 @media (prefers-reduced-motion: no-preference){
   .sc-pop{animation:scpop .14s ease-out}
   @keyframes scpop{from{transform:scale(.85);opacity:.4}to{transform:scale(1);opacity:1}}
@@ -1492,7 +1529,7 @@ export default function App() {
       {/* ---------- En-tête ---------- */}
       <header style={{ width: W, display: "flex", alignItems: "center", gap: 10 }}>
         <svg width="32" height="32" viewBox="0 0 30 30" aria-hidden="true">
-          <rect x="1.5" y="1.5" width="27" height="27" rx="3" fill="#FFFFFF" stroke={C.ink} strokeWidth="2" />
+          <rect x="1.5" y="1.5" width="27" height="27" rx="3" fill={C.surface} stroke={C.ink} strokeWidth="2" />
           <rect x="10.5" y="1.5" width="9" height="9" fill={C.yellow} />
           <line x1="10.5" y1="2" x2="10.5" y2="28" stroke={C.ink} strokeWidth="1.4" />
           <line x1="19.5" y1="2" x2="19.5" y2="28" stroke={C.ink} strokeWidth="1.4" />
@@ -1516,13 +1553,13 @@ export default function App() {
       </header>
 
       {/* ---------- Onglets ---------- */}
-      <div style={{ width: W, display: "flex", background: "#E3E8E6", borderRadius: 12, padding: 3 }}>
+      <div style={{ width: W, display: "flex", background: C.tabsBg, borderRadius: 12, padding: 3 }}>
         {[["play", "🎮 Jouer"], ["learn", "📚 Apprendre"]].map(([k, l]) => (
           <button key={k} type="button" onClick={() => setTab(k)} style={{
             flex: 1, border: "none", borderRadius: 10, padding: "8px 0",
             fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit",
-            background: tab === k ? "#fff" : "transparent",
-            color: tab === k ? C.ink : "#5A6763",
+            background: tab === k ? C.surface : "transparent",
+            color: tab === k ? C.ink : C.textSoft,
             boxShadow: tab === k ? "0 1px 4px rgba(31,39,46,0.12)" : "none",
             WebkitTapHighlightColor: "transparent",
             minHeight: 44, touchAction: "manipulation",
@@ -1573,7 +1610,7 @@ export default function App() {
           <LinkBtn onClick={() => { if (phase === "play") clearAll(); setScreen("board"); }}>
             ✏️ Saisir une grille à la main
           </LinkBtn>
-          <div style={{ fontSize: 11, color: "#98A29D" }}>v{APP_VERSION}</div>
+          <div style={{ fontSize: 11, color: C.faint }}>v{APP_VERSION}</div>
         </>
       ) : screen === "levels" ? (
         <>
@@ -1601,6 +1638,9 @@ export default function App() {
           {/* ---------- Réglages ---------- */}
           <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
             <div style={{ fontWeight: 800, fontSize: 16 }}>⚙️ Réglages</div>
+            <SegmentRow label="Thème" value={settings.theme}
+              options={[{ value: "auto", label: "Auto" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" }]}
+              onChange={(v) => updateSettings({ theme: v })} />
             <ToggleRow label="Masquer le chrono" hint="Le temps reste mesuré pour tes stats."
               value={settings.hideTimer} onChange={(v) => updateSettings({ hideTimer: v })} />
           </div>
@@ -1619,8 +1659,8 @@ export default function App() {
             </div>
           ) : phase === "edit" ? (
             <div style={{
-              width: W, fontSize: 12.5, color: "#5A6763", background: "rgba(255,255,255,0.8)",
-              border: "1px dashed #B9C4C0", borderRadius: 10, padding: "8px 12px", textAlign: "center",
+              width: W, fontSize: 12.5, color: C.textSoft, background: C.glass,
+              border: `1px dashed ${C.dashed}`, borderRadius: 10, padding: "8px 12px", textAlign: "center",
             }}>
               Mode saisie — remplis ou scanne la grille, puis « Commencer ».
             </div>
@@ -1633,7 +1673,7 @@ export default function App() {
                 <span key={celebrate ? `b${celebrate}` : "lvl"}
                   className={celebrate ? "sc-pulse" : undefined} style={{
                   fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
-                  color: "#5A6763", background: "#EFF2F1", border: "1px solid #E2E7E5",
+                  color: C.textSoft, background: C.chipBg, border: `1px solid ${C.borderSoft}`,
                   borderRadius: 999, padding: "3px 10px", display: "inline-block",
                   animationDelay: celebrate ? "800ms" : undefined,
                 }}>
@@ -1646,7 +1686,7 @@ export default function App() {
                   "warn", 9000
                 )} style={{
                   fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase",
-                  color: "#8A5A16", background: "#FBEFDD", border: "1px solid #EDD98F",
+                  color: C.warnInk, background: C.warnBg, border: `1px solid ${C.warnBorder}`,
                   borderRadius: 999, padding: "3px 10px", cursor: "pointer",
                   fontFamily: "inherit", WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
                 }}>
@@ -1656,7 +1696,7 @@ export default function App() {
               {!settings.hideTimer ? (
                 <span style={{
                   marginLeft: "auto", fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
-                  color: "#5A6763", background: "#EFF2F1", border: "1px solid #E2E7E5",
+                  color: C.textSoft, background: C.chipBg, border: `1px solid ${C.borderSoft}`,
                   borderRadius: 999, padding: "3px 10px",
                 }}>
                   ⏱ {formatClock(shownSeconds)}
@@ -1731,15 +1771,15 @@ export default function App() {
             </div>
             {(scanning || generating) && (
               <div style={{
-                position: "absolute", inset: 0, background: "rgba(241,244,243,0.85)",
+                position: "absolute", inset: 0, background: C.overlay,
                 borderRadius: 10, display: "flex", flexDirection: "column",
                 alignItems: "center", justifyContent: "center", gap: 10, zIndex: 5,
               }}>
                 <div style={{
-                  width: 34, height: 34, border: "3px solid #C9D1CE", borderTopColor: C.teal,
+                  width: 34, height: 34, border: `3px solid ${C.line}`, borderTopColor: C.teal,
                   borderRadius: "50%", animation: "scspin .9s linear infinite",
                 }} />
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#2B4A44" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.msgInfoFg }}>
                   {scanning ? "Lecture de la photo…" : "Génération de la grille…"}
                 </div>
               </div>
@@ -1768,7 +1808,7 @@ export default function App() {
                 <button key={pulsing ? `${d}p${padPulse.stamp}` : d} type="button"
                   className={pulsing ? "sc-pulse" : undefined}
                   onClick={() => padPress(d)} style={{
-                  background: "#FFFFFF", border: "1px solid #D8DEDC", borderRadius: 12,
+                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
                   padding: "7px 0 5px", display: "flex", flexDirection: "column",
                   alignItems: "center", justifyContent: "center", gap: 1, cursor: "pointer",
                   boxShadow: "0 1px 0 rgba(31,39,46,0.05)", WebkitTapHighlightColor: "transparent",
@@ -1785,7 +1825,7 @@ export default function App() {
               );
             })}
             <button type="button" onClick={eraseSel} style={{
-              background: "#FFFFFF", border: "1px solid #D8DEDC", borderRadius: 12,
+              background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
               padding: "7px 0 5px", display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center", gap: 1, cursor: "pointer",
               boxShadow: "0 1px 0 rgba(31,39,46,0.05)", WebkitTapHighlightColor: "transparent",
@@ -1842,8 +1882,8 @@ export default function App() {
           {/* ---------- Panneau multi-solutions (bloquant, avant verrouillage) ---------- */}
           {phase === "edit" && multiSolPrompt && (
             <section ref={panelRef} style={{
-              width: W, background: "#FFFFFF", borderRadius: 14,
-              border: "1px solid #E2E7E5", borderTop: `5px solid ${C.yellow}`,
+              width: W, background: C.surface, borderRadius: 14,
+              border: `1px solid ${C.borderSoft}`, borderTop: `5px solid ${C.yellow}`,
               boxShadow: "0 12px 32px rgba(31,39,46,0.12)",
               padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 9,
             }}>
@@ -1862,8 +1902,8 @@ export default function App() {
           {/* ---------- Panneau fin de partie ---------- */}
           {won && (
             <section style={{
-              width: W, background: "#FFFFFF", borderRadius: 14,
-              border: "1px solid #E2E7E5", borderTop: `5px solid ${C.teal}`,
+              width: W, background: C.surface, borderRadius: 14,
+              border: `1px solid ${C.borderSoft}`, borderTop: `5px solid ${C.teal}`,
               boxShadow: "0 12px 32px rgba(31,39,46,0.12)",
               padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 9,
             }}>
@@ -1894,8 +1934,8 @@ export default function App() {
           {/* ---------- Panneau Coach ---------- */}
           {plan && (
             <section ref={panelRef} style={{
-              width: W, background: "#FFFFFF", borderRadius: 14,
-              border: "1px solid #E2E7E5", borderTop: `5px solid ${C.yellow}`,
+              width: W, background: C.surface, borderRadius: 14,
+              border: `1px solid ${C.borderSoft}`, borderTop: `5px solid ${C.yellow}`,
               boxShadow: "0 12px 32px rgba(31,39,46,0.12)",
               padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 9,
             }}>
@@ -1907,14 +1947,14 @@ export default function App() {
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                   {plan.kind === "ok" && (
                     <span style={{
-                      fontSize: 11, fontWeight: 700, color: "#5A6763",
-                      background: "#EFF2F1", borderRadius: 999, padding: "3px 9px",
+                      fontSize: 11, fontWeight: 700, color: C.textSoft,
+                      background: C.chipBg, borderRadius: 999, padding: "3px 9px",
                     }}>
                       {level < 2 ? `Indice ${level + 1}/2` : "Solution"}
                     </span>
                   )}
                   <button type="button" onClick={closePlan} style={{
-                    background: "none", border: "none", fontSize: 16, color: "#8A948F",
+                    background: "none", border: "none", fontSize: 16, color: C.iconMuted,
                     cursor: "pointer", padding: 0, fontFamily: "inherit",
                     minWidth: 44, minHeight: 44, margin: "-10px -12px -10px -4px",
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -1986,8 +2026,8 @@ export default function App() {
                   {(level >= 1 || plan.revealTech) && (
                     <div style={{
                       alignSelf: "flex-start", fontSize: 11, fontWeight: 800,
-                      letterSpacing: ".05em", textTransform: "uppercase", color: "#7A620A",
-                      background: C.yellowSoft, border: "1px solid #EDD98F",
+                      letterSpacing: ".05em", textTransform: "uppercase", color: C.techInk,
+                      background: C.yellowSoft, border: `1px solid ${C.warnBorder}`,
                       borderRadius: 999, padding: "3px 10px",
                     }}>
                       {plan.revealTech ? techBreadcrumb(plan) : plan.tech}
@@ -2006,12 +2046,12 @@ export default function App() {
                     <>
                       {plan.chain.map((s, ixx) => (
                         <div key={ixx} style={{
-                          border: "1px solid #EBDB9B", background: "#FFFBEA",
+                          border: `1px solid ${C.hintBorder}`, background: C.hintBg,
                           borderRadius: 10, padding: "8px 10px",
                         }}>
                           <div style={{
                             fontSize: 11, fontWeight: 800, letterSpacing: ".06em",
-                            textTransform: "uppercase", color: "#8A6D0B",
+                            textTransform: "uppercase", color: C.hintInk,
                           }}>
                             Étape {ixx + 1} — {s.title}
                           </div>
@@ -2027,7 +2067,7 @@ export default function App() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
                         <div style={{
-                          width: 46, height: 46, borderRadius: 12, background: C.ink, color: "#fff",
+                          width: 46, height: 46, borderRadius: 12, background: C.ink, color: C.onInk,
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontSize: 24, fontWeight: 800, fontFamily: NUMFONT,
                         }}>
@@ -2050,7 +2090,7 @@ export default function App() {
             </section>
           )}
 
-          <div style={{ fontSize: 11, color: "#98A29D" }}>Sauvegarde automatique sur cet appareil.</div>
+          <div style={{ fontSize: 11, color: C.faint }}>Sauvegarde automatique sur cet appareil.</div>
         </>
       )}
       </div>

@@ -17,6 +17,8 @@ import {
   currentStreak, bestStreak, monthCells,
 } from "../src/daily.js";
 import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "../src/stats.js";
+import { C_LIGHT, C_DARK, getPalette, cssVars, META_COLOR } from "../src/theme.js";
+import { readFileSync } from "node:fs";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
 
@@ -636,6 +638,31 @@ console.log("Stats (agrégation) :");
   ok(recordStart(emptyStats(), "custom").started.custom === 1
     && recordStart(emptyStats(), "custom").finished.custom === undefined,
     "partie abandonnée = commencée seulement (clé custom)");
+}
+
+/* ---------- 5g. Thème : palettes clair/sombre synchronisées ---------- */
+console.log("Thème :");
+{
+  const lk = Object.keys(C_LIGHT), dk = Object.keys(C_DARK);
+  ok(lk.length === dk.length && lk.every((k) => dk.includes(k)),
+    `C_LIGHT et C_DARK exposent les mêmes clés (${lk.length})`);
+  const colorRe = /^(#[0-9A-Fa-f]{6}|rgba\(\d+,\d+,\d+,(0?\.\d+|1)\))$/;
+  ok(lk.every((k) => colorRe.test(C_LIGHT[k])), "C_LIGHT : hex #RRGGBB ou rgba() valides");
+  ok(dk.every((k) => colorRe.test(C_DARK[k])), "C_DARK : hex #RRGGBB ou rgba() valides");
+  ok(getPalette("dark") === C_DARK && getPalette("light") === C_LIGHT && getPalette("auto") === C_LIGHT,
+    "getPalette : dark → sombre, tout le reste → clair");
+  const vars = cssVars(C_LIGHT);
+  ok(lk.every((k) => vars.includes(`--sc-${k}:`)), "cssVars produit une variable par clé");
+  // Palette claire historique intouchée (échantillon des 14 clés d'origine).
+  ok(C_LIGHT.paper === "#F1F4F3" && C_LIGHT.ink === "#1F272E" && C_LIGHT.teal === "#12766F"
+    && C_LIGHT.yellow === "#F2C40F" && C_LIGHT.yellowSoft === "#FFF3B8" && C_LIGHT.red === "#B3372E",
+    "palette claire historique inchangée");
+  ok(META_COLOR.light === C_LIGHT.paper && META_COLOR.dark === C_DARK.paper, "META_COLOR suit les fonds de page");
+  // index.html duplique le fond sombre (script anti-flash) : verrouiller la synchro.
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  ok(html.includes("data-theme"), "index.html : script anti-flash présent");
+  ok(html.includes(C_DARK.paper), "index.html : fond sombre synchronisé avec C_DARK.paper");
+  ok(html.includes(C_LIGHT.paper), "index.html : fond clair synchronisé avec C_LIGHT.paper");
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */

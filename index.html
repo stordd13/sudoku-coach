@@ -13,7 +13,18 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Sudoku Coach" />
-    <style>html,body{margin:0;padding:0;background:#F1F4F3}</style>
+    <style>html,body{margin:0;padding:0;background:#F1F4F3}html[data-theme="dark"],html[data-theme="dark"] body{background:#14181B}</style>
+    <script>
+      /* Anti-flash : pose le thème avant le premier paint. Même logique que
+         l'app ; les hex dupliqués ici (#F1F4F3 / #14181B) sont verrouillés
+         sur theme.js par un test de check.mjs. */
+      try {
+        var s = JSON.parse(localStorage.getItem("sudoku-coach-settings") || "{}") || {};
+        var dark = s.theme === "dark" || (s.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+        if (dark) document.querySelector('meta[name="theme-color"]').setAttribute("content", "#14181B");
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
