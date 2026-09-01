@@ -20,17 +20,27 @@ export function conceptSentence(kind) {
 
 const singleShort = (plan) => (plan.techKind === "hiddenSingle" ? "Single caché" : "Candidat unique");
 
-// Fil d'Ariane du badge : « Single caché (ligne 3) » sans chaîne,
-// « Paire pointante → Single caché » à 1-2 étapes, « 3 éliminations → … » à 3+.
+// Fil d'Ariane du badge : « Single caché (ligne 3) » sans chaîne, sinon les
+// étapes puis la conclusion — titres consécutifs identiques regroupés
+// (« 2 × Paire pointante → Single caché ») ; au-delà de 2 groupes distincts,
+// repli compté (« 4 éliminations → Single caché »).
 export function techBreadcrumb(plan) {
-  const n = plan.chainKinds.length;
-  if (!n) {
+  if (!plan.chain.length) {
     return plan.techKind === "hiddenSingle" && plan.techZone
       ? `Single caché (${plan.techZone.replace(/^le |^la /, "")})`
       : singleShort(plan);
   }
-  if (n >= 3) return `${n} éliminations → ${singleShort(plan)}`;
-  return [...plan.chain.map((s) => s.title), singleShort(plan)].join(" → ");
+  const groups = [];
+  for (const { title } of plan.chain) {
+    const last = groups[groups.length - 1];
+    if (last && last.title === title) last.count++;
+    else groups.push({ title, count: 1 });
+  }
+  if (groups.length > 2) return `${plan.chain.length} éliminations → ${singleShort(plan)}`;
+  return [
+    ...groups.map((g) => (g.count > 1 ? `${g.count} × ${g.title}` : g.title)),
+    singleShort(plan),
+  ].join(" → ");
 }
 
 const lowerFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);

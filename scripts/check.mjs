@@ -157,10 +157,14 @@ console.log("Coach 👣 (leçon guidée) :");
     "fil d'Ariane nu direct : « Candidat unique »");
   ok(!!hiddenDirect && /^Single caché \((ligne|colonne|bloc) /.test(techBreadcrumb(hiddenDirect)),
     "fil d'Ariane caché direct : « Single caché (zone) »");
-  ok(techBreadcrumb(chain2) === "Paire pointante → Paire pointante → Single caché",
-    "fil d'Ariane 1-2 étapes : titres joints par « → »");
-  ok(techBreadcrumb({ ...chain2, chainKinds: ["pointing", "pointing", "nakedPair"] })
-    === "3 éliminations → Single caché", "fil d'Ariane 3+ étapes : compte replié");
+  ok(techBreadcrumb(chain2) === "2 × Paire pointante → Single caché",
+    "fil d'Ariane 2 étapes identiques : regroupées en « 2 × »");
+  ok(techBreadcrumb({ ...chain2, chain: Array(3).fill({ title: "Paire pointante" }) })
+    === "3 × Paire pointante → Single caché", "fil d'Ariane 3 étapes identiques : « 3 × »");
+  ok(techBreadcrumb({
+    ...chain2,
+    chain: [{ title: "Paire pointante" }, { title: "Paire nue" }, { title: "Duo caché" }],
+  }) === "3 éliminations → Single caché", "fil d'Ariane 3 groupes distincts : compte replié");
 
   // Critère de revue : technique nommée, une idée par phrase, aucune réponse.
   for (const [label, q] of [
