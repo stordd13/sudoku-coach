@@ -1,6 +1,7 @@
 /* ================================================================
    SUDOKU · COACH — moteur logique (pur JS, sans UI)
    ================================================================ */
+import { TECH_NAMES } from "./techNames.js";
 
 /* ---------- Constantes de grille ---------- */
 export const ROWS = Array.from({ length: 9 }, (_, r) =>
@@ -787,24 +788,24 @@ function describeElim(e) {
   if (e.kind === "nakedPair") {
     const [A, B] = e.cells, [x, y] = e.digits;
     return {
-      title: "Paire nue", zone: unitLabel(e.unit), cells: involved,
+      title: TECH_NAMES.nakedPair.fr, zone: unitLabel(e.unit), cells: involved,
       text: `Dans ${unitLabel(e.unit)}, **${cellName(A)}** et **${cellName(B)}** n’acceptent chacune que {${x}, ${y}}. Ces deux chiffres sont donc réservés à ces deux cases → on les retire du reste de la zone : ${remTxt}.`,
     };
   }
   if (e.kind === "pointing") {
     return {
-      title: "Paire pointante", zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
+      title: TECH_NAMES.pointing.fr, zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
       text: `Dans le bloc **${BOX_NAMES[e.box]}**, le **${e.digit}** ne peut aller qu’en ${unitLabel(e.line)} (${e.cells.map(cellName).join(", ")}). Il occupera forcément l’une de ces cases → on retire le ${e.digit} du reste de ${unitLabel(e.line)} : ${remTxt}.`,
     };
   }
   if (e.kind === "claiming") {
     return {
-      title: "Réduction bloc/ligne", zone: unitLabel(e.line), cells: involved,
+      title: TECH_NAMES.claiming.fr, zone: unitLabel(e.line), cells: involved,
       text: `Sur ${unitLabel(e.line)}, le **${e.digit}** est confiné au bloc **${BOX_NAMES[e.box]}** (${e.cells.map(cellName).join(", ")}). Il occupera l’une de ces cases → on retire le ${e.digit} des autres cases de ce bloc : ${remTxt}.`,
     };
   }
   if (e.kind === "xWing" || e.kind === "swordfish") {
-    const name = e.kind === "xWing" ? "X-Wing" : "Swordfish";
+    const name = TECH_NAMES[e.kind].fr;
     const base = e.lineType === "row" ? "lignes" : "colonnes";
     const perp = e.lineType === "row" ? "colonnes" : "lignes";
     return {
@@ -814,32 +815,32 @@ function describeElim(e) {
   }
   if (e.kind === "skyscraper") {
     return {
-      title: "Skyscraper", zone: `le ${e.digit}`, cells: involved,
+      title: TECH_NAMES.skyscraper.fr, zone: `le ${e.digit}`, cells: involved,
       text: `Le **${e.digit}** forme deux liens forts qui partagent une base (${e.base.map(cellName).join(", ")}). L’un des deux « toits » (${e.roof.map(cellName).join(", ")}) est donc forcément un ${e.digit} → toute case voyant ces deux toits perd le ${e.digit} : ${remTxt}.`,
     };
   }
   if (e.kind === "xyWing") {
     return {
-      title: "XY-Wing", zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
+      title: TECH_NAMES.xyWing.fr, zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
       text: `Le pivot **${cellName(e.pivot)}** {${e.x}, ${e.y}} est relié aux pinces **${cellName(e.pincers[0])}** {${e.x}, ${e.c}} et **${cellName(e.pincers[1])}** {${e.y}, ${e.c}}. Si le pivot vaut ${e.x} → ${cellName(e.pincers[0])} = ${e.c} ; s’il vaut ${e.y} → ${cellName(e.pincers[1])} = ${e.c}. Dans les deux cas, un **${e.c}** apparaît dans l’une des pinces → toute case voyant les deux pinces le perd : ${remTxt}.`,
     };
   }
   if (e.kind === "xyzWing") {
     return {
-      title: "XYZ-Wing", zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
+      title: TECH_NAMES.xyzWing.fr, zone: `le pivot ${cellName(e.pivot)}`, cells: involved,
       text: `Le pivot **${cellName(e.pivot)}** {${e.x}, ${e.y}, ${e.z}} est relié aux pinces **${cellName(e.pincers[0])}** {${e.x}, ${e.z}} et **${cellName(e.pincers[1])}** {${e.y}, ${e.z}}. Si le pivot vaut ${e.x} → ${cellName(e.pincers[0])} = ${e.z} ; s’il vaut ${e.y} → ${cellName(e.pincers[1])} = ${e.z} ; s’il vaut ${e.z}, il est lui-même le ${e.z}. Dans les trois cas, un **${e.z}** apparaît dans le trio → seules les cases voyant **les trois** le perdent : ${remTxt}.`,
     };
   }
   if (e.kind === "wWing") {
     const [A, B] = e.bivalues, [e1, e2] = e.link;
     return {
-      title: "W-Wing", zone: `la paire {${e.a}, ${e.b}}`, cells: involved,
+      title: TECH_NAMES.wWing.fr, zone: `la paire {${e.a}, ${e.b}}`, cells: involved,
       text: `**${cellName(A)}** et **${cellName(B)}** portent la même paire {${e.a}, ${e.b}} sans se voir. Dans ${unitLabel(e.linkUnit)}, le **${e.b}** n’a que deux places : ${cellName(e1)} (qui voit ${cellName(A)}) et ${cellName(e2)} (qui voit ${cellName(B)}) — l’une des deux est forcément un ${e.b}. Si ${cellName(e1)} = ${e.b} → ${cellName(A)} = ${e.a} ; si ${cellName(e2)} = ${e.b} → ${cellName(B)} = ${e.a}. Dans tous les cas, un **${e.a}** apparaît → toute case voyant ${cellName(A)} et ${cellName(B)} perd le ${e.a} : ${remTxt}.`,
     };
   }
   if (e.kind === "kite") {
     return {
-      title: "2-String Kite", zone: `le ${e.digit}`, cells: involved,
+      title: TECH_NAMES.kite.fr, zone: `le ${e.digit}`, cells: involved,
       text: `Le **${e.digit}** n’a que deux places sur la ligne ${e.row + 1} et deux sur la colonne ${e.col + 1}, dont ${e.blockPair.map(cellName).join(" et ")} dans le même bloc : elles ne peuvent pas porter le ${e.digit} toutes les deux → l’une des extrémités libres (${e.ends.map(cellName).join(", ")}) le porte forcément. Toute case voyant ces deux extrémités perd le ${e.digit} : ${remTxt}.`,
     };
   }
@@ -850,7 +851,7 @@ function describeElim(e) {
     const erLineX = row ? `la colonne ${e.erCol + 1}` : `la ligne ${e.erRow + 1}`;
     const erLineT = row ? `la ligne ${e.erRow + 1}` : `la colonne ${e.erCol + 1}`;
     return {
-      title: "Empty Rectangle", zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
+      title: TECH_NAMES.emptyRectangle.fr, zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
       text: `Sur ${unitLabel(e.linkLine)}, le **${e.digit}** n’a que deux places : ${cellName(X)} et ${cellName(Y)}. Dans le bloc **${BOX_NAMES[e.box]}**, tous les **${e.digit}** tiennent dans la ligne ${e.erRow + 1} et la colonne ${e.erCol + 1} — le reste du rectangle est vide. Si ${cellName(t)} était un ${e.digit}, ${cellName(Y)} perdrait le sien (${shareTxt}) → ${cellName(X)} = ${e.digit} → ${erLineX} se viderait, et ${cellName(t)} viderait lui-même ${erLineT} : le bloc n’aurait plus aucune place pour le ${e.digit} → ${remTxt}.`,
     };
   }
@@ -858,31 +859,31 @@ function describeElim(e) {
     const chainTxt = e.chainCells.map(cellName).join(", ");
     if (e.rule === 2) {
       return {
-        title: "Coloriage", zone: `le ${e.digit}`, cells: involved,
+        title: TECH_NAMES.coloring.fr, zone: `le ${e.digit}`, cells: involved,
         text: `En suivant les liens conjugués du **${e.digit}** (${chainTxt}), on colorie les cases en deux couleurs alternées : l’une est entièrement vraie, l’autre entièrement fausse. Or ${e.wrap.map(cellName).join(" et ")} partagent ${unitLabel(e.wrapUnit)} avec la même couleur : cette couleur est fausse partout → ${remTxt}.`,
       };
     }
     return {
-      title: "Coloriage", zone: `le ${e.digit}`, cells: involved,
+      title: TECH_NAMES.coloring.fr, zone: `le ${e.digit}`, cells: involved,
       text: `En suivant les liens conjugués du **${e.digit}** (${chainTxt}), on colorie les cases en deux couleurs alternées — l’une des deux est forcément vraie. Toute case extérieure voyant les deux couleurs ne peut donc pas porter le ${e.digit} : ${remTxt}.`,
     };
   }
   if (e.kind === "sueDeCoq") {
     return {
-      title: "Sue de Coq", zone: unitLabel(e.line), cells: involved,
+      title: TECH_NAMES.sueDeCoq.fr, zone: unitLabel(e.line), cells: involved,
       text: `**${e.inter.map(cellName).join("** et **")}** (intersection de ${unitLabel(e.line)} et du bloc ${BOX_NAMES[e.box]}) puisent dans le pool {${listD(e.S)}}. **${cellName(e.lineBi)}** {${listD(e.pairLine)}} réserve sa paire côté ligne, **${cellName(e.boxBi)}** {${listD(e.pairBox)}} la sienne côté bloc : chaque chiffre du pool a sa place → on retire {${listD(e.pairLine)}} du reste de ${unitLabel(e.line)} et {${listD(e.pairBox)}} du reste du bloc : ${remTxt}.`,
     };
   }
   if (e.kind === "remotePair") {
     const [x, y] = e.digits;
     return {
-      title: "Remote Pairs", zone: `la paire {${x}, ${y}}`, cells: involved,
+      title: TECH_NAMES.remotePair.fr, zone: `la paire {${x}, ${y}}`, cells: involved,
       text: `Ces cases ne contiennent que {${x}, ${y}} et s’enchaînent en alternant les deux valeurs (${e.cells.map(cellName).join(", ")}). Toute case voyant deux maillons de couleurs opposées ne peut être ni ${x} ni ${y} : ${remTxt}.`,
     };
   }
   const [a, b] = e.digits;
   return {
-    title: "Duo caché", zone: unitLabel(e.unit), cells: involved,
+    title: TECH_NAMES.hiddenPair.fr, zone: unitLabel(e.unit), cells: involved,
     text: `Dans ${unitLabel(e.unit)}, les chiffres **${a}** et **${b}** n’apparaissent que dans ${cellName(e.cells[0])} et ${cellName(e.cells[1])}. Ces deux cases leur sont réservées : leurs autres candidats s’effacent (${remTxt}).`,
   };
 }
@@ -921,7 +922,7 @@ function finalizeNaked(grid, t, digit, chain, baseCands) {
     : `Sa ligne écarte déjà {${listD(rowD)}} et sa colonne {${listD(colD)}}. Ajoute les chiffres du bloc… un seul survivant.`;
   return {
     kind: "ok", target: t, digit, chain, hint1, hint2, paras,
-    tech: `Candidat unique${chain.length ? " (après éliminations)" : ""}`,
+    tech: `${TECH_NAMES.nakedSingle.fr}${chain.length ? " (après éliminations)" : ""}`,
     unitCells: [...ROWS[r - 1], ...COLS[c - 1], ...BOXES[b]],
   };
 }
@@ -946,7 +947,7 @@ function finalizeHidden(grid, t, digit, unit, chain) {
   const typeFr = unit.type === "box" ? "bloc" : unit.type === "row" ? "ligne" : "colonne";
   return {
     kind: "ok", target: t, digit, chain, hint1, hint2, paras,
-    tech: `Single caché (${typeFr})${chain.length ? " + éliminations" : ""}`,
+    tech: `${TECH_NAMES.hiddenSingle.fr} (${typeFr})${chain.length ? " + éliminations" : ""}`,
     unitCells: [...unit.cells],
   };
 }

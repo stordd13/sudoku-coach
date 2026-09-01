@@ -7,6 +7,7 @@
    ================================================================ */
 import { cellName } from "./engine.js";
 import { LESSON_BY_KIND } from "./exercises.js";
+import { TECH_NAMES } from "./techNames.js";
 
 // Première phrase du champ `concept` de la leçon du kind — la définition de
 // référence de chaque technique, jamais dupliquée (découpe à la première
@@ -18,7 +19,8 @@ export function conceptSentence(kind) {
   return (m ? m[0] : L.concept).trim();
 }
 
-const singleShort = (plan) => (plan.techKind === "hiddenSingle" ? "Single caché" : "Candidat unique");
+const singleShort = (plan) =>
+  TECH_NAMES[plan.techKind === "hiddenSingle" ? "hiddenSingle" : "nakedSingle"].fr;
 
 // Fil d'Ariane du badge : « Single caché (ligne 3) » sans chaîne, sinon les
 // étapes puis la conclusion — titres consécutifs identiques regroupés
@@ -27,7 +29,7 @@ const singleShort = (plan) => (plan.techKind === "hiddenSingle" ? "Single caché
 export function techBreadcrumb(plan) {
   if (!plan.chain.length) {
     return plan.techKind === "hiddenSingle" && plan.techZone
-      ? `Single caché (${plan.techZone.replace(/^le |^la /, "")})`
+      ? `${TECH_NAMES.hiddenSingle.fr} (${plan.techZone.replace(/^le |^la /, "")})`
       : singleShort(plan);
   }
   const groups = [];
@@ -44,12 +46,12 @@ export function techBreadcrumb(plan) {
 }
 
 const lowerFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
-// « chercher une paire pointante » mais « un duo caché », « des remote pairs ».
-const FEM_TITLES = new Set(["Paire nue", "Paire pointante", "Réduction bloc/ligne"]);
-const techPhrase = (title) =>
-  title === "Remote Pairs"
-    ? "des **remote pairs**"
-    : `${FEM_TITLES.has(title) ? "une" : "un"} **${title.toLowerCase()}**`;
+// « chercher une paire pointante » mais « un duo caché », « des remote pairs » —
+// genre et nombre portés par les drapeaux de TECH_NAMES (source unique).
+const techPhrase = (kind) => {
+  const t = TECH_NAMES[kind];
+  return t.plural ? `des **${t.fr.toLowerCase()}**` : `${t.fem ? "une" : "un"} **${t.fr.toLowerCase()}**`;
+};
 // « absents de la ligne 3 », « du bloc central », « du côté des 2 lignes ».
 const ofZone = (zone) =>
   zone.startsWith("le ") ? `du ${zone.slice(3)}`
@@ -64,7 +66,7 @@ export function stepHint1(plan) {
     ? `Dans ${plan.techZone}, un chiffre n’a plus qu’une seule place possible. Prends les chiffres encore absents ${ofZone(plan.techZone)} et suis-les un par un.`
     : `Fais l’inventaire de la case ${cellName(plan.target)} : parcours sa ligne, sa colonne et son bloc, et barre mentalement chaque chiffre déjà posé. Un seul survivra.`;
   const orient = plan.chainKinds.length
-    ? `La case ne cède pas directement : commence par chercher ${techPhrase(plan.chain[0].title)} du côté ${ofZone(plan.chain[0].zone)}. Ensuite seulement, ${lowerFirst(base)}`
+    ? `La case ne cède pas directement : commence par chercher ${techPhrase(plan.chainKinds[0])} du côté ${ofZone(plan.chain[0].zone)}. Ensuite seulement, ${lowerFirst(base)}`
     : base;
   return `${conceptSentence(plan.keyKind)} ${orient}`;
 }

@@ -18,6 +18,7 @@ import {
 } from "../src/daily.js";
 import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "../src/stats.js";
 import { C_LIGHT, C_DARK, getPalette, cssVars, META_COLOR } from "../src/theme.js";
+import { TECH_NAMES, techName, frWithArticle, frTechList } from "../src/techNames.js";
 import { readFileSync } from "node:fs";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
@@ -663,6 +664,33 @@ console.log("Thème :");
   ok(html.includes("data-theme"), "index.html : script anti-flash présent");
   ok(html.includes(C_DARK.paper), "index.html : fond sombre synchronisé avec C_DARK.paper");
   ok(html.includes(C_LIGHT.paper), "index.html : fond clair synchronisé avec C_LIGHT.paper");
+}
+
+/* ---------- 5h. Noms de techniques : source unique ---------- */
+console.log("Noms de techniques :");
+{
+  const kinds = Object.keys(TECH_NAMES);
+  ok(kinds.length === 17, `17 techniques nommées (${kinds.length})`);
+  ok(kinds.every((k) => TECH_NAMES[k].fr && TECH_NAMES[k].en && TECH_NAMES[k].lesson),
+    "fr, en et leçon non vides partout");
+  ok([...Object.keys(ELIM_FINDER_BY_KIND), "nakedSingle", "hiddenSingle"].every((k) => !!TECH_NAMES[k]),
+    "chaque kind du moteur a son entrée");
+  ok(Object.entries(KIND_BY_LESSON).every(([lessonId, kind]) => TECH_NAMES[kind].lesson === lessonId),
+    "mapping kind ↔ leçon cohérent avec exercises.js");
+  // Les titres des leçons restent la référence d'affichage : zéro dérive.
+  ok(LESSONS.every((L) => TECH_NAMES[KIND_BY_LESSON[L.id]].fr === L.title),
+    "chaque titre de leçon === TECH_NAMES.fr");
+  ok(techName("pointing") === "Paire pointante" && techName("pointing", "en") === "Pointing pair"
+    && techName("pointing", "xx") === "Paire pointante", "techName : fr par défaut, repli fr");
+  ok(frWithArticle("emptyRectangle") === "l’Empty Rectangle", "élision : l’Empty Rectangle");
+  ok(frWithArticle("remotePair") === "les Remote Pairs", "pluriel : les Remote Pairs");
+  ok(frWithArticle("pointing") === "la paire pointante" && frWithArticle("claiming") === "la réduction bloc/ligne",
+    "féminins en minuscule : la paire pointante, la réduction bloc/ligne");
+  ok(frWithArticle("coloring") === "le coloriage" && frWithArticle("xWing") === "le X-Wing",
+    "casse : le coloriage (commun) mais le X-Wing (propre)");
+  const list = frTechList();
+  ok(list.startsWith("candidat unique, single caché") && list.endsWith("coloriage, Sue de Coq")
+    && list.split(", ").length === 17, "frTechList : les 17, dans l'ordre des leçons");
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
