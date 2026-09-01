@@ -28,7 +28,7 @@ export const LESSON_BY_KIND = Object.fromEntries(
 // la leçon — le motif y est présent par construction et préservé par symétrie.
 // Textes régénérés depuis l'élimination retrouvée par le finder (jamais
 // remappés). Infaillible et instantané (~0,1 ms).
-export function transformExercise(kind, rng = Math.random) {
+function transformExercise(kind, rng = Math.random) {
   const L = LESSON_BY_KIND[kind];
   const pos = transformPosition(
     {

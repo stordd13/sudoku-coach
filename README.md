@@ -2,12 +2,13 @@
 
 Solver de sudoku **pédagogique** : résous, comprends, progresse.
 
-- 🎮 **Jouer** — saisis ou scanne une grille, joue avec notes, et demande au coach
-  d'expliquer une case (🎯 précise ou 🎲 surprise) : 2 indices progressifs, puis la
-  solution avec la technique détaillée pas à pas.
-- 📚 **Apprendre** — une leçon illustrée et interactive pour chacune des 6 techniques
-  du coach : candidat unique, single caché, paire nue, paire pointante, réduction
-  bloc/ligne, duo caché.
+- 🎮 **Jouer** — génère, saisis ou scanne une grille, joue avec notes, et demande au
+  coach d'expliquer la case de ton choix (🎯) ou de te guider vers la prochaine
+  étape (👣, technique annoncée dès le premier indice) : 2 indices progressifs,
+  puis la solution avec la technique détaillée pas à pas.
+- 📚 **Apprendre** — une leçon illustrée et interactive pour chacune des 17
+  techniques du coach, du candidat unique au Sue de Coq, avec des exercices
+  générés à volonté.
 - 📷 **Scanner** — photographie une grille (magazine, journal…) : elle est lue par
   l'IA via une fonction serveur (`/api/ocr`) qui garde ta clé API privée.
 
@@ -61,7 +62,7 @@ sans compte ni serveur.
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (le scan nécessite Vercel ou `vercel dev`)
-npm run check      # vérifie le moteur logique et les leçons
+npm run check      # tests : moteur, leçons, exercices, coach 👣, stockage, API (seedés)
 npm run build      # build de production
 ```
 
@@ -82,8 +83,9 @@ npx cap open ios       # ouvre le projet dans Xcode (compiler / lancer / archive
 
 Le build natif lit `.env.ios` (versionné, valeurs publiques uniquement) :
 `VITE_API_BASE` pointe le déploiement Vercel pour que le scan fonctionne depuis
-le WebView (`capacitor://localhost`). Le build web (`npm run build`) ne lit pas
-ce fichier et garde son URL relative.
+le WebView (`capacitor://localhost`), et `VITE_REVENUECAT_IOS_KEY` (clé publique
+RevenueCat) active l'achat intégré « scans illimités ». Le build web
+(`npm run build`) ne lit pas ce fichier et garde son URL relative.
 
 > ⚠️ Sur un clone frais, `ios/App/App/public` et `ios/App/App/capacitor.config.json`
 > n'existent pas (fichiers générés, non versionnés) : lance **toujours**
@@ -109,11 +111,25 @@ Test manuel :
 Les mises à jour se font toutes seules : la nouvelle version est téléchargée en
 arrière-plan et devient active à l'ouverture suivante.
 
+## Dépannage
+
+- **Le scan échoue après un déploiement** : une variable d'environnement Vercel
+  ajoutée ou modifiée ne s'applique qu'aux déploiements suivants → relance un
+  déploiement (**Redeploy**) après tout changement de variable.
+- **« Grille à plusieurs solutions » au verrouillage** : il manque presque toujours
+  un chiffre de l'énoncé (scan incomplet ou oubli de saisie). Repasse en ✏️ édition
+  et compare avec la grille d'origine.
+- **« T'es sur quelle version ? »** : le numéro (`v2.0.0`, …) est affiché en bas de
+  l'écran d'accueil.
+
 ## Notes
 
 - **Coûts** : seule la route `/api/ocr` consomme ta clé API. Le reste est statique.
   Si les variables Upstash sont configurées (voir plus haut), chaque IP est limitée à
   **30 scans par jour** — le filet de sécurité ultime reste un **plafond de dépense
   mensuel** sur ta clé, à définir dans la console Anthropic.
+- **Quota côté app** : 5 scans gratuits par appareil (compteur local) ; sur iOS,
+  l'achat intégré « scans illimités » lève la limite. Indépendant de la limite
+  serveur ci-dessus.
 - **Vie privée** : les grilles et la progression sont sauvegardées uniquement dans
   le navigateur de chaque personne (localStorage). Rien n'est stocké côté serveur.

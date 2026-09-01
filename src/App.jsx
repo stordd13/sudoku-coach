@@ -7,6 +7,7 @@ import {
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
 import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
 import { LESSONS } from "./lessons.js";
+import { version as APP_VERSION } from "../package.json";
 import { KEYS, loadAll, readSync, persist } from "./storage.js";
 import { isNative, haptic } from "./native.js";
 import { initPurchases, getOffer, buy, restore } from "./purchases.js";
@@ -820,7 +821,7 @@ export default function App() {
       kind: "ok", target: t, digit: d, chain: [], hint1: "", hint2: "",
       tech: "Au-delà des techniques classiques",
       paras: [
-        `Aucune des techniques enseignées ici (candidat unique, single caché, paires, alignements, X-Wing, XY-Wing, XYZ-Wing, W-Wing, Swordfish, 2-String Kite, Skyscraper, Empty Rectangle, Remote Pairs, coloriage, Sue de Coq) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
+        `Aucune des 17 techniques enseignées ici (candidat unique, single caché, paire nue, paire pointante, réduction bloc/ligne, duo caché, X-Wing, XY-Wing, Swordfish, Skyscraper, Remote Pairs, XYZ-Wing, W-Wing, 2-String Kite, Empty Rectangle, coloriage, Sue de Coq) ne permet de déduire **${cellName(t)}** dans la position actuelle.`,
         `La valeur vient de la résolution complète : **${cellName(t)} = ${d}**.`,
         `Conseil : avance pas à pas (bouton 👣 Étape suivante) — celle-ci se débloquera naturellement en chemin.`,
       ],
@@ -1245,6 +1246,7 @@ export default function App() {
           <LinkBtn onClick={() => { if (phase === "play") clearAll(); setScreen("board"); }}>
             ✏️ Saisir une grille à la main
           </LinkBtn>
+          <div style={{ fontSize: 11, color: "#98A29D" }}>v{APP_VERSION}</div>
         </>
       ) : screen === "levels" ? (
         <>
@@ -1582,9 +1584,10 @@ export default function App() {
               {plan.kind === "stuckAll" && (
                 <>
                   <p style={pStyle}>
-                    Plus aucune case n’est déductible avec les techniques du coach (candidat unique,
-                    singles cachés, paires, alignements, X-Wing, XY-Wing, XYZ-Wing, W-Wing, Swordfish,
-                    2-String Kite, Skyscraper, Empty Rectangle, Remote Pairs, coloriage, Sue de Coq).
+                    Plus aucune case n’est déductible avec les 17 techniques du coach (candidat unique,
+                    single caché, paire nue, paire pointante, réduction bloc/ligne, duo caché, X-Wing,
+                    XY-Wing, Swordfish, Skyscraper, Remote Pairs, XYZ-Wing, W-Wing, 2-String Kite,
+                    Empty Rectangle, coloriage, Sue de Coq).
                     La suite demande des techniques au-delà du coach. Révèle une case pour te
                     relancer, ou laisse-moi tout résoudre.
                   </p>

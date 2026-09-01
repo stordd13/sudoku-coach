@@ -15,6 +15,7 @@ import { LESSONS } from "../src/lessons.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
 
+const T0 = Date.now();
 let failures = 0;
 const ok = (cond, label) => {
   if (cond) console.log("  ✓", label);
@@ -711,10 +712,11 @@ console.log("Stockage (implémentation web) :");
 /* ---------- 11. API /api/ocr : CORS pour le WebView natif ---------- */
 console.log("API /api/ocr (CORS) :");
 {
-  // Déterministe et sans réseau : pas de clé API ni d'Upstash dans le test.
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.UPSTASH_REDIS_REST_URL;
-  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Déterministe et sans réseau : pas de clé API ni d'Upstash dans le test —
+  // valeurs d'origine sauvegardées puis restaurées en fin de section.
+  const ENV_KEYS = ["ANTHROPIC_API_KEY", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"];
+  const savedEnv = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
+  for (const k of ENV_KEYS) delete process.env[k];
   const { default: handler } = await import("../api/ocr.js");
   const makeRes = () => ({
     statusCode: null,
@@ -741,7 +743,13 @@ console.log("API /api/ocr (CORS) :");
   const noKey = makeRes();
   await handler({ method: "POST", headers: {}, body: { image: "x", media_type: "image/jpeg" } }, noKey);
   ok(noKey.statusCode === 500 && noKey.headers["access-control-allow-origin"] === "*", "POST sans clé serveur → 500 avec l'en-tête CORS");
+
+  for (const k of ENV_KEYS) {
+    if (savedEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedEnv[k];
+  }
 }
 
+console.log(`\n  ℹ temps total : ${((Date.now() - T0) / 1000).toFixed(1)} s`);
 console.log(failures === 0 ? "\nTOUT EST OK ✓" : `\n${failures} ÉCHEC(S) ✗`);
 process.exit(failures === 0 ? 0 : 1);

@@ -14,7 +14,7 @@ export const BOXES = Array.from({ length: 9 }, (_, b) => {
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) cs.push((br + r) * 9 + bc + c);
   return cs;
 });
-export const UNITS = [
+const UNITS = [
   ...ROWS.map((cells, i) => ({ type: "row", index: i, cells })),
   ...COLS.map((cells, i) => ({ type: "col", index: i, cells })),
   ...BOXES.map((cells, i) => ({ type: "box", index: i, cells })),
@@ -24,7 +24,7 @@ export const PEERS = Array.from({ length: 81 }, (_, i) => {
   for (const u of UNITS) if (u.cells.includes(i)) u.cells.forEach((j) => { if (j !== i) s.add(j); });
   return s;
 });
-export const BOX_NAMES = [
+const BOX_NAMES = [
   "haut-gauche", "haut-centre", "haut-droit",
   "milieu-gauche", "central", "milieu-droit",
   "bas-gauche", "bas-centre", "bas-droit",
@@ -32,14 +32,14 @@ export const BOX_NAMES = [
 
 export const rowOf = (i) => Math.floor(i / 9);
 export const colOf = (i) => i % 9;
-export const boxOf = (i) => Math.floor(rowOf(i) / 3) * 3 + Math.floor(colOf(i) / 3);
+const boxOf = (i) => Math.floor(rowOf(i) / 3) * 3 + Math.floor(colOf(i) / 3);
 export const cellName = (i) => `L${rowOf(i) + 1}C${colOf(i) + 1}`;
-export function unitLabel(u) {
+function unitLabel(u) {
   if (u.type === "row") return `la ligne ${u.index + 1}`;
   if (u.type === "col") return `la colonne ${u.index + 1}`;
   return `le bloc ${BOX_NAMES[u.index]}`;
 }
-export const listD = (arr) =>
+const listD = (arr) =>
   arr && arr.length ? arr.slice().sort((a, b) => a - b).join(", ") : "—";
 
 /* ---------- Grilles d'exemple ---------- */
@@ -76,7 +76,7 @@ function firstSingle(grid) {
   return null;
 }
 export const hasAnySingle = (grid) => firstSingle(grid) !== null;
-export function presentDigits(grid, cells) {
+function presentDigits(grid, cells) {
   const s = new Set();
   cells.forEach((i) => { if (grid[i]) s.add(grid[i]); });
   return [...s].sort((a, b) => a - b);
@@ -781,7 +781,7 @@ const findElim = (cands, prefer, maxTier = 5) => {
 function applyElim(cands, e) {
   for (const r of e.removals) for (const d of r.digits) cands[r.cell].delete(d);
 }
-export function describeElim(e) {
+function describeElim(e) {
   const remTxt = e.removals.map((r) => `${cellName(r.cell)} −{${r.digits.join(", ")}}`).join(" · ");
   const involved = [...e.cells, ...e.removals.map((r) => r.cell)];
   if (e.kind === "nakedPair") {
@@ -1038,7 +1038,7 @@ function tagPlan(plan, techKind, kept, techZone) {
    buildPlan (chemin de jeu 👣/🎯) et solveHumanlySteps (gradeur de génération).
    Invariant : gradé résoluble ⟺ finissable en jeu. Deux bornes différentes
    recréeraient des grilles certifiées résolubles mais infinissables en partie. */
-export const MAX_CHAIN = 8;
+const MAX_CHAIN = 8;
 
 export function buildPlan(grid, target) {
   if (grid[target] !== 0) return null;
@@ -1162,7 +1162,7 @@ function findElimTiered(cands, cap) {
 //     avant application (cands : 81 tableaux triés).
 // onStep qui retourne true interrompt la résolution (aborted: true).
 // Sans onStep : zéro copie, zéro allocation — comportement de solveHumanly.
-export function solveHumanlySteps(grid, onStep, cap = 5) {
+function solveHumanlySteps(grid, onStep, cap = 5) {
   const g = grid.slice();
   const cands = allCands(g); // persistants : les éliminations s'y accumulent
   const counts = {};
