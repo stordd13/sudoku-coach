@@ -12,6 +12,10 @@ import {
   randomTransform, transformPosition, buildConstructiveExercise, hasAnySingle,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
+import {
+  DAILY_LEVELS, dailySeed, dailyLevelFor, dailyPuzzle, localDateStr,
+  currentStreak, bestStreak, monthCells,
+} from "../src/daily.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
 
@@ -519,6 +523,73 @@ console.log("Routage du panneau bloqué (stuckPanelKind) :");
     const got = stuckPanelKind({ multiSol, hasWrongDigit, anyPlan });
     ok(got === want, `multiSol=${multiSol} wrong=${hasWrongDigit} anyPlan=${anyPlan} → ${String(want)}`);
   }
+}
+
+/* ---------- 5d. Défi du jour : déterminisme, niveaux, séries ---------- */
+console.log("Défi du jour :");
+{
+  // Déterminisme strict : deux appels même date → même grille. Date de
+  // semaine (niveau 2, gardé, rapide) pour contenir le coût du double appel.
+  const A = dailyPuzzle("2026-09-01");
+  const B = dailyPuzzle("2026-09-01");
+  ok(A.grid === B.grid && A.solution === B.solution, "même date → même grille et même solution");
+  ok(A.targetLevel === 2 && A.dateStr === "2026-09-01", "mardi 2026-09-01 → niveau cible 2, date portée");
+  ok(solveGrid(A.grid.split("").map(Number)).count === 1, "grille du jour : solution unique");
+  const C = dailyPuzzle("2026-09-02");
+  ok(C.grid !== A.grid, "dates différentes → grilles différentes");
+
+  // Niveau par jour de semaine [2,2,3,3,3,4,4] (lun→dim), calculé en UTC :
+  // relire "YYYY-MM-DD" via getDay() local décalerait d'un jour selon le fuseau.
+  const week = ["2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06"];
+  ok(JSON.stringify(week.map(dailyLevelFor)) === JSON.stringify(DAILY_LEVELS),
+    `niveaux lun→dim = [${week.map(dailyLevelFor).join(", ")}] (piège dimanche/lundi couvert)`);
+  ok(new Set(week.map(dailySeed)).size === 7, "7 dates → 7 seeds distinctes");
+
+  // Date locale : composants locaux zéro-paddés (pas d'ISO/UTC ici).
+  ok(localDateStr(new Date(2026, 0, 5)) === "2026-01-05", "localDateStr(5 janvier 2026) = 2026-01-05");
+
+  // Séries — sémantique Wordle : « aujourd'hui pas encore fait » ne casse pas
+  // la série ; seul un jour RÉVOLU manquant la casse.
+  ok(currentStreak({}, "2026-09-01") === 0, "série vide = 0");
+  ok(currentStreak({ "2026-09-01": true }, "2026-09-01") === 1, "aujourd'hui seul = 1");
+  ok(currentStreak({ "2026-08-31": true, "2026-09-01": true }, "2026-09-01") === 2,
+    "hier + aujourd'hui = 2 (franchissement de mois)");
+  ok(currentStreak({ "2026-08-30": true, "2026-08-31": true }, "2026-09-01") === 2,
+    "hier ✓, aujourd'hui pas encore fait → la série reste vivante (2)");
+  ok(currentStreak({ "2026-08-30": true }, "2026-09-01") === 0, "un jour révolu manquant casse la série");
+  ok(currentStreak({ "2025-12-31": true, "2026-01-01": true }, "2026-01-01") === 2,
+    "franchissement d'année : 2");
+  ok(bestStreak({}) === 0, "record d'une carte vide = 0");
+  ok(bestStreak({
+    "2026-02-27": true, "2026-02-28": true, "2026-03-01": true, // 2026 non bissextile : suite de 3
+    "2026-03-05": true, "2026-03-06": true,
+  }) === 3, "record = plus longue suite consécutive (3), trous ignorés");
+
+  // Mini-calendrier.
+  const cells = monthCells("2026-09-15");
+  ok(cells.length === 30 && cells[0].day === 1 && cells[29].dateStr === "2026-09-30",
+    "monthCells : 30 jours en septembre 2026");
+  ok(cells[0].dow === 2, "monthCells : le 1er septembre 2026 est un mardi (dow=2)");
+
+  // Pire cas objectivé (informatif, dépend de la machine) : tentatives et
+  // temps consommés, grille par grille. Par défaut 2 semaines à partir d'un
+  // lundi (chaque case de DAILY_LEVELS deux fois, dont 4 jours de niveau 4) ;
+  // balayage complet : DAILY_SWEEP=365 npm run check.
+  const days = Math.max(1, Number(process.env.DAILY_SWEEP) || 14);
+  let worst = { ms: -1 }, uniqueFails = 0, fallbacks = 0;
+  const t0 = Date.now();
+  for (let i = 0; i < days; i++) {
+    const ds = new Date(Date.UTC(2026, 8, 7) + i * 86400000).toISOString().slice(0, 10);
+    const t = Date.now();
+    const p = dailyPuzzle(ds);
+    const ms = Date.now() - t;
+    if (solveGrid(p.grid.split("").map(Number)).count !== 1) uniqueFails++;
+    if (p.level !== p.targetLevel) fallbacks++;
+    if (ms > worst.ms) worst = { ms, ds, attempts: p.attempts, level: p.targetLevel };
+  }
+  ok(uniqueFails === 0, `balayage ${days} jours : toutes les grilles à solution unique`);
+  console.log(`  ℹ balayage ${days} jours en ${((Date.now() - t0) / 1000).toFixed(1)} s — pire : ${worst.ds}`
+    + ` (${worst.ms} ms, ${worst.attempts} tentatives, niveau ${worst.level}), fallbacks : ${fallbacks}`);
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */

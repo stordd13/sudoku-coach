@@ -1230,12 +1230,19 @@ export const solveHumanly = (grid, cap = 5) => solveHumanlySteps(grid, null, cap
    Grille pleine → creusage par paires symétriques (unicité obligatoire ; pour
    les niveaux 1-3, on ne retire une paire que si la grille reste résoluble
    sans dépasser le palier visé) → acceptée si le grade tombe juste. */
-export function generatePuzzle(level, rng = Math.random) {
-  const deadline = Date.now() + 3000;
+export function generatePuzzle(level, rng = Math.random, { maxAttempts = 400, timeBoxMs = 3000 } = {}) {
+  // timeBoxMs: Infinity → borne en TENTATIVES uniquement. Indispensable au
+  // défi du jour (« la même grille pour tous ») : une deadline horloge
+  // couperait la boucle plus tôt sur un appareil lent et produirait une
+  // grille différente. Le résultat reste alors déterministe à rng donné —
+  // mais seulement à version identique du moteur (tout changement des
+  // finders ou de MAX_CHAIN change les grades, donc les grilles).
+  const deadline = timeBoxMs === Infinity ? null : Date.now() + timeBoxMs;
   let best = null;
   // Le vrai plafond est la deadline : une tentative gardée (niveaux 1-3) ne
   // coûte que ~10 ms, autant en tenter beaucoup plutôt que s'arrêter à 40.
-  for (let attempt = 0; attempt < 400 && Date.now() < deadline; attempt++) {
+  let attempt = 0;
+  for (; attempt < maxAttempts && (!deadline || Date.now() < deadline); attempt++) {
     const full = generateFullGrid(rng);
     const g = full.slice();
     const pairs = shuffle(
@@ -1259,7 +1266,7 @@ export function generatePuzzle(level, rng = Math.random) {
     const givens = g.filter((v) => v !== 0).length;
     const okRange = givens >= 22 && givens <= 45;
     if (grade === level && okRange) {
-      return { grid: g.join(""), solution: full.join(""), level, givens };
+      return { grid: g.join(""), solution: full.join(""), level, givens, attempts: attempt + 1 };
     }
     const score = Math.abs(grade - level) * 10 + (okRange ? 0 : 5);
     if (!best || score < best.score) {
@@ -1267,6 +1274,7 @@ export function generatePuzzle(level, rng = Math.random) {
     }
   }
   delete best.score;
+  best.attempts = attempt;
   return best; // meilleure grille obtenue, avec son niveau réel
 }
 
