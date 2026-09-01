@@ -4,7 +4,8 @@ import {
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, stuckPanelKind, SAMPLES,
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
-import { getExercise, KIND_BY_LESSON } from "./exercises.js";
+import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
+import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
 import { LESSONS } from "./lessons.js";
 import { KEYS, loadAll, readSync, persist } from "./storage.js";
 import { isNative, haptic } from "./native.js";
@@ -262,8 +263,9 @@ function saveExoCache(c) {
   persist(KEYS.exos, c);
 }
 
-function LearnView() {
-  const [ix, setIx] = useState(0);
+/* La leçon sélectionnée (ix) vit dans App : le coach (📚 Revoir cette
+   technique) doit pouvoir l'imposer depuis l'écran de jeu. */
+function LearnView({ ix, onSelectIx }) {
   const [revealed, setRevealed] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [exo, setExo] = useState(null); // null | "searching" | exercice
@@ -337,7 +339,7 @@ function LearnView() {
                   borderLeft: i === 0 ? "none" : "1px solid #E2E7E5",
                 }}>{sectionLabel}</span>
               )}
-              <button type="button" onClick={() => setIx(i)} style={{
+              <button type="button" onClick={() => onSelectIx(i)} style={{
                 flex: "0 0 auto", border: `1px solid ${i === ix ? C.teal : "#D8DEDC"}`,
                 background: i === ix ? C.teal : "#fff", color: i === ix ? "#fff" : C.ink,
                 borderRadius: 999, padding: "7px 12px", fontSize: 12.5, fontWeight: 700,
@@ -480,6 +482,7 @@ function LearnView() {
    ================================================================ */
 export default function App() {
   const [tab, setTab] = useState("play");
+  const [lessonIx, setLessonIx] = useState(0); // leçon affichée dans Apprendre (remonté pour 📚 Revoir)
   const [screen, setScreen] = useState("home"); // 'home' | 'levels' | 'board'
   const [grid, setGrid] = useState(Array(81).fill(0));
   const [givens, setGivens] = useState(Array(81).fill(false));
@@ -792,7 +795,16 @@ export default function App() {
     const min = Math.min(...plans.map((p) => p.difficulty));
     const easiest = plans.filter((p) => p.difficulty === min);
     const p = easiest[Math.floor(Math.random() * easiest.length)];
+    p.revealTech = true; // leçon guidée : la technique est annoncée dès l'indice 1
     setSel(p.target); setPlan(p); setLevel(0);
+  }
+  // 📚 Revoir cette technique (👣) : bascule sur l'onglet Apprendre, leçon du keyKind.
+  function openLesson(kind) {
+    const L = LESSON_BY_KIND[kind];
+    if (!L) return;
+    const ix = LESSONS.findIndex((l) => l.id === L.id);
+    if (ix >= 0) setLessonIx(ix);
+    setTab("learn");
   }
   function revealAnyway(t) {
     if (!solRef) { flash("Solution indisponible pour cette grille.", "warn"); return; }
@@ -1211,7 +1223,7 @@ export default function App() {
         width: "100%", display: "flex", flexDirection: "column",
         alignItems: "center", gap: 12,
       }}>
-      {tab === "learn" ? <LearnView /> : screen === "home" ? (
+      {tab === "learn" ? <LearnView ix={lessonIx} onSelectIx={setLessonIx} /> : screen === "home" ? (
         <>
           {/* ---------- Accueil ---------- */}
           <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
@@ -1613,17 +1625,24 @@ export default function App() {
 
               {plan.kind === "ok" && (
                 <>
-                  {level >= 1 && (
+                  {(level >= 1 || plan.revealTech) && (
                     <div style={{
                       alignSelf: "flex-start", fontSize: 11, fontWeight: 800,
                       letterSpacing: ".05em", textTransform: "uppercase", color: "#7A620A",
                       background: C.yellowSoft, border: "1px solid #EDD98F",
                       borderRadius: 999, padding: "3px 10px",
                     }}>
-                      {plan.tech}
+                      {plan.revealTech ? techBreadcrumb(plan) : plan.tech}
                     </div>
                   )}
-                  {plan.hint1 ? <p style={pStyle}><Rich text={plan.hint1} /></p> : null}
+                  {plan.revealTech
+                    ? <p style={pStyle}><Rich text={stepHint1(plan)} /></p>
+                    : plan.hint1 ? <p style={pStyle}><Rich text={plan.hint1} /></p> : null}
+                  {plan.revealTech && (
+                    <LinkBtn onClick={() => openLesson(plan.keyKind)}>
+                      📚 Revoir cette technique
+                    </LinkBtn>
+                  )}
                   {level >= 1 && plan.hint2 ? <p style={pStyle}><Rich text={plan.hint2} /></p> : null}
                   {level >= 2 && (
                     <>

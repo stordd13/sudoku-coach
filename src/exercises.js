@@ -20,7 +20,7 @@ export const KIND_BY_LESSON = {
   "xyz-wing": "xyzWing", "w-wing": "wWing", "kite": "kite",
   "empty-rectangle": "emptyRectangle", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
 };
-const LESSON_BY_KIND = Object.fromEntries(
+export const LESSON_BY_KIND = Object.fromEntries(
   LESSONS.map((L) => [KIND_BY_LESSON[L.id], L])
 );
 

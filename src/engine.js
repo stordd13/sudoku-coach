@@ -1018,6 +1018,22 @@ const ELIM_WEIGHTS = {
 const planDifficulty = (base, kept) =>
   base + kept.reduce((s, e) => s + (ELIM_WEIGHTS[e.kind] || 5), 0);
 
+/* Champs structurés pour l'UI (fil d'Ariane 👣, leçon à revoir) :
+   - techKind  : type de conclusion ("nakedSingle" | "hiddenSingle") ;
+   - chainKinds: kinds des étapes élaguées, dans l'ordre ;
+   - keyKind   : kind de tier max de la chaîne (premier en cas d'égalité),
+                 sinon techKind ;
+   - techZone  : zone du single caché (« la ligne 3 »), null pour un naked. */
+function tagPlan(plan, techKind, kept, techZone) {
+  plan.techKind = techKind;
+  plan.chainKinds = kept.map((e) => e.kind);
+  plan.keyKind = plan.chainKinds.length
+    ? plan.chainKinds.reduce((a, b) => ((TIER_OF_KIND[b] || 0) > (TIER_OF_KIND[a] || 0) ? b : a))
+    : techKind;
+  plan.techZone = techZone;
+  return plan;
+}
+
 /* Plafond d'éliminations enchaînées entre deux placements — PARTAGÉ entre
    buildPlan (chemin de jeu 👣/🎯) et solveHumanlySteps (gradeur de génération).
    Invariant : gradé résoluble ⟺ finissable en jeu. Deux bornes différentes
@@ -1042,7 +1058,7 @@ export function buildPlan(grid, target) {
         const plan = finalizeNaked(grid, target, cs[0], kept.map(describeElim), baseCands);
         plan.rawChain = kept;
         plan.difficulty = planDifficulty(1, kept);
-        return plan;
+        return tagPlan(plan, "nakedSingle", kept, null);
       }
       const hs = findHiddenSingleFor(grid, cands, target);
       if (hs) {
@@ -1050,7 +1066,7 @@ export function buildPlan(grid, target) {
         const plan = finalizeHidden(grid, target, hs.digit, hs.unit, kept.map(describeElim));
         plan.rawChain = kept;
         plan.difficulty = planDifficulty(2, kept);
-        return plan;
+        return tagPlan(plan, "hiddenSingle", kept, unitLabel(hs.unit));
       }
       if (chain.length >= MAX_CHAIN) break; // palier suivant
       const e = findElim(cands, prefer, maxTier) || findElim(cands, null, maxTier);

@@ -12,7 +12,8 @@ import {
   randomTransform, transformPosition, buildConstructiveExercise, hasAnySingle,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
-import { getExercise, KIND_BY_LESSON } from "../src/exercises.js";
+import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
+import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
 
 let failures = 0;
 const ok = (cond, label) => {
@@ -71,19 +72,25 @@ console.log("hasAnySingle :");
 
 /* ---------- 2b. Preuves par paliers : le plus SIMPLE avant le plus COURT ---------- */
 console.log("Preuves par paliers :");
+const REPRO_STEPWISE = "000000381610083450483500006001050943054030627030402815100800534090300168348005000";
 {
-  const g = "000000381610083450483500006001050943054030627030402815100800534090300168348005000".split("").map(Number);
+  const g = REPRO_STEPWISE.split("").map(Number);
   const p = buildPlan(g, 24); // L3C7
   ok(p && p.digit === 2, "repro L3C7 : conclusion = 2");
   ok(p.chain.length === 2 && p.chain.every((s) => s.title === "Paire pointante"),
     "repro L3C7 : preuve par 2 paires pointantes (techniques simples d'abord)");
   ok(p.chain.every((s) => s.text.includes("**2**")), "repro L3C7 : toutes les étapes portent sur le 2");
+  ok(p.techKind === "hiddenSingle" && p.keyKind === "pointing"
+    && JSON.stringify(p.chainKinds) === JSON.stringify(["pointing", "pointing"]),
+    "repro L3C7 : champs structurés — techKind hiddenSingle, chainKinds [pointing ×2], keyKind pointing");
 
   // Palier minimal, pas d'escalade : tier 3 suffit → pas de technique tier 4.
   const g0 = SAMPLES[0].split("").map(Number);
   const p30 = buildPlan(g0, 30); // L4C4
   ok(p30 && p30.digit === 7 && p30.chain.length === 1 && p30.chain[0].title === "Duo caché",
     "L4C4 : preuve tier 3 (duo caché), pas d'escalade");
+  ok(JSON.stringify(p30.chainKinds) === JSON.stringify(["hiddenPair"]) && p30.keyKind === "hiddenPair",
+    "L4C4 : champs structurés — chainKinds [hiddenPair], keyKind hiddenPair");
 
   // Et le budget MAX_CHAIN sert la simplicité : avant lui, la recherche palier 3
   // cassait au 4e maillon et escaladait au 2-String Kite (palier 4) ; avec lui,
@@ -109,6 +116,60 @@ console.log("Difficulté des plans :");
   const min = Math.min(...plans.map((p) => p.difficulty));
   ok(plans.every((p) => min <= p.difficulty), `la difficulté minimale (${min}) est ≤ à toutes les autres`);
   ok(plans.some((p) => p.difficulty <= 2), "au moins un plan de difficulté 1 ou 2 en début de partie");
+  const direct = plans.find((p) => p.chainKinds.length === 0);
+  ok(!!direct && direct.keyKind === direct.techKind
+    && (direct.techKind === "nakedSingle" ? direct.techZone === null : typeof direct.techZone === "string"),
+    "plan direct : keyKind = techKind, techZone cohérente");
+}
+
+/* ---------- 2c'. Coach 👣 : mapping leçon, fil d'Ariane, indice 1 ---------- */
+console.log("Coach 👣 (leçon guidée) :");
+{
+  // Mapping kind → leçon : exhaustif (15 kinds d'élimination + 2 singles) et
+  // conforme à la numérotation des leçons.
+  const EXPECTED = {
+    nakedSingle: 1, hiddenSingle: 2, nakedPair: 3, pointing: 4, claiming: 5,
+    hiddenPair: 6, xWing: 7, xyWing: 8, swordfish: 9, skyscraper: 10,
+    remotePair: 11, xyzWing: 12, wWing: 13, kite: 14, emptyRectangle: 15,
+    coloring: 16, sueDeCoq: 17,
+  };
+  const kinds = [...Object.keys(ELIM_FINDER_BY_KIND), "nakedSingle", "hiddenSingle"];
+  ok(kinds.length === 17 && kinds.every((k) => !!LESSON_BY_KIND[k]),
+    "mapping exhaustif : chaque kind du moteur a sa leçon");
+  ok(Object.entries(EXPECTED).every(([k, n]) => LESSON_BY_KIND[k] && LESSON_BY_KIND[k].num === n),
+    "numéros de leçon conformes (nakedSingle 1 … sueDeCoq 17)");
+
+  // 4 plans représentatifs : nu direct, caché direct, chaîne 1 étape, chaîne 2 étapes.
+  const g0 = SAMPLES[0].split("").map(Number);
+  const plans = [];
+  for (let i = 0; i < 81; i++) {
+    if (g0[i] !== 0) continue;
+    const q = buildPlan(g0, i);
+    if (q) plans.push(q);
+  }
+  const nakedDirect = plans.find((q) => q.techKind === "nakedSingle" && !q.chainKinds.length);
+  const hiddenDirect = plans.find((q) => q.techKind === "hiddenSingle" && !q.chainKinds.length);
+  const chain1 = buildPlan(g0, 30); // L4C4 : duo caché puis single
+  const chain2 = buildPlan(REPRO_STEPWISE.split("").map(Number), 24); // L3C7 : 2 pointantes
+
+  ok(!!nakedDirect && techBreadcrumb(nakedDirect) === "Candidat unique",
+    "fil d'Ariane nu direct : « Candidat unique »");
+  ok(!!hiddenDirect && /^Single caché \((ligne|colonne|bloc) /.test(techBreadcrumb(hiddenDirect)),
+    "fil d'Ariane caché direct : « Single caché (zone) »");
+  ok(techBreadcrumb(chain2) === "Paire pointante → Paire pointante → Single caché",
+    "fil d'Ariane 1-2 étapes : titres joints par « → »");
+  ok(techBreadcrumb({ ...chain2, chainKinds: ["pointing", "pointing", "nakedPair"] })
+    === "3 éliminations → Single caché", "fil d'Ariane 3+ étapes : compte replié");
+
+  // Critère de revue : technique nommée, une idée par phrase, aucune réponse.
+  for (const [label, q] of [
+    ["candidat nu", nakedDirect], ["single caché", hiddenDirect],
+    ["chaîne 1 étape", chain1], ["chaîne 2 étapes", chain2],
+  ]) {
+    ok(!!q && stepHint1(q).length > 0 && !stepHint1(q).includes(`**${q.digit}**`),
+      `indice 1 (${label}) : construit, chiffre non divulgué`);
+    if (q) console.log(`  ℹ indice 1 (${label}) : ${stepHint1(q)}`);
+  }
 }
 
 /* ---------- 2d. Notation Snyder ---------- */
