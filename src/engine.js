@@ -59,6 +59,23 @@ export function candidatesFromGrid(grid, i) {
 }
 export const allCands = (grid) =>
   Array.from({ length: 81 }, (_, i) => new Set(candidatesFromGrid(grid, i)));
+// Un « single posable » sur les candidats bruts : case à candidat unique
+// (naked) ou chiffre n'ayant plus qu'une place dans une unité (hidden).
+function firstSingle(grid) {
+  const cands = allCands(grid);
+  for (let i = 0; i < 81; i++) {
+    if (cands[i].size === 1) return { cell: i, digit: [...cands[i]][0] };
+  }
+  for (const u of UNITS) {
+    for (let d = 1; d <= 9; d++) {
+      if (u.cells.some((c) => grid[c] === d)) continue;
+      const spots = u.cells.filter((c) => cands[c].has(d));
+      if (spots.length === 1) return { cell: spots[0], digit: d };
+    }
+  }
+  return null;
+}
+export const hasAnySingle = (grid) => firstSingle(grid) !== null;
 export function presentDigits(grid, cells) {
   const s = new Set();
   cells.forEach((i) => { if (grid[i]) s.add(grid[i]); });
@@ -1561,21 +1578,66 @@ const CONSTRUCTORS = {
   skyscraper: skeletonSkyscraper, kite: skeletonKite, remotePair: skeletonRemotePair,
 };
 
+// Bornes d'un état d'exercice « propre » : assez creusé pour ressembler à une
+// vraie partie, jamais si plein qu'un single traîne à côté du motif.
+const GIVENS_MIN = 28, GIVENS_MAX = 50, GIVENS_TARGET = 34;
+
+// Alterne deux passes jusqu'à convergence (grille inchangée sur un tour) :
+// 1. creusage élargi — paires symétriques hors motif, retrait gardé seulement
+//    si l'unicité tient ET que le finder retrouve un motif avec removals
+//    (n'importe quelle instance) ;
+// 2. balayage anti-singles — chaque single posable est rempli avec son chiffre
+//    forcé (= valeur de la solution, l'unicité est préservée à chaque pas).
+// false si le motif casse ou si la deadline tombe : la tentative est jetée.
+function refineConstructive(g, patternOk, rng, deadline) {
+  const pairs = shuffle([...Array.from({ length: 40 }, (_, i) => [i, 80 - i]), [40]], rng);
+  let prev = "";
+  while (Date.now() < deadline) {
+    for (const pair of pairs) {
+      if (Date.now() >= deadline) return false;
+      if (g.reduce((n, v) => n + (v !== 0), 0) <= GIVENS_TARGET) break;
+      const saved = pair.map((i) => g[i]);
+      if (saved.every((v) => v === 0)) continue;
+      pair.forEach((i) => { g[i] = 0; });
+      if (solveGrid(g).count !== 1 || !patternOk(g)) pair.forEach((i, k) => { g[i] = saved[k]; });
+    }
+    let s;
+    while ((s = firstSingle(g))) {
+      if (Date.now() >= deadline) return false;
+      g[s.cell] = s.digit;
+      if (!patternOk(g)) return false; // motif cassé par le remplissage
+    }
+    const sig = g.join("");
+    if (sig === prev) break; // convergé : plus aucun mouvement net
+    prev = sig;
+  }
+  return !firstSingle(g) && !!patternOk(g);
+}
+
 // Construit une vraie grille autour du motif demandé. Chaque tentative est
 // validée par l'oracle : finder du kind sur candidats bruts (prefer=victimes)
-// + solution unique. null si kind non couvert ou budget épuisé.
+// + solution unique, puis raffinée (creusage + anti-singles) jusqu'à l'état
+// « propre ». null si kind non couvert ou budget épuisé.
 export function buildConstructiveExercise(kind, { budgetMs = 1500, rng = Math.random } = {}) {
   const build = CONSTRUCTORS[kind];
   if (!build) return null;
   const deadline = Date.now() + budgetMs;
+  const finder = ELIM_FINDER_BY_KIND[kind];
+  const patternOk = (g) => {
+    const e = finder(allCands(g), null);
+    return e && e.removals.length ? e : null;
+  };
   while (Date.now() < deadline) {
     const sk = build(generateFullGrid(rng), rng);
     if (!sk) continue;
-    const cands = allCands(sk.g);
-    const e = ELIM_FINDER_BY_KIND[kind](cands, new Set(sk.victims));
-    if (!e) continue;
+    if (!finder(allCands(sk.g), new Set(sk.victims))) continue;
     if (solveGrid(sk.g).count !== 1) continue;
-    return packageExercise(kind, e, sk.g, cands.map((s) => [...s].sort((x, y) => x - y)));
+    const g = sk.g;
+    if (!refineConstructive(g, patternOk, rng, deadline)) continue;
+    const givens = g.reduce((n, v) => n + (v !== 0), 0);
+    if (givens < GIVENS_MIN || givens > GIVENS_MAX) continue;
+    const cands = allCands(g);
+    return packageExercise(kind, patternOk(g), g, cands.map((s) => [...s].sort((x, y) => x - y)));
   }
   return null;
 }

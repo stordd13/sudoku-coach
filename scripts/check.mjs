@@ -9,7 +9,7 @@ import {
   snyderNotes,
   makeRng, generateFullGrid, solveHumanly, generatePuzzle, isComplete,
   findTechniqueExercise, ELIM_FINDER_BY_KIND, completedUnits,
-  randomTransform, transformPosition, buildConstructiveExercise,
+  randomTransform, transformPosition, buildConstructiveExercise, hasAnySingle,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 import { getExercise, KIND_BY_LESSON } from "../src/exercises.js";
@@ -53,6 +53,20 @@ console.log("Moteur (buildPlan sur l'exemple 1) :");
   ok(errors === 0, `aucune exception (${errors})`);
   ok(mismatches === 0, `tous les plans concordent avec la solution (${mismatches} désaccord)`);
   ok(solvable > 0, `${solvable} cases immédiatement explicables`);
+}
+
+/* ---------- 2a. hasAnySingle : détection d'un single posable ---------- */
+console.log("hasAnySingle :");
+{
+  ok(hasAnySingle(SAMPLES[0].split("").map(Number)) === true, "grille facile de départ : un single existe");
+  ok(hasAnySingle(Array(81).fill(0)) === false, "grille vide : aucun single");
+  ok(hasAnySingle(generateFullGrid(makeRng(4))) === false, "grille pleine : aucun single");
+  // Position de la leçon 2 : 7 givens (aucun candidat unique possible),
+  // mais le 5 n'a qu'une place dans le bloc haut-gauche → single caché.
+  const g2 = Array(81).fill(0);
+  for (const [k, v] of Object.entries(LESSONS[1].given)) g2[Number(k)] = v;
+  ok(g2.every((v, i) => v !== 0 || candidatesFromGrid(g2, i).length > 1), "leçon 2 : aucun candidat unique");
+  ok(hasAnySingle(g2) === true, "leçon 2 : le single caché est détecté");
 }
 
 /* ---------- 2b. Preuves par paliers : le plus SIMPLE avant le plus COURT ---------- */
@@ -488,6 +502,10 @@ console.log("Exercices par technique :");
       times.push(Date.now() - t0);
       if (ex && !ex.workedNotes) raw++;
       ok(checkExercise(kind, ex), `${kind} (seed ${seed}) : exercice trouvé dans le time-box`);
+      // Vrai par construction (les singles sont épuisés avant chaque élim) —
+      // figé ici. Sans objet pour nakedSingle/hiddenSingle : le single EST l'exercice.
+      if (ex && kind !== "nakedSingle" && kind !== "hiddenSingle")
+        ok(hasAnySingle(ex.given) === false, `${kind} (seed ${seed}) : aucun single posable`);
     }
     console.log(`  ℹ ${kind} : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms, notes brutes ${raw}/3`);
   }
@@ -495,6 +513,7 @@ console.log("Exercices par technique :");
     const t0 = Date.now();
     const ex = findTechniqueExercise("xWing", { timeBoxMs: 8000, rng: makeRng(7) });
     ok(checkExercise("xWing", ex), "xWing : exercice trouvé (time-box 8 s)");
+    if (ex) ok(hasAnySingle(ex.given) === false, "xWing : aucun single posable");
     console.log(`  ℹ xWing : ${Date.now() - t0} ms (n=1)`);
   }
 }
@@ -572,6 +591,9 @@ for (const kind of ["xWing", "swordfish", "skyscraper", "kite", "remotePair"]) {
     if (ex) {
       const g = ex.given.map((v) => v);
       ok(solveGrid(g).count === 1, `${kind} (seed ${seed}) : solution unique`);
+      ok(hasAnySingle(g) === false, `${kind} (seed ${seed}) : aucun single posable`);
+      const givens = g.reduce((n, v) => n + (v !== 0), 0);
+      ok(givens >= 28 && givens <= 50, `${kind} (seed ${seed}) : ${givens} givens ∈ [28, 50]`);
     }
   }
   console.log(`  ℹ ${kind} (constructif) : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms (n=3)`);
