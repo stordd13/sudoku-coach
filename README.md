@@ -15,6 +15,11 @@ Solver de sudoku **pédagogique** : résous, comprends, progresse.
 Tout le reste (solver, indices, notes, sauvegarde) tourne **dans le navigateur**,
 sans compte ni serveur.
 
+**v2.1** — 🗓️ défi du jour (même grille pour tout le monde, séries façon Wordle),
+⏱ chrono et 📊 stats, 🌙 mode sombre Auto/Clair/Sombre, accessibilité (lecteur
+d'écran, clavier, contrastes AA vérifiés), et app **bilingue français/anglais**
+(interface, coach, leçons — réglage ⚙️ ou langue du navigateur).
+
 ---
 
 ## Déployer sur Vercel (sans rien installer)

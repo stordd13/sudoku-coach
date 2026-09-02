@@ -24,7 +24,7 @@ import { DICTS, t, setLang, getLang, detectLang } from "../src/i18n.js";
 import { cellAriaLabel } from "../src/a11y.js";
 import { readFileSync } from "node:fs";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
-import { techBreadcrumb, stepHint1 } from "../src/coachCopy.js";
+import { techBreadcrumb, stepHint1, conceptSentence } from "../src/coachCopy.js";
 
 const T0 = Date.now();
 let failures = 0;
@@ -865,6 +865,38 @@ console.log("i18n moteur (EN) :");
   const exEn = getExercise("pointing", { budgetMs: 1500, rng: makeRng(7001), lang: "en" });
   ok(!!exEn && isEnglish(exEn.explain.join(" ")) && isEnglish(exEn.hint),
     "getExercise(lang: en) : hint et explication en anglais");
+}
+
+/* ---------- 5m. Leçons EN : exhaustivité et fidélité mécanique ---------- */
+console.log("Leçons EN :");
+{
+  const allEn = (L) => [L.en.title, L.en.concept, L.en.question, L.en.hint, ...L.en.steps].join(" ");
+  ok(LESSONS.every((L) => L.en && L.en.title && L.en.concept && L.en.question && L.en.hint
+    && Array.isArray(L.en.steps) && L.en.steps.every((s) => s.length > 0)),
+    "chaque leçon a sa traduction complète (title, concept, question, hint, steps)");
+  ok(LESSONS.every((L) => L.en.steps.length === L.steps.length), "même nombre de steps fr/en");
+  ok(LESSONS.every((L) => !/L\d+C\d+/.test(allEn(L))), "notation : aucun LxCy résiduel en anglais");
+  // Chaque RxCy EN doit exister en LxCy dans la leçon FR (mêmes numéros) : la
+  // traduction ne peut ni inventer ni décaler une référence de case.
+  let badRefs = 0;
+  for (const L of LESSONS) {
+    const frText = `${L.concept} ${L.question} ${L.hint} ${L.steps.join(" ")}`;
+    const frRefs = new Set((frText.match(/L(\d+C\d+)/g) || []).map((m) => m.slice(1)));
+    for (const m of allEn(L).match(/R(\d+C\d+)/g) || []) {
+      if (!frRefs.has(m.slice(1))) { badRefs++; console.error(`    [${L.id}] référence inventée : R${m.slice(1)}`); }
+    }
+  }
+  ok(badRefs === 0, "chaque RxCy EN correspond à un LxCy FR (aucune invention)");
+  ok(LESSONS.every((L) => [L.en.concept, L.en.question, L.en.hint, ...L.en.steps]
+    .every((s) => ((s.match(/\*\*/g) || []).length % 2) === 0)), "markdown ** équilibré dans chaque chaîne EN");
+  ok(LESSONS.every((L) => L.en.title === TECH_NAMES[KIND_BY_LESSON[L.id]].en),
+    "titres EN = TECH_NAMES.en (aucune dérive)");
+  const FRISH = /( le | la | les | des | une | dans | chaque |é|è|ê|ç|à|ù)/;
+  ok(LESSONS.every((L) => !FRISH.test(` ${allEn(L)} `)), "aucun français résiduel (heuristique accents + mots outils)");
+  // L'indice 1 du coach devient 100 % anglais : conceptSentence lit L.en.
+  const cs = conceptSentence("pointing", "en");
+  ok(cs.length > 0 && !FRISH.test(` ${cs} `) && /[.!?]$/.test(cs),
+    `conceptSentence EN : première phrase anglaise complète (${cs.slice(0, 48)}…)`);
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */

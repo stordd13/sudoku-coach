@@ -8,7 +8,7 @@ import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak, be
 import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "./stats.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
 import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
-import { LESSONS } from "./lessons.js";
+import { LESSONS, lessonText } from "./lessons.js";
 import { version as APP_VERSION } from "../package.json";
 import { KEYS, loadAll, readSync, persist } from "./storage.js";
 import { isNative, haptic } from "./native.js";
@@ -34,7 +34,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 /* Quota freemium volontairement côté client : contournable (vider le stockage
    suffit). La vraie protection de la clé API, c'est la limite par IP de /api/ocr
    et le plafond de dépense Anthropic — ici on dose juste l'usage gratuit. */
-const FREE_SCANS = 5;
+const FREE_SCANS = 50;
 
 /* ---------- Réglages (persistés via KEYS.settings) ---------- */
 const DEFAULT_SETTINGS = { hideTimer: false, theme: "auto", lang: "auto" };
@@ -430,6 +430,7 @@ function LearnView({ ix, onSelectIx }) {
   const [exo, setExo] = useState(null); // null | "searching" | exercice
   const refillRef = useRef(new Set()); // kinds en cours de refill (anti-cumul)
   const L = LESSONS[ix];
+  const LT = lessonText(L, getLang());
   const isExo = exo !== null && typeof exo === "object";
   useEffect(() => { setRevealed(false); setShowHint(false); setExo(null); }, [ix]);
 
@@ -478,8 +479,8 @@ function LearnView({ ix, onSelectIx }) {
   const board = isExo
     ? (revealed ? exo : { ...exo, unit: [], focus: [], target: undefined })
     : L;
-  const question = isExo ? t("learn.findIt", { name: exoName(L.id) }) : L.question;
-  const hint = isExo ? exo.hint : L.hint;
+  const question = isExo ? t("learn.findIt", { name: exoName(L.id) }) : LT.question;
+  const hint = isExo ? exo.hint : LT.hint;
   return (
     <>
       <div style={{ width: W, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, alignItems: "center" }}>
@@ -506,7 +507,7 @@ function LearnView({ ix, onSelectIx }) {
                 WebkitTapHighlightColor: "transparent",
                 minHeight: 44, touchAction: "manipulation",
               }}>
-                {l.num} · {l.title}
+                {l.num} · {lessonText(l, getLang()).title}
               </button>
             </Fragment>
           );
@@ -518,8 +519,8 @@ function LearnView({ ix, onSelectIx }) {
         padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6,
         boxShadow: "0 8px 24px rgba(31,39,46,0.08)",
       }}>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>{L.title}</div>
-        <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0, color: C.textStrong }}>{L.concept}</p>
+        <div style={{ fontWeight: 800, fontSize: 16 }}>{LT.title}</div>
+        <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0, color: C.textStrong }}>{LT.concept}</p>
       </div>
 
       <div style={{ position: "relative" }}>
@@ -562,7 +563,7 @@ function LearnView({ ix, onSelectIx }) {
         )}
         {revealed && !isExo && (
           <>
-            {L.steps.map((s, i) => (
+            {LT.steps.map((s, i) => (
               <div key={i} style={{
                 border: `1px solid ${C.hintBorder}`, background: C.hintBg,
                 borderRadius: 10, padding: "8px 10px", fontSize: 13.5, lineHeight: 1.5,

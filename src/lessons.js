@@ -9,6 +9,7 @@
    - target   : case résolue, answer : chiffre trouvé
    ================================================================ */
 import { ROWS, COLS, BOXES } from "./engine.js";
+import { LESSONS_EN } from "./lessonsEn.js";
 
 export const LESSONS = [
   {
@@ -419,3 +420,23 @@ export const LESSONS = [
     ],
   },
 ];
+
+/* Traductions EN (lessonsEn.js) attachées à chaque leçon : L.en est lu par
+   coachCopy (conceptSentence) et par lessonText. Les champs positionnels
+   restent uniques aux deux langues. */
+for (const L of LESSONS) L.en = LESSONS_EN[L.id];
+
+/* Les champs texte d'une leçon dans la langue demandée — repli FR champ par
+   champ si une traduction manquait. */
+export function lessonText(L, lang = "fr") {
+  if (lang !== "en" || !L.en) {
+    return { title: L.title, concept: L.concept, question: L.question, hint: L.hint, steps: L.steps };
+  }
+  return {
+    title: L.en.title || L.title,
+    concept: L.en.concept || L.concept,
+    question: L.en.question || L.question,
+    hint: L.en.hint || L.hint,
+    steps: Array.isArray(L.en.steps) && L.en.steps.length ? L.en.steps : L.steps,
+  };
+}
