@@ -5,7 +5,7 @@ import {
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
 import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak, bestStreak } from "./daily.js";
-import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "./stats.js";
+import { addSegment, formatClock, emptyStats, normalizeStats, levelKey, recordStart, recordWin, helpRate } from "./stats.js";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
 import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
 import { LESSONS, lessonText } from "./lessons.js";
@@ -668,7 +668,7 @@ export default function App() {
   const [dailyDone, setDailyDone] = useState({}); // { "YYYY-MM-DD": true }
   const [elapsed, setElapsed] = useState(0); // miroir d'elapsedRef pour affichage + persistance
   const [, setClockTick] = useState(0); // re-render 1 s pour l'affichage du chrono
-  const [stats, setStats] = useState(() => readSync(KEYS.stats) || emptyStats());
+  const [stats, setStats] = useState(() => normalizeStats(readSync(KEYS.stats)));
   const [hintsUsed, setHintsUsed] = useState(0); // 👣/🎯 utilisés dans la partie courante
   const [assisted, setAssisted] = useState(false); // Tout résoudre / Révéler → pas de record
   const [generating, setGenerating] = useState(false);
@@ -1319,7 +1319,7 @@ export default function App() {
         const st = data[KEYS.settings];
         if (st && typeof st === "object") setSettings((s) => ({ ...s, ...st }));
         const sd = data[KEYS.stats];
-        if (sd && typeof sd === "object") setStats(sd);
+        if (sd != null) setStats(normalizeStats(sd));
         const used = Number(data[KEYS.scans]);
         if (Number.isFinite(used) && used > 0) setScansUsed(used);
       } catch (e) { /* première visite ou stockage indisponible */ }

@@ -26,6 +26,22 @@ export function emptyStats() {
   return { started: {}, finished: {}, bestTime: {}, hints: 0, hintGames: 0 };
 }
 
+/* Blindage des données chargées : un KEYS.stats partiel, tableau ou d'un
+   autre type (écriture externe, restauration bancale) ferait jeter les
+   reducers (`s.started[key]`) AVANT le persist — crash permanent jusqu'au
+   vidage du stockage. Toute forme invalide repart d'emptyStats(), un objet
+   valide est préservé champ par champ. */
+export function normalizeStats(x) {
+  const base = emptyStats();
+  if (!x || typeof x !== "object" || Array.isArray(x)) return base;
+  const dict = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+  const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
+  return {
+    started: dict(x.started), finished: dict(x.finished), bestTime: dict(x.bestTime),
+    hints: num(x.hints), hintGames: num(x.hintGames),
+  };
+}
+
 export function levelKey(gameLevel) {
   return gameLevel >= 1 && gameLevel <= 5 ? String(gameLevel) : "custom";
 }

@@ -17,7 +17,7 @@ import {
   DAILY_LEVELS, dailySeed, dailyLevelFor, dailyPuzzle, localDateStr,
   currentStreak, bestStreak, monthCells,
 } from "../src/daily.js";
-import { addSegment, formatClock, emptyStats, levelKey, recordStart, recordWin, helpRate } from "../src/stats.js";
+import { addSegment, formatClock, emptyStats, normalizeStats, levelKey, recordStart, recordWin, helpRate } from "../src/stats.js";
 import { C_LIGHT, C_DARK, getPalette, cssVars, META_COLOR } from "../src/theme.js";
 import { TECH_NAMES, techName, frWithArticle, frTechList } from "../src/techNames.js";
 import { DICTS, t, setLang, getLang, detectLang } from "../src/i18n.js";
@@ -642,6 +642,17 @@ console.log("Stats (agrégation) :");
   ok(recordStart(emptyStats(), "custom").started.custom === 1
     && recordStart(emptyStats(), "custom").finished.custom === undefined,
     "partie abandonnée = commencée seulement (clé custom)");
+
+  // Blindage : une valeur chargée corrompue ne doit jamais faire jeter les
+  // reducers (sinon crash permanent : l'exception précède le persist).
+  for (const [label, bad] of [["objet partiel", { hints: 0 }], ["tableau", []], ["nombre", 5], ["null", null], ["chaîne", "x"]]) {
+    const n = normalizeStats(bad);
+    let threw = false;
+    try { helpRate(recordWin(recordStart(n, "2"), { levelKey: "2", seconds: 100 })); } catch (e) { threw = true; }
+    ok(!threw && n.started && n.finished && n.bestTime, `normalizeStats(${label}) : forme sûre, reducers sans exception`);
+  }
+  const valid = recordWin(recordStart(emptyStats(), "3"), { levelKey: "3", seconds: 200, hints: 1 });
+  ok(JSON.stringify(normalizeStats(valid)) === JSON.stringify(valid), "normalizeStats préserve un objet valide");
 }
 
 /* ---------- 5g. Thème : palettes clair/sombre synchronisées ---------- */
