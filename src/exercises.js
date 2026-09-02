@@ -28,7 +28,7 @@ export const LESSON_BY_KIND = Object.fromEntries(
 // la leçon — le motif y est présent par construction et préservé par symétrie.
 // Textes régénérés depuis l'élimination retrouvée par le finder (jamais
 // remappés). Infaillible et instantané (~0,1 ms).
-function transformExercise(kind, rng = Math.random) {
+function transformExercise(kind, rng = Math.random, lang = "fr") {
   const L = LESSON_BY_KIND[kind];
   const pos = transformPosition(
     {
@@ -40,7 +40,7 @@ function transformExercise(kind, rng = Math.random) {
   const given = Array(81).fill(0);
   for (const [k, v] of Object.entries(pos.given)) given[Number(k)] = v;
   if (kind === "nakedSingle" || kind === "hiddenSingle") {
-    const plan = buildPlan(given, pos.target);
+    const plan = buildPlan(given, pos.target, lang);
     if (!plan) return null; // n'arrive pas : le single est préservé par symétrie
     return {
       kind, given, notes: {}, removals: {},
@@ -53,7 +53,7 @@ function transformExercise(kind, rng = Math.random) {
   const prefer = new Set(Object.keys(pos.removals).map(Number));
   const e = ELIM_FINDER_BY_KIND[kind](cands, prefer) || ELIM_FINDER_BY_KIND[kind](cands, null);
   if (!e) return null; // n'arrive pas : le motif est préservé par symétrie
-  const ex = packageExercise(kind, e, given, candsArr);
+  const ex = packageExercise(kind, e, given, candsArr, lang);
   ex.source = "transform";
   return ex;
 }
@@ -70,14 +70,14 @@ const SEARCH_KINDS = new Set([
 const CONSTRUCT_KINDS = new Set(["xWing", "swordfish", "skyscraper", "kite", "remotePair"]);
 
 // Un exercice, toujours : stratégie du kind, puis repli transformation.
-export function getExercise(kind, { budgetMs = 3500, rng = Math.random } = {}) {
+export function getExercise(kind, { budgetMs = 3500, rng = Math.random, lang = "fr" } = {}) {
   let ex = null;
   if (SEARCH_KINDS.has(kind)) {
-    ex = findTechniqueExercise(kind, { timeBoxMs: Math.round(budgetMs * 0.8), rng });
+    ex = findTechniqueExercise(kind, { timeBoxMs: Math.round(budgetMs * 0.8), rng, lang });
     if (ex) ex.source = "search";
   } else if (CONSTRUCT_KINDS.has(kind)) {
-    ex = buildConstructiveExercise(kind, { budgetMs: Math.min(1500, Math.round(budgetMs * 0.5)), rng });
+    ex = buildConstructiveExercise(kind, { budgetMs: Math.min(1500, Math.round(budgetMs * 0.5)), rng, lang });
     if (ex) ex.source = "construct";
   }
-  return ex || transformExercise(kind, rng);
+  return ex || transformExercise(kind, rng, lang);
 }

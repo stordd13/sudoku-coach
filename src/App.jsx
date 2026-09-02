@@ -408,11 +408,17 @@ const KIND_BY_LESSON_ID = Object.fromEntries(
   Object.entries(TECH_NAMES).map(([kind, tech]) => [tech.lesson, kind])
 );
 const exoName = (lessonId) => withArticle(KIND_BY_LESSON_ID[lessonId], getLang());
+/* Le cache fige hint/explain dans la langue de génération : au changement de
+   langue, il est invalidé via l'estampille __lang (les vieux caches sans
+   estampille sont réputés FR). */
 function loadExoCache() {
   const c = readSync(KEYS.exos);
-  return c && typeof c === "object" ? c : {};
+  if (!c || typeof c !== "object") return {};
+  if ((c.__lang || "fr") !== getLang()) return {};
+  return c;
 }
 function saveExoCache(c) {
+  c.__lang = getLang();
   persist(KEYS.exos, c);
 }
 
@@ -438,7 +444,7 @@ function LearnView({ ix, onSelectIx }) {
       const list = cache[kind] || [];
       if (list.length >= 3 || budget <= 0) { refillRef.current.delete(kind); return; }
       budget -= 600;
-      const ex = getExercise(kind, { budgetMs: 600 });
+      const ex = getExercise(kind, { budgetMs: 600, lang: getLang() });
       if (ex) { list.push(ex); cache[kind] = list; saveExoCache(cache); }
       setTimeout(tick, 300);
     };
@@ -461,7 +467,7 @@ function LearnView({ ix, onSelectIx }) {
     setExo("searching");
     // setTimeout : laisse React peindre l'overlay avant la recherche synchrone.
     setTimeout(() => {
-      const ex = getExercise(kind); // jamais null : repli transformation
+      const ex = getExercise(kind, { lang: getLang() }); // jamais null : repli transformation
       setRevealed(false); setShowHint(false);
       setExo(ex);
       if (ex) refillCache(kind);
@@ -571,7 +577,7 @@ function LearnView({ ix, onSelectIx }) {
                 fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
               }}>{L.answer}</div>
               <div style={{ fontSize: 13, color: C.gray }}>
-                {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(L.target)}</strong>
+                {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(L.target, getLang())}</strong>
               </div>
             </div>
           </>
@@ -594,7 +600,7 @@ function LearnView({ ix, onSelectIx }) {
                   fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
                 }}>{exo.answer}</div>
                 <div style={{ fontSize: 13, color: C.gray }}>
-                  {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(exo.target)}</strong>
+                  {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(exo.target, getLang())}</strong>
                   {Object.keys(exo.removals).length ? t("learn.elimNote") : ""}
                 </div>
               </div>
@@ -989,7 +995,7 @@ export default function App() {
     if (sel === null) { flash(t("flash.selectEmpty")); return; }
     const target = sel;
     if (grid[target] !== 0) {
-      const cell = cellName(target), d = grid[target];
+      const cell = cellName(target, getLang()), d = grid[target];
       if (givens[target]) flash(t("flash.partOfPuzzle", { cell }));
       else if (multiSol) flash(
         conflictSet(grid).has(target)
@@ -1004,7 +1010,7 @@ export default function App() {
       else flash(t("flash.hasDigit", { cell }));
       return;
     }
-    const p = buildPlan(grid, target);
+    const p = buildPlan(grid, target, getLang());
     if (p && (!solRef || multiSol || p.digit === solRef[target])) { setPlan(p); setLevel(0); setHintsUsed((h) => h + 1); }
     else {
       const kind = stuckPlanFor(false);
@@ -1030,7 +1036,7 @@ export default function App() {
     if (!empties.length) { flash(t("flash.gridComplete"), "success"); return; }
     const plans = [];
     for (const i of empties) {
-      const p = buildPlan(grid, i);
+      const p = buildPlan(grid, i, getLang());
       // multiSol : solRef n'est qu'une solution possible — si le joueur en suit
       // une autre, un plan valide peut la contredire ; on ne filtre donc pas.
       if (p && (!solRef || multiSol || p.digit === solRef[i])) plans.push(p);
@@ -1071,8 +1077,8 @@ export default function App() {
       kind: "ok", target, digit: d, chain: [], hint1: "", hint2: "",
       tech: t("reveal.tech"),
       paras: [
-        t("reveal.p1", { list: frTechList(getLang()), cell: cellName(target) }),
-        t("reveal.p2", { cell: cellName(target), d }),
+        t("reveal.p1", { list: frTechList(getLang()), cell: cellName(target, getLang()) }),
+        t("reveal.p2", { cell: cellName(target, getLang()), d }),
         t("reveal.p3"),
       ],
       unitCells: [],
@@ -1107,7 +1113,7 @@ export default function App() {
     setGrid(ng); setNotes(nn); setSel(target); setPlan(null);
     popCell(target); animateMove(grid, ng, d);
     if (isComplete(ng)) flash(t("flash.won"), "success");
-    else flash(t("flash.placed", { cell: cellName(target), d }), "success");
+    else flash(t("flash.placed", { cell: cellName(target, getLang()), d }), "success");
   }
   function closePlan() { setPlan(null); setLevel(0); }
 
@@ -1955,7 +1961,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 17 }}>🎓</span>
                 <div style={{ fontWeight: 800, fontSize: 15 }}>
-                  {t("coach.title")}{plan.target != null ? ` — ${cellName(plan.target)}` : ""}
+                  {t("coach.title")}{plan.target != null ? ` — ${cellName(plan.target, getLang())}` : ""}
                 </div>
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                   {plan.kind === "ok" && (
@@ -2017,7 +2023,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
               {plan.kind === "stuck" && (
                 <>
                   <p style={pStyle}>
-                    <Rich text={t("coach.stuck.body", { cell: cellName(plan.target) })} />
+                    <Rich text={t("coach.stuck.body", { cell: cellName(plan.target, getLang()) })} />
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="accent" grow onClick={randomHint}>{t("btn.nextStep")}</Btn>
@@ -2035,11 +2041,11 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                       background: C.yellowSoft, border: `1px solid ${C.warnBorder}`,
                       borderRadius: 999, padding: "3px 10px",
                     }}>
-                      {plan.revealTech ? techBreadcrumb(plan) : plan.tech}
+                      {plan.revealTech ? techBreadcrumb(plan, getLang()) : plan.tech}
                     </div>
                   )}
                   {plan.revealTech
-                    ? <p style={pStyle}><Rich text={stepHint1(plan)} /></p>
+                    ? <p style={pStyle}><Rich text={stepHint1(plan, getLang())} /></p>
                     : plan.hint1 ? <p style={pStyle}><Rich text={plan.hint1} /></p> : null}
                   {plan.revealTech && (
                     <LinkBtn onClick={() => openLesson(plan.keyKind)}>
@@ -2079,7 +2085,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                           {plan.digit}
                         </div>
                         <div style={{ fontSize: 13, color: C.gray }}>
-                          {t("coach.toPlace")} <strong style={{ color: C.ink }}>{cellName(plan.target)}</strong>
+                          {t("coach.toPlace")} <strong style={{ color: C.ink }}>{cellName(plan.target, getLang())}</strong>
                         </div>
                       </div>
                     </>

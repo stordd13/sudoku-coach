@@ -10,6 +10,7 @@ import {
   makeRng, generateFullGrid, solveHumanly, generatePuzzle, isComplete,
   findTechniqueExercise, ELIM_FINDER_BY_KIND, completedUnits,
   randomTransform, transformPosition, buildConstructiveExercise, hasAnySingle,
+  packageExercise,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 import {
@@ -797,6 +798,73 @@ console.log("Contraste AA :");
     }
     console.log(`  ℹ thème ${name} : pire paire ${worst.fg}/${worst.bg} à ${worst.r.toFixed(2)}${failures === failures0 ? "" : " — ÉCHECS ci-dessus"}`);
   }
+}
+
+/* ---------- 5l. i18n moteur : plans, descriptions et exercices en anglais ---------- */
+console.log("i18n moteur (EN) :");
+{
+  ok(cellName(20) === "L3C3" && cellName(20, "en") === "R3C3" && cellName(20, "fr") === "L3C3",
+    "cellName : L3C3 par défaut, R3C3 en anglais");
+
+  // Un texte EN ne doit contenir ni gabarit FR ni notation LxCy.
+  const FR_MARKERS = /(ligne|colonne|bloc |chiffre|case |L\d+C\d+|’ )/;
+  const isEnglish = (s) => !FR_MARKERS.test(s);
+
+  // Plans EN sur toutes les cases explicables de SAMPLES[0] : hint1/hint2/
+  // paras/étapes/tech balayés d'un coup (singles + petites éliminations).
+  const g0 = SAMPLES[0].split("").map(Number);
+  let plansEn = 0, frLeaks = 0, rcSeen = 0;
+  for (let i = 0; i < 81; i++) {
+    if (g0[i] !== 0) continue;
+    const p = buildPlan(g0, i, "en");
+    if (!p) continue;
+    plansEn++;
+    const texts = [p.hint1, p.hint2, ...p.paras, p.tech, ...p.chain.map((s) => s.text), ...p.chain.map((s) => s.title)];
+    if (!texts.every(isEnglish)) { frLeaks++; console.error("    fuite FR en", cellName(i, "en")); }
+    if (texts.some((s) => /R\d+C\d+/.test(s))) rcSeen++;
+  }
+  ok(plansEn > 0, `${plansEn} plans générés en anglais`);
+  ok(frLeaks === 0, "aucun gabarit FR dans les plans EN (hint1, hint2, paras, étapes, tech)");
+  ok(rcSeen > 0, "la notation R3C7 apparaît dans les plans EN");
+  // Les mêmes plans en FR restent inchangés (défaut).
+  const pFr = buildPlan(g0, g0.indexOf(0), undefined);
+  ok(pFr === null || /L\d+C\d+|ligne|colonne|bloc/.test([pFr.hint1, ...pFr.paras].join(" ")),
+    "sans lang, les plans restent FR");
+
+  // Chaîne de 2 pointantes (fixture 2b) : étapes + fil d'Ariane + indice 1 EN.
+  const gRS = REPRO_STEPWISE.split("").map(Number);
+  const pEn = buildPlan(gRS, 24, "en");
+  ok(pEn && pEn.digit === 2 && pEn.chain.length === 2
+    && pEn.chain.every((s) => s.title === "Pointing pair") && pEn.chain.every((s) => isEnglish(s.text)),
+    "repro R3C7 : 2 étapes « Pointing pair » décrites en anglais");
+  ok(techBreadcrumb(pEn, "en") === "2 × Pointing pair → Hidden single",
+    "fil d'Ariane EN : « 2 × Pointing pair → Hidden single »");
+  ok(stepHint1(pEn, "en").includes("first look for a **pointing pair** around"),
+    "indice 1 EN : orientation anglaise (le concept restera FR jusqu'aux leçons EN)");
+
+  // Les 15 éliminations : chaque branche describeElim EN via packageExercise
+  // sur la position de la leçon (mêmes cands que la section 4).
+  for (const L of LESSONS) {
+    const kind = KIND_BY_LESSON[L.id];
+    if (kind === "nakedSingle" || kind === "hiddenSingle") continue;
+    const given = Array(81).fill(0);
+    for (const [k, v] of Object.entries(L.given)) given[Number(k)] = v;
+    const candsArr = Array.from({ length: 81 }, (_, i) => L.notes[i] || []);
+    const cands = candsArr.map((a) => new Set(a));
+    const prefer = new Set(Object.keys(L.removals).map(Number));
+    const e = ELIM_FINDER_BY_KIND[kind](cands, prefer) || ELIM_FINDER_BY_KIND[kind](cands, null);
+    ok(!!e, `${kind} : motif retrouvé pour le test EN`);
+    if (!e) continue;
+    const ex = packageExercise(kind, e, given, candsArr, "en");
+    ok(isEnglish(ex.explain[0]) && /R\d+C\d+/.test(ex.explain[0]),
+      `${kind} : explication EN (${ex.explain[0].slice(0, 42)}…)`);
+    ok(ex.hint.startsWith("Look around "), `${kind} : indice EN (${ex.hint})`);
+  }
+
+  // getExercise de bout en bout en anglais (recherche réelle, seed fixe).
+  const exEn = getExercise("pointing", { budgetMs: 1500, rng: makeRng(7001), lang: "en" });
+  ok(!!exEn && isEnglish(exEn.explain.join(" ")) && isEnglish(exEn.hint),
+    "getExercise(lang: en) : hint et explication en anglais");
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */

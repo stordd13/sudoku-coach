@@ -25,20 +25,34 @@ export const PEERS = Array.from({ length: 81 }, (_, i) => {
   for (const u of UNITS) if (u.cells.includes(i)) u.cells.forEach((j) => { if (j !== i) s.add(j); });
   return s;
 });
-const BOX_NAMES = [
-  "haut-gauche", "haut-centre", "haut-droit",
-  "milieu-gauche", "central", "milieu-droit",
-  "bas-gauche", "bas-centre", "bas-droit",
-];
+const BOX_NAMES = {
+  fr: [
+    "haut-gauche", "haut-centre", "haut-droit",
+    "milieu-gauche", "central", "milieu-droit",
+    "bas-gauche", "bas-centre", "bas-droit",
+  ],
+  en: [
+    "top-left", "top-center", "top-right",
+    "middle-left", "center", "middle-right",
+    "bottom-left", "bottom-center", "bottom-right",
+  ],
+};
 
 export const rowOf = (i) => Math.floor(i / 9);
 export const colOf = (i) => i % 9;
 const boxOf = (i) => Math.floor(rowOf(i) / 3) * 3 + Math.floor(colOf(i) / 3);
-export const cellName = (i) => `L${rowOf(i) + 1}C${colOf(i) + 1}`;
-function unitLabel(u) {
+/* « L3C7 » en FR, « R3C7 » en EN (convention internationale). */
+export const cellName = (i, lang = "fr") =>
+  `${lang === "en" ? "R" : "L"}${rowOf(i) + 1}C${colOf(i) + 1}`;
+function unitLabel(u, lang = "fr") {
+  if (lang === "en") {
+    if (u.type === "row") return `row ${u.index + 1}`;
+    if (u.type === "col") return `column ${u.index + 1}`;
+    return `the ${BOX_NAMES.en[u.index]} box`;
+  }
   if (u.type === "row") return `la ligne ${u.index + 1}`;
   if (u.type === "col") return `la colonne ${u.index + 1}`;
-  return `le bloc ${BOX_NAMES[u.index]}`;
+  return `le bloc ${BOX_NAMES.fr[u.index]}`;
 }
 const listD = (arr) =>
   arr && arr.length ? arr.slice().sort((a, b) => a - b).join(", ") : "—";
@@ -782,7 +796,13 @@ const findElim = (cands, prefer, maxTier = 5) => {
 function applyElim(cands, e) {
   for (const r of e.removals) for (const d of r.digits) cands[r.cell].delete(d);
 }
-function describeElim(e) {
+/* Une élimination → { title, zone, cells, text } dans la langue demandée.
+   Deux corps distincts (pas du mot-à-mot) : la grammaire FR (articles,
+   contractions) ne se paramètre pas proprement. */
+function describeElim(e, lang = "fr") {
+  return lang === "en" ? describeElimEn(e) : describeElimFr(e);
+}
+function describeElimFr(e) {
   const remTxt = e.removals.map((r) => `${cellName(r.cell)} −{${r.digits.join(", ")}}`).join(" · ");
   const involved = [...e.cells, ...e.removals.map((r) => r.cell)];
   if (e.kind === "nakedPair") {
@@ -794,14 +814,14 @@ function describeElim(e) {
   }
   if (e.kind === "pointing") {
     return {
-      title: TECH_NAMES.pointing.fr, zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
-      text: `Dans le bloc **${BOX_NAMES[e.box]}**, le **${e.digit}** ne peut aller qu’en ${unitLabel(e.line)} (${e.cells.map(cellName).join(", ")}). Il occupera forcément l’une de ces cases → on retire le ${e.digit} du reste de ${unitLabel(e.line)} : ${remTxt}.`,
+      title: TECH_NAMES.pointing.fr, zone: `le bloc ${BOX_NAMES.fr[e.box]}`, cells: involved,
+      text: `Dans le bloc **${BOX_NAMES.fr[e.box]}**, le **${e.digit}** ne peut aller qu’en ${unitLabel(e.line)} (${e.cells.map(cellName).join(", ")}). Il occupera forcément l’une de ces cases → on retire le ${e.digit} du reste de ${unitLabel(e.line)} : ${remTxt}.`,
     };
   }
   if (e.kind === "claiming") {
     return {
       title: TECH_NAMES.claiming.fr, zone: unitLabel(e.line), cells: involved,
-      text: `Sur ${unitLabel(e.line)}, le **${e.digit}** est confiné au bloc **${BOX_NAMES[e.box]}** (${e.cells.map(cellName).join(", ")}). Il occupera l’une de ces cases → on retire le ${e.digit} des autres cases de ce bloc : ${remTxt}.`,
+      text: `Sur ${unitLabel(e.line)}, le **${e.digit}** est confiné au bloc **${BOX_NAMES.fr[e.box]}** (${e.cells.map(cellName).join(", ")}). Il occupera l’une de ces cases → on retire le ${e.digit} des autres cases de ce bloc : ${remTxt}.`,
     };
   }
   if (e.kind === "xWing" || e.kind === "swordfish") {
@@ -851,8 +871,8 @@ function describeElim(e) {
     const erLineX = row ? `la colonne ${e.erCol + 1}` : `la ligne ${e.erRow + 1}`;
     const erLineT = row ? `la ligne ${e.erRow + 1}` : `la colonne ${e.erCol + 1}`;
     return {
-      title: TECH_NAMES.emptyRectangle.fr, zone: `le bloc ${BOX_NAMES[e.box]}`, cells: involved,
-      text: `Sur ${unitLabel(e.linkLine)}, le **${e.digit}** n’a que deux places : ${cellName(X)} et ${cellName(Y)}. Dans le bloc **${BOX_NAMES[e.box]}**, tous les **${e.digit}** tiennent dans la ligne ${e.erRow + 1} et la colonne ${e.erCol + 1} — le reste du rectangle est vide. Si ${cellName(t)} était un ${e.digit}, ${cellName(Y)} perdrait le sien (${shareTxt}) → ${cellName(X)} = ${e.digit} → ${erLineX} se viderait, et ${cellName(t)} viderait lui-même ${erLineT} : le bloc n’aurait plus aucune place pour le ${e.digit} → ${remTxt}.`,
+      title: TECH_NAMES.emptyRectangle.fr, zone: `le bloc ${BOX_NAMES.fr[e.box]}`, cells: involved,
+      text: `Sur ${unitLabel(e.linkLine)}, le **${e.digit}** n’a que deux places : ${cellName(X)} et ${cellName(Y)}. Dans le bloc **${BOX_NAMES.fr[e.box]}**, tous les **${e.digit}** tiennent dans la ligne ${e.erRow + 1} et la colonne ${e.erCol + 1} — le reste du rectangle est vide. Si ${cellName(t)} était un ${e.digit}, ${cellName(Y)} perdrait le sien (${shareTxt}) → ${cellName(X)} = ${e.digit} → ${erLineX} se viderait, et ${cellName(t)} viderait lui-même ${erLineT} : le bloc n’aurait plus aucune place pour le ${e.digit} → ${remTxt}.`,
     };
   }
   if (e.kind === "coloring") {
@@ -871,7 +891,7 @@ function describeElim(e) {
   if (e.kind === "sueDeCoq") {
     return {
       title: TECH_NAMES.sueDeCoq.fr, zone: unitLabel(e.line), cells: involved,
-      text: `**${e.inter.map(cellName).join("** et **")}** (intersection de ${unitLabel(e.line)} et du bloc ${BOX_NAMES[e.box]}) puisent dans le pool {${listD(e.S)}}. **${cellName(e.lineBi)}** {${listD(e.pairLine)}} réserve sa paire côté ligne, **${cellName(e.boxBi)}** {${listD(e.pairBox)}} la sienne côté bloc : chaque chiffre du pool a sa place → on retire {${listD(e.pairLine)}} du reste de ${unitLabel(e.line)} et {${listD(e.pairBox)}} du reste du bloc : ${remTxt}.`,
+      text: `**${e.inter.map(cellName).join("** et **")}** (intersection de ${unitLabel(e.line)} et du bloc ${BOX_NAMES.fr[e.box]}) puisent dans le pool {${listD(e.S)}}. **${cellName(e.lineBi)}** {${listD(e.pairLine)}} réserve sa paire côté ligne, **${cellName(e.boxBi)}** {${listD(e.pairBox)}} la sienne côté bloc : chaque chiffre du pool a sa place → on retire {${listD(e.pairLine)}} du reste de ${unitLabel(e.line)} et {${listD(e.pairBox)}} du reste du bloc : ${remTxt}.`,
     };
   }
   if (e.kind === "remotePair") {
@@ -888,27 +908,146 @@ function describeElim(e) {
   };
 }
 
+function describeElimEn(e) {
+  const cn = (i) => cellName(i, "en");
+  const uL = (u) => unitLabel(u, "en");
+  const remTxt = e.removals.map((r) => `${cn(r.cell)} −{${r.digits.join(", ")}}`).join(" · ");
+  const involved = [...e.cells, ...e.removals.map((r) => r.cell)];
+  if (e.kind === "nakedPair") {
+    const [A, B] = e.cells, [x, y] = e.digits;
+    return {
+      title: TECH_NAMES.nakedPair.en, zone: uL(e.unit), cells: involved,
+      text: `In ${uL(e.unit)}, **${cn(A)}** and **${cn(B)}** each accept only {${x}, ${y}}. Those two digits are therefore reserved for those two cells → remove them from the rest of the zone: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "pointing") {
+    return {
+      title: TECH_NAMES.pointing.en, zone: `the ${BOX_NAMES.en[e.box]} box`, cells: involved,
+      text: `In the **${BOX_NAMES.en[e.box]}** box, the **${e.digit}** can only go in ${uL(e.line)} (${e.cells.map(cn).join(", ")}). It will necessarily occupy one of those cells → remove the ${e.digit} from the rest of ${uL(e.line)}: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "claiming") {
+    return {
+      title: TECH_NAMES.claiming.en, zone: uL(e.line), cells: involved,
+      text: `On ${uL(e.line)}, the **${e.digit}** is confined to the **${BOX_NAMES.en[e.box]}** box (${e.cells.map(cn).join(", ")}). It will occupy one of those cells → remove the ${e.digit} from the other cells of that box: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "xWing" || e.kind === "swordfish") {
+    const name = TECH_NAMES[e.kind].en;
+    const base = e.lineType === "row" ? "rows" : "columns";
+    const perp = e.lineType === "row" ? "columns" : "rows";
+    return {
+      title: name, zone: `${e.size} ${base}`, cells: involved,
+      text: `The **${e.digit}** is confined to the same ${e.size} ${perp} across ${e.size} ${base} (${e.cells.map(cn).join(", ")}). Those ${e.size} ${perp} will host the ${e.digit} on those ${base} → remove it from the rest of those ${perp}: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "skyscraper") {
+    return {
+      title: TECH_NAMES.skyscraper.en, zone: `the ${e.digit}`, cells: involved,
+      text: `The **${e.digit}** forms two strong links sharing a base (${e.base.map(cn).join(", ")}). One of the two “roofs” (${e.roof.map(cn).join(", ")}) is therefore necessarily a ${e.digit} → any cell seeing both roofs loses the ${e.digit}: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "xyWing") {
+    return {
+      title: TECH_NAMES.xyWing.en, zone: `the pivot ${cn(e.pivot)}`, cells: involved,
+      text: `The pivot **${cn(e.pivot)}** {${e.x}, ${e.y}} is linked to the pincers **${cn(e.pincers[0])}** {${e.x}, ${e.c}} and **${cn(e.pincers[1])}** {${e.y}, ${e.c}}. If the pivot is ${e.x} → ${cn(e.pincers[0])} = ${e.c}; if it is ${e.y} → ${cn(e.pincers[1])} = ${e.c}. Either way, a **${e.c}** appears in one of the pincers → any cell seeing both pincers loses it: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "xyzWing") {
+    return {
+      title: TECH_NAMES.xyzWing.en, zone: `the pivot ${cn(e.pivot)}`, cells: involved,
+      text: `The pivot **${cn(e.pivot)}** {${e.x}, ${e.y}, ${e.z}} is linked to the pincers **${cn(e.pincers[0])}** {${e.x}, ${e.z}} and **${cn(e.pincers[1])}** {${e.y}, ${e.z}}. If the pivot is ${e.x} → ${cn(e.pincers[0])} = ${e.z}; if it is ${e.y} → ${cn(e.pincers[1])} = ${e.z}; if it is ${e.z}, it is itself the ${e.z}. In all three cases a **${e.z}** appears in the trio → only cells seeing **all three** lose it: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "wWing") {
+    const [A, B] = e.bivalues, [e1, e2] = e.link;
+    return {
+      title: TECH_NAMES.wWing.en, zone: `the pair {${e.a}, ${e.b}}`, cells: involved,
+      text: `**${cn(A)}** and **${cn(B)}** carry the same pair {${e.a}, ${e.b}} without seeing each other. In ${uL(e.linkUnit)}, the **${e.b}** has only two places: ${cn(e1)} (which sees ${cn(A)}) and ${cn(e2)} (which sees ${cn(B)}) — one of the two is necessarily a ${e.b}. If ${cn(e1)} = ${e.b} → ${cn(A)} = ${e.a}; if ${cn(e2)} = ${e.b} → ${cn(B)} = ${e.a}. Either way a **${e.a}** appears → any cell seeing both ${cn(A)} and ${cn(B)} loses the ${e.a}: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "kite") {
+    return {
+      title: TECH_NAMES.kite.en, zone: `the ${e.digit}`, cells: involved,
+      text: `The **${e.digit}** has only two places on row ${e.row + 1} and two on column ${e.col + 1}, including ${e.blockPair.map(cn).join(" and ")} in the same box: they cannot both carry the ${e.digit} → one of the free ends (${e.ends.map(cn).join(", ")}) necessarily carries it. Any cell seeing both ends loses the ${e.digit}: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "emptyRectangle") {
+    const tc = e.removals[0].cell, [X, Y] = e.link;
+    const row = e.linkLine.type === "row";
+    const shareTxt = row ? "same column" : "same row";
+    const erLineX = row ? `column ${e.erCol + 1}` : `row ${e.erRow + 1}`;
+    const erLineT = row ? `row ${e.erRow + 1}` : `column ${e.erCol + 1}`;
+    return {
+      title: TECH_NAMES.emptyRectangle.en, zone: `the ${BOX_NAMES.en[e.box]} box`, cells: involved,
+      text: `On ${uL(e.linkLine)}, the **${e.digit}** has only two places: ${cn(X)} and ${cn(Y)}. In the **${BOX_NAMES.en[e.box]}** box, every **${e.digit}** fits within row ${e.erRow + 1} and column ${e.erCol + 1} — the rest of the rectangle is empty. If ${cn(tc)} were a ${e.digit}, ${cn(Y)} would lose its own (${shareTxt}) → ${cn(X)} = ${e.digit} → ${erLineX} would empty out, and ${cn(tc)} itself would empty ${erLineT}: the box would have no place left for the ${e.digit} → ${remTxt}.`,
+    };
+  }
+  if (e.kind === "coloring") {
+    const chainTxt = e.chainCells.map(cn).join(", ");
+    if (e.rule === 2) {
+      return {
+        title: TECH_NAMES.coloring.en, zone: `the ${e.digit}`, cells: involved,
+        text: `Following the conjugate links of the **${e.digit}** (${chainTxt}), the cells are colored in two alternating colors: one is entirely true, the other entirely false. Yet ${e.wrap.map(cn).join(" and ")} share ${uL(e.wrapUnit)} with the same color: that color is false everywhere → ${remTxt}.`,
+      };
+    }
+    return {
+      title: TECH_NAMES.coloring.en, zone: `the ${e.digit}`, cells: involved,
+      text: `Following the conjugate links of the **${e.digit}** (${chainTxt}), the cells are colored in two alternating colors — one of the two is necessarily true. Any outside cell seeing both colors therefore cannot carry the ${e.digit}: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "sueDeCoq") {
+    return {
+      title: TECH_NAMES.sueDeCoq.en, zone: uL(e.line), cells: involved,
+      text: `**${e.inter.map(cn).join("** and **")}** (intersection of ${uL(e.line)} and the ${BOX_NAMES.en[e.box]} box) draw from the pool {${listD(e.S)}}. **${cn(e.lineBi)}** {${listD(e.pairLine)}} reserves its pair on the line side, **${cn(e.boxBi)}** {${listD(e.pairBox)}} its own on the box side: every digit of the pool has its place → remove {${listD(e.pairLine)}} from the rest of ${uL(e.line)} and {${listD(e.pairBox)}} from the rest of the box: ${remTxt}.`,
+    };
+  }
+  if (e.kind === "remotePair") {
+    const [x, y] = e.digits;
+    return {
+      title: TECH_NAMES.remotePair.en, zone: `the pair {${x}, ${y}}`, cells: involved,
+      text: `These cells contain only {${x}, ${y}} and chain together alternating the two values (${e.cells.map(cn).join(", ")}). Any cell seeing two links of opposite colors can be neither ${x} nor ${y}: ${remTxt}.`,
+    };
+  }
+  const [a, b] = e.digits;
+  return {
+    title: TECH_NAMES.hiddenPair.en, zone: uL(e.unit), cells: involved,
+    text: `In ${uL(e.unit)}, the digits **${a}** and **${b}** appear only in ${cn(e.cells[0])} and ${cn(e.cells[1])}. Those two cells are reserved for them: their other candidates vanish (${remTxt}).`,
+  };
+}
+
 /* ---------- Plan pédagogique pour une case ---------- */
-function blockReason(grid, j, d, unit) {
+function blockReason(grid, j, d, unit, lang = "fr") {
+  const en = lang === "en";
+  const cn = (i) => cellName(i, lang);
   const r = rowOf(j), c = colOf(j);
   let k = ROWS[r].find((x) => grid[x] === d);
-  if (k !== undefined) return `impossible, un ${d} occupe déjà sa ligne (${cellName(k)})`;
+  if (k !== undefined) return en
+    ? `impossible — a ${d} already sits in its row (${cn(k)})`
+    : `impossible, un ${d} occupe déjà sa ligne (${cn(k)})`;
   k = COLS[c].find((x) => grid[x] === d);
-  if (k !== undefined) return `impossible, un ${d} occupe déjà sa colonne (${cellName(k)})`;
+  if (k !== undefined) return en
+    ? `impossible — a ${d} already sits in its column (${cn(k)})`
+    : `impossible, un ${d} occupe déjà sa colonne (${cn(k)})`;
   if (unit.type !== "box") {
     k = BOXES[boxOf(j)].find((x) => grid[x] === d);
-    if (k !== undefined) return `impossible, un ${d} est déjà dans son bloc (${cellName(k)})`;
+    if (k !== undefined) return en
+      ? `impossible — a ${d} is already in its box (${cn(k)})`
+      : `impossible, un ${d} est déjà dans son bloc (${cn(k)})`;
   }
-  return `le ${d} y a été éliminé par les étapes ci-dessus`;
+  return en
+    ? `the ${d} was eliminated there by the steps above`
+    : `le ${d} y a été éliminé par les étapes ci-dessus`;
 }
-function finalizeNaked(grid, t, digit, chain, baseCands) {
+function finalizeNaked(grid, t, digit, chain, baseCands, lang = "fr") {
+  if (lang === "en") return finalizeNakedEn(grid, t, digit, chain, baseCands);
   const r = rowOf(t) + 1, c = colOf(t) + 1, b = boxOf(t), name = cellName(t);
   const rowD = presentDigits(grid, ROWS[r - 1]);
   const colD = presentDigits(grid, COLS[c - 1]);
   const boxD = presentDigits(grid, BOXES[b]);
   const paras = [];
   paras.push(`**Technique : candidat unique** (naked single). On dresse l’inventaire de tout ce que la case ${name} « voit ».`);
-  paras.push(`• Ligne ${r} : ${listD(rowD)}  ·  Colonne ${c} : ${listD(colD)}  ·  Bloc ${BOX_NAMES[b]} : ${listD(boxD)}`);
+  paras.push(`• Ligne ${r} : ${listD(rowD)}  ·  Colonne ${c} : ${listD(colD)}  ·  Bloc ${BOX_NAMES.fr[b]} : ${listD(boxD)}`);
   if (chain.length) {
     const removed = baseCands.filter((d) => d !== digit);
     paras.push(`Avec la grille seule, les candidats de ${name} étaient {${listD(baseCands)}}. Les éliminations ci-dessus retirent ${listD(removed)}.`);
@@ -926,7 +1065,33 @@ function finalizeNaked(grid, t, digit, chain, baseCands) {
     unitCells: [...ROWS[r - 1], ...COLS[c - 1], ...BOXES[b]],
   };
 }
-function finalizeHidden(grid, t, digit, unit, chain) {
+function finalizeNakedEn(grid, t, digit, chain, baseCands) {
+  const r = rowOf(t) + 1, c = colOf(t) + 1, b = boxOf(t), name = cellName(t, "en");
+  const rowD = presentDigits(grid, ROWS[r - 1]);
+  const colD = presentDigits(grid, COLS[c - 1]);
+  const boxD = presentDigits(grid, BOXES[b]);
+  const paras = [];
+  paras.push(`**Technique: naked single.** Take stock of everything cell ${name} “sees”.`);
+  paras.push(`• Row ${r}: ${listD(rowD)}  ·  Column ${c}: ${listD(colD)}  ·  ${BOX_NAMES.en[b][0].toUpperCase()}${BOX_NAMES.en[b].slice(1)} box: ${listD(boxD)}`);
+  if (chain.length) {
+    const removed = baseCands.filter((d) => d !== digit);
+    paras.push(`From the grid alone, the candidates of ${name} were {${listD(baseCands)}}. The eliminations above remove ${listD(removed)}.`);
+  }
+  paras.push(`With every other digit excluded, only the **${digit}** remains → **${name} = ${digit}**.`);
+  const hint1 = chain.length
+    ? `Cell ${name} resists simple counting. First look for a **${chain[0].title.toLowerCase()}** around ${chain[0].zone}: it will eliminate useful candidates.`
+    : `Isolate cell ${name}: sweep its row, its column and its box, and mentally cross out every digit already placed. Count what survives…`;
+  const hint2 = chain.length
+    ? `${chain[0].text} — Now redo the inventory of ${name}’s candidates: almost none are left.`
+    : `Its row already rules out {${listD(rowD)}} and its column {${listD(colD)}}. Add the digits of the box… a single survivor.`;
+  return {
+    kind: "ok", target: t, digit, chain, hint1, hint2, paras,
+    tech: `${TECH_NAMES.nakedSingle.en}${chain.length ? " (after eliminations)" : ""}`,
+    unitCells: [...ROWS[r - 1], ...COLS[c - 1], ...BOXES[b]],
+  };
+}
+function finalizeHidden(grid, t, digit, unit, chain, lang = "fr") {
+  if (lang === "en") return finalizeHiddenEn(grid, t, digit, unit, chain);
   const name = cellName(t), uL = unitLabel(unit);
   const filled = [], free = [];
   for (const j of unit.cells) {
@@ -948,6 +1113,32 @@ function finalizeHidden(grid, t, digit, unit, chain) {
   return {
     kind: "ok", target: t, digit, chain, hint1, hint2, paras,
     tech: `${TECH_NAMES.hiddenSingle.fr} (${typeFr})${chain.length ? " + éliminations" : ""}`,
+    unitCells: [...unit.cells],
+  };
+}
+function finalizeHiddenEn(grid, t, digit, unit, chain) {
+  const cn = (i) => cellName(i, "en");
+  const name = cn(t), uL = unitLabel(unit, "en");
+  const filled = [], free = [];
+  for (const j of unit.cells) {
+    if (j === t) continue;
+    if (grid[j] !== 0) filled.push(`${cn(j)}=${grid[j]}`);
+    else free.push(`• ${cn(j)}: ${blockReason(grid, j, digit, unit, "en")}`);
+  }
+  const paras = [];
+  paras.push(`**Technique: hidden single.** Question: where can the **${digit}** go in ${uL}?`);
+  if (filled.length) paras.push(`Cells already occupied: ${filled.join(", ")}.`);
+  if (free.length) {
+    paras.push(`Remaining free cells — why the ${digit} is impossible there:`);
+    paras.push(...free);
+  }
+  paras.push(`Only one cell of ${uL} can still host the ${digit} → **${name} = ${digit}**.`);
+  const hint1 = `Don’t stare at the cell alone: widen your view to the whole **${uL.replace(/^the /, "")}**. One digit has only one possible place left there — spot it by sweeping the digits already placed in the rows and columns crossing that zone.`;
+  const hint2 = `The digit to place is the **${digit}**. Review each free cell of ${uL}: all but one already “see” a ${digit} (same row, same column or same box).`;
+  const typeEn = unit.type === "box" ? "box" : unit.type === "row" ? "row" : "column";
+  return {
+    kind: "ok", target: t, digit, chain, hint1, hint2, paras,
+    tech: `${TECH_NAMES.hiddenSingle.en} (${typeEn})${chain.length ? " + eliminations" : ""}`,
     unitCells: [...unit.cells],
   };
 }
@@ -1041,7 +1232,7 @@ function tagPlan(plan, techKind, kept, techZone) {
    recréeraient des grilles certifiées résolubles mais infinissables en partie. */
 const MAX_CHAIN = 8;
 
-export function buildPlan(grid, target) {
+export function buildPlan(grid, target, lang = "fr") {
   if (grid[target] !== 0) return null;
   const baseCands = candidatesFromGrid(grid, target);
   const prefer = new Set([...PEERS[target], target]);
@@ -1056,7 +1247,7 @@ export function buildPlan(grid, target) {
       const cs = [...cands[target]];
       if (cs.length === 1) {
         const kept = pruneChain(grid, chain, { type: "naked", target, digit: cs[0], baseCands });
-        const plan = finalizeNaked(grid, target, cs[0], kept.map(describeElim), baseCands);
+        const plan = finalizeNaked(grid, target, cs[0], kept.map((x) => describeElim(x, lang)), baseCands, lang);
         plan.rawChain = kept;
         plan.difficulty = planDifficulty(1, kept);
         return tagPlan(plan, "nakedSingle", kept, null);
@@ -1064,10 +1255,10 @@ export function buildPlan(grid, target) {
       const hs = findHiddenSingleFor(grid, cands, target);
       if (hs) {
         const kept = pruneChain(grid, chain, { type: "hidden", target, digit: hs.digit, unit: hs.unit });
-        const plan = finalizeHidden(grid, target, hs.digit, hs.unit, kept.map(describeElim));
+        const plan = finalizeHidden(grid, target, hs.digit, hs.unit, kept.map((x) => describeElim(x, lang)), lang);
         plan.rawChain = kept;
         plan.difficulty = planDifficulty(2, kept);
-        return tagPlan(plan, "hiddenSingle", kept, unitLabel(hs.unit));
+        return tagPlan(plan, "hiddenSingle", kept, unitLabel(hs.unit, lang));
       }
       if (chain.length >= MAX_CHAIN) break; // palier suivant
       const e = findElim(cands, prefer, maxTier) || findElim(cands, null, maxTier);
@@ -1329,8 +1520,12 @@ function elimHighlight(e) {
 }
 
 // « Regarde du côté de {zone} » avec la contraction française qui va bien.
-function hintFromZone(e, zone) {
+function hintFromZone(e, zone, lang = "fr") {
   // Pour les poissons, la zone (« 2 lignes ») est moins parlante que le chiffre.
+  if (lang === "en") {
+    const z = e.kind === "xWing" || e.kind === "swordfish" ? `the ${e.digit}` : zone;
+    return `Look around ${z}.`;
+  }
   const z = e.kind === "xWing" || e.kind === "swordfish" ? `le ${e.digit}` : zone;
   const de = z.startsWith("le ") ? `du ${z.slice(3)}`
     : z.startsWith("les ") ? `des ${z.slice(4)}` : `de ${z}`;
@@ -1339,7 +1534,7 @@ function hintFromZone(e, zone) {
 
 // Emballe une élimination trouvée en exercice complet — notes, removals,
 // surlignage, explication, indice et bonus — depuis des valeurs + candidats.
-export function packageExercise(kind, e, values, candsArr) {
+export function packageExercise(kind, e, values, candsArr, lang = "fr") {
   const notes = {};
   for (let i = 0; i < 81; i++) {
     if (values[i] === 0 && candsArr[i].length) notes[i] = candsArr[i];
@@ -1349,11 +1544,11 @@ export function packageExercise(kind, e, values, candsArr) {
     removals[r.cell] = [...new Set([...(removals[r.cell] || []), ...r.digits])]
       .sort((a, b) => a - b);
   }
-  const d = describeElim(e);
+  const d = describeElim(e, lang);
   const { unit, focus } = elimHighlight(e);
   const ex = {
     kind, given: values, notes, removals, unit, focus,
-    explain: [d.text], hint: hintFromZone(e, d.zone),
+    explain: [d.text], hint: hintFromZone(e, d.zone, lang),
   };
   // Bonus : une case qui passe à candidat unique après application (l'unicité
   // de la solution garantit que ce candidat est le bon chiffre).
@@ -1367,7 +1562,8 @@ export function packageExercise(kind, e, values, candsArr) {
   }
   return ex;
 }
-const exerciseFromElim = (kind, step) => packageExercise(kind, step.e, step.values, step.cands);
+const exerciseFromElim = (kind, step, lang = "fr") =>
+  packageExercise(kind, step.e, step.values, step.cands, lang);
 
 /* ---------- Transformations : symétries du sudoku ----------
    Toute position reste logiquement identique sous permutation des chiffres,
@@ -1430,7 +1626,7 @@ export function transformPosition(pos, t) {
 
 // Singles : on cherche dans l'état INITIAL d'une grille creusée — buildPlan
 // fournit la preuve complète (paras, unitCells, indices contextuels).
-function exerciseFromSingle(kind, g) {
+function exerciseFromSingle(kind, g, lang = "fr") {
   const cands = allCands(g);
   for (let t = 0; t < 81; t++) {
     if (g[t] !== 0) continue;
@@ -1440,7 +1636,7 @@ function exerciseFromSingle(kind, g) {
       // Un vrai single caché : plusieurs candidats, mais une seule place pour lui.
       if (cands[t].size < 2 || !findHiddenSingleFor(g, cands, t)) continue;
     }
-    const plan = buildPlan(g, t);
+    const plan = buildPlan(g, t, lang);
     if (!plan || plan.chain.length) continue; // preuve directe uniquement
     return {
       kind, given: g.slice(), notes: {}, removals: {},
@@ -1643,7 +1839,7 @@ function refineConstructive(g, patternOk, rng, deadline) {
 // validée par l'oracle : finder du kind sur candidats bruts (prefer=victimes)
 // + solution unique, puis raffinée (creusage + anti-singles) jusqu'à l'état
 // « propre ». null si kind non couvert ou budget épuisé.
-export function buildConstructiveExercise(kind, { budgetMs = 1500, rng = Math.random } = {}) {
+export function buildConstructiveExercise(kind, { budgetMs = 1500, rng = Math.random, lang = "fr" } = {}) {
   const build = CONSTRUCTORS[kind];
   if (!build) return null;
   const deadline = Date.now() + budgetMs;
@@ -1662,7 +1858,7 @@ export function buildConstructiveExercise(kind, { budgetMs = 1500, rng = Math.ra
     const givens = g.reduce((n, v) => n + (v !== 0), 0);
     if (givens < GIVENS_MIN || givens > GIVENS_MAX) continue;
     const cands = allCands(g);
-    return packageExercise(kind, patternOk(g), g, cands.map((s) => [...s].sort((x, y) => x - y)));
+    return packageExercise(kind, patternOk(g), g, cands.map((s) => [...s].sort((x, y) => x - y)), lang);
   }
   return null;
 }
@@ -1687,7 +1883,7 @@ function isRawCapture(step) {
 // les captures brutes sont acceptées ; au-delà, la première capture
 // « travaillée » rencontrée est servie en repli avec workedNotes: true.
 // null si la configuration est trop rare.
-export function findTechniqueExercise(kind, { timeBoxMs = 4000, rng = Math.random } = {}) {
+export function findTechniqueExercise(kind, { timeBoxMs = 4000, rng = Math.random, lang = "fr" } = {}) {
   const deadline = Date.now() + timeBoxMs;
   const frac = RAW_FRACTION_BY_KIND[kind] !== undefined ? RAW_FRACTION_BY_KIND[kind] : 2 / 3;
   const rawDeadline = Date.now() + timeBoxMs * frac;
@@ -1697,16 +1893,16 @@ export function findTechniqueExercise(kind, { timeBoxMs = 4000, rng = Math.rando
     if (worked && Date.now() >= rawDeadline) return worked;
     const g = digUnguarded(generateFullGrid(rng), rng);
     if (isSingle) {
-      const ex = exerciseFromSingle(kind, g);
+      const ex = exerciseFromSingle(kind, g, lang);
       if (ex) return ex; // l'état initial est brut par construction
       continue;
     }
     let found = null;
     solveHumanlySteps(g, (step) => {
       if (step.type !== "elim" || step.e.kind !== kind) return false;
-      if (isRawCapture(step)) { found = exerciseFromElim(kind, step); return true; }
+      if (isRawCapture(step)) { found = exerciseFromElim(kind, step, lang); return true; }
       if (!worked) {
-        worked = exerciseFromElim(kind, step);
+        worked = exerciseFromElim(kind, step, lang);
         worked.workedNotes = true;
       }
       return true; // les élims s'accumulent : cette grille ne redeviendra pas brute
