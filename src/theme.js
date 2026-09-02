@@ -32,6 +32,7 @@ export const C_LIGHT = {
   gridPaper: "#E5EAE8",   // quadrillage du fond papier
   glass: "rgba(255,255,255,0.8)",   // encarts translucides
   overlay: "rgba(241,244,243,0.85)", // voile de génération/scan
+  accentShadow: "rgba(18,118,111,0.16)", // halo teal des cartes accent (suit le teal du thème)
   onInk: "#FFFFFF",       // texte sur fond C.ink (boutons primaires, tuile chiffre)
   onAccent: "#FFFFFF",    // texte sur fond C.teal (boutons accent, chips actives)
   hintBg: "#FFFBEA", hintBorder: "#EBDB9B", hintInk: "#8A6D0B", // cartes d'étape
@@ -63,6 +64,7 @@ export const C_DARK = {
   gridPaper: "#1B2023",
   glass: "rgba(30,36,40,0.8)",
   overlay: "rgba(20,24,27,0.85)",
+  accentShadow: "rgba(63,183,170,0.20)",
   onInk: "#14181B",
   onAccent: "#0F1A18",
   hintBg: "#2C2712", hintBorder: "#4A4120", hintInk: "#E3C86B",

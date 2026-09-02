@@ -97,7 +97,7 @@ function Card({ emoji, title, sub, onClick, accent }) {
       border: `1px solid ${accent ? C.teal : C.borderSoft}`, borderRadius: 14,
       padding: "14px 16px", display: "flex", alignItems: "center", gap: 14,
       cursor: "pointer", fontFamily: "inherit",
-      boxShadow: accent ? `0 8px 24px rgba(18,118,111,0.16)` : "0 8px 24px rgba(31,39,46,0.08)",
+      boxShadow: accent ? `0 8px 24px ${C.accentShadow}` : "0 8px 24px rgba(31,39,46,0.08)",
       WebkitTapHighlightColor: "transparent",
     }}>
       <span style={{ fontSize: 26, lineHeight: 1 }}>{emoji}</span>
@@ -1301,7 +1301,14 @@ export default function App() {
           if (s.phase === "play") {
             const gb = s.grid.map((v, i) => (gv[i] ? v : 0));
             const { count, solution } = solveGrid(gb);
-            if (solution) { setSolRef(solution); setMultiSol(count > 1); setPhase("play"); }
+            if (solution) {
+              setSolRef(solution); setMultiSol(count > 1); setPhase("play");
+              // Grille restaurée DÉJÀ complète : la victoire a été comptée
+              // dans la session où elle a eu lieu — sans cette garde, `won`
+              // redeviendrait vrai au boot et recordWin serait rejoué à
+              // chaque lancement (stats gonflées, finished > started).
+              if (isComplete(s.grid)) wonHandledRef.current = true;
+            }
           }
           if (s.level >= 1 && s.level <= 5) setGameLevel(s.level);
           if (s.origin && s.origin.type === "daily" && typeof s.origin.date === "string") {
@@ -1451,9 +1458,12 @@ export default function App() {
     const seconds = addSegment(elapsedRef.current, segStartRef.current, Date.now());
     bumpStats((s) => recordWin(s, { levelKey: levelKey(gameLevel), seconds, hints: hintsUsed, assisted }));
     if (gameOrigin && gameOrigin.type === "daily" && !dailyDone[gameOrigin.date]) {
-      const nextDone = { ...dailyDone, [gameOrigin.date]: true };
-      setDailyDone(nextDone);
+      // Fusionner le `done` RELU du store (pas seulement l'état React, hydraté
+      // au boot) : un autre onglet a pu enregistrer des réussites entre-temps —
+      // les écraser casserait sa série. Même approche que startDaily.
       const store = readSync(KEYS.daily) || {};
+      const nextDone = { ...(store.done || {}), ...dailyDone, [gameOrigin.date]: true };
+      setDailyDone(nextDone);
       persist(KEYS.daily, { ...store, done: nextDone });
       const streak = currentStreak(nextDone, localDateStr());
       flash(streak > 1 ? t("flash.dailyStreak", { n: streak }) : t("flash.dailyDone"), "success", 7000);
