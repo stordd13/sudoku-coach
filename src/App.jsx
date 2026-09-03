@@ -17,6 +17,7 @@ import { C_LIGHT, C_DARK, cssVars, META_COLOR } from "./theme.js";
 import { TECH_NAMES, withArticle, frTechList } from "./techNames.js";
 import { t, setLang, getLang, detectLang } from "./i18n.js";
 import { notationFor } from "./notation.js";
+import { lessonStepScript, planStepScript, exerciseStepScript, stepReveal } from "./stepper.js";
 import { cellAriaLabel } from "./a11y.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
@@ -88,6 +89,19 @@ function LinkBtn({ children, onClick }) {
       style={{ background: "none", border: "none", color: C.textSoft, textDecoration: "underline", fontSize: 12.5, cursor: "pointer", padding: "13px 8px", fontFamily: "inherit", minHeight: 44, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
       {children}
     </button>
+  );
+}
+/* Contrôles du pas à pas — purement présentationnel, l'état vit chez le
+   consommateur (stepIx dans LearnView, coachStep dans App). */
+function Stepper({ n, total, onNext, onAll }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: C.gray, whiteSpace: "nowrap" }}>
+        {t("stepper.progress", { n, total })}
+      </span>
+      <Btn variant="accent" grow onClick={onNext}>{t("stepper.next")}</Btn>
+      <Btn onClick={onAll}>{t("stepper.all")}</Btn>
+    </div>
   );
 }
 function Card({ emoji, title, sub, onClick, accent }) {
@@ -343,10 +357,15 @@ function PaywallCard({ onUnlocked }) {
 /* ================================================================
    Onglet APPRENDRE
    ================================================================ */
-function LessonBoard({ lesson, revealed }) {
+/* stepView (optionnel) : résultat de stepReveal — restreint l'affichage à
+   l'étape courante (cases encadrées, strikes passés en gris / courants en
+   rouge, réponse à la conclusion). null → révélation d'un bloc (revealed). */
+function LessonBoard({ lesson, revealed, stepView }) {
   const unitSet = useMemo(() => new Set(lesson.unit || []), [lesson]);
   const focusSet = useMemo(() => new Set(lesson.focus || []), [lesson]);
   const removals = lesson.removals || {};
+  const stepping = !!(stepView && stepView.cells.size); // étape courante ("all" → rendu classique)
+  const showAns = stepView ? stepView.showAnswer : revealed;
   return (
     <div style={{
       width: W, aspectRatio: "1 / 1", display: "grid",
@@ -363,8 +382,11 @@ function LessonBoard({ lesson, revealed }) {
           borderRight: c === 8 ? "none" : c % 3 === 2 ? `2px solid ${C.ink}` : `1px solid ${C.line}`,
           borderBottom: r === 8 ? "none" : r % 3 === 2 ? `2px solid ${C.ink}` : `1px solid ${C.line}`,
         };
-        if (focusSet.has(i)) st.boxShadow = `inset 0 0 0 2px ${C.yellow}`;
-        if (i === lesson.target) st.boxShadow = `inset 0 0 0 3px ${revealed ? C.teal : C.yellow}`;
+        if (!stepping && focusSet.has(i)) st.boxShadow = `inset 0 0 0 2px ${C.yellow}`;
+        if (stepping && stepView.cells.has(i)) st.boxShadow = `inset 0 0 0 2.5px ${C.teal}`;
+        if (i === lesson.target && (!stepping || stepView.cells.has(i) || showAns)) {
+          st.boxShadow = `inset 0 0 0 3px ${showAns ? C.teal : C.yellow}`;
+        }
         const v = lesson.given[i];
         const nts = lesson.notes[i];
         return (
@@ -379,20 +401,23 @@ function LessonBoard({ lesson, revealed }) {
                 {Array.from({ length: 9 }, (_, k) => {
                   const d = k + 1;
                   if (!nts.includes(d)) return <div key={d} />;
-                  const removed = revealed && removals[i] && removals[i].includes(d);
-                  const isAns = revealed && i === lesson.target && d === lesson.answer;
+                  const struckNow = stepView
+                    ? !!(stepView.struckNow[i] && stepView.struckNow[i].has(d))
+                    : revealed && removals[i] && removals[i].includes(d);
+                  const struckPast = !!(stepView && stepView.struckPast[i] && stepView.struckPast[i].has(d));
+                  const isAns = showAns && i === lesson.target && d === lesson.answer;
                   return (
                     <div key={d} style={{
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: "min(2.8vw, 11px)", lineHeight: 1, fontFamily: NUMFONT,
                       fontWeight: isAns ? 800 : 600,
-                      color: removed ? C.red : isAns ? C.teal : C.gray,
-                      textDecoration: removed ? "line-through" : "none",
+                      color: struckNow ? C.red : isAns ? C.teal : C.gray,
+                      textDecoration: struckNow || struckPast ? "line-through" : "none",
                     }}>{d}</div>
                   );
                 })}
               </div>
-            ) : revealed && i === lesson.target ? (
+            ) : showAns && i === lesson.target ? (
               <span style={{ fontSize: "min(6.2vw, 27px)", fontWeight: 700, fontFamily: NUMFONT, color: C.teal }}>
                 {lesson.answer}
               </span>
@@ -425,14 +450,25 @@ function saveExoCache(c) {
 /* La leçon sélectionnée (ix) vit dans App : le coach (📚 Revoir cette
    technique) doit pouvoir l'imposer depuis l'écran de jeu. */
 function LearnView({ ix, onSelectIx }) {
-  const [revealed, setRevealed] = useState(false);
+  const [stepIx, setStepIx] = useState(null); // null (caché) | index d'étape | "all"
   const [showHint, setShowHint] = useState(false);
   const [exo, setExo] = useState(null); // null | "searching" | exercice
   const refillRef = useRef(new Set()); // kinds en cours de refill (anti-cumul)
   const L = LESSONS[ix];
   const LT = lessonText(L, getLang());
   const isExo = exo !== null && typeof exo === "object";
-  useEffect(() => { setRevealed(false); setShowHint(false); setExo(null); }, [ix]);
+  const revealed = stepIx !== null;
+  useEffect(() => { setStepIx(null); setShowHint(false); setExo(null); }, [ix]);
+
+  const script = useMemo(
+    () => (isExo ? exerciseStepScript(exo) : lessonStepScript(L)),
+    [isExo, exo, L]
+  );
+  const stepView = stepIx === null ? null : stepReveal(script, stepIx);
+  const startReveal = () => setStepIx(script && script.length > 1 ? 0 : "all");
+  // Textes visibles : accumulation jusqu'à l'étape courante (tout en "all").
+  const visibleSteps = (all) => (stepIx === "all" || !stepView ? all : all.slice(0, stepView.ix + 1));
+  const atEnd = stepIx === "all" || !stepView || stepView.ix >= stepView.total - 1;
 
   // Reremplit le cache en tranches courtes pour ne pas geler l'interface
   // pendant que l'utilisateur travaille l'exercice servi.
@@ -454,7 +490,7 @@ function LearnView({ ix, onSelectIx }) {
 
   function newExercise() {
     const kind = KIND_BY_LESSON[L.id];
-    setRevealed(false); setShowHint(false);
+    setStepIx(null); setShowHint(false);
     const cache = loadExoCache();
     const list = cache[kind] || [];
     if (list.length) {
@@ -469,12 +505,12 @@ function LearnView({ ix, onSelectIx }) {
     // setTimeout : laisse React peindre l'overlay avant la recherche synchrone.
     setTimeout(() => {
       const ex = getExercise(kind, { lang: getLang() }); // jamais null : repli transformation
-      setRevealed(false); setShowHint(false);
+      setStepIx(null); setShowHint(false);
       setExo(ex);
       if (ex) refillCache(kind);
     }, 50);
   }
-  function backToGuided() { setExo(null); setRevealed(false); setShowHint(false); }
+  function backToGuided() { setExo(null); setStepIx(null); setShowHint(false); }
 
   const board = isExo
     ? (revealed ? exo : { ...exo, unit: [], focus: [], target: undefined })
@@ -524,7 +560,7 @@ function LearnView({ ix, onSelectIx }) {
       </div>
 
       <div style={{ position: "relative" }}>
-        <LessonBoard lesson={board} revealed={revealed} />
+        <LessonBoard lesson={board} revealed={revealed} stepView={stepView} />
         {exo === "searching" && (
           <div style={{
             position: "absolute", inset: 0, background: C.overlay,
@@ -563,37 +599,47 @@ function LearnView({ ix, onSelectIx }) {
         )}
         {revealed && !isExo && (
           <>
-            {LT.steps.map((s, i) => (
+            {visibleSteps(LT.steps).map((s, i, arr) => (
               <div key={i} style={{
-                border: `1px solid ${C.hintBorder}`, background: C.hintBg,
+                border: `1px solid ${!atEnd && i === arr.length - 1 ? C.teal : C.hintBorder}`, background: C.hintBg,
                 borderRadius: 10, padding: "8px 10px", fontSize: 13.5, lineHeight: 1.5,
               }}>
                 <Rich text={s} />
               </div>
             ))}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12, background: C.ink, color: C.onInk,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
-              }}>{L.answer}</div>
-              <div style={{ fontSize: 13, color: C.gray }}>
-                {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(L.target, getLang())}</strong>
+            {!atEnd && (
+              <Stepper n={stepView.ix + 1} total={stepView.total}
+                onNext={() => setStepIx(stepView.ix + 1)} onAll={() => setStepIx("all")} />
+            )}
+            {(!stepView || stepView.showAnswer) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, background: C.ink, color: C.onInk,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 22, fontWeight: 800, fontFamily: NUMFONT,
+                }}>{L.answer}</div>
+                <div style={{ fontSize: 13, color: C.gray }}>
+                  {t("learn.in")} <strong style={{ color: C.ink }}>{cellName(L.target, getLang())}</strong>
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
         {revealed && isExo && (
           <>
-            {exo.explain.map((s, i) => (
+            {visibleSteps(exo.explain).map((s, i, arr) => (
               <div key={i} style={{
-                border: `1px solid ${C.hintBorder}`, background: C.hintBg,
+                border: `1px solid ${!atEnd && i === arr.length - 1 ? C.teal : C.hintBorder}`, background: C.hintBg,
                 borderRadius: 10, padding: "8px 10px", fontSize: 13.5, lineHeight: 1.5,
               }}>
                 <Rich text={s} />
               </div>
             ))}
-            {exo.target != null && (
+            {!atEnd && (
+              <Stepper n={stepView.ix + 1} total={stepView.total}
+                onNext={() => setStepIx(stepView.ix + 1)} onAll={() => setStepIx("all")} />
+            )}
+            {atEnd && exo.target != null && (
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{
                   width: 44, height: 44, borderRadius: 12, background: C.ink, color: C.onInk,
@@ -615,8 +661,8 @@ function LearnView({ ix, onSelectIx }) {
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
           {!revealed && <Btn grow onClick={() => setShowHint(true)} disabled={showHint || exo === "searching"}>{t("learn.hint")}</Btn>}
-          {!revealed && <Btn variant="accent" grow onClick={() => setRevealed(true)} disabled={exo === "searching"}>{t("btn.seeSolution")}</Btn>}
-          {revealed && <Btn grow onClick={() => { setRevealed(false); setShowHint(false); }}>{t("learn.hide")}</Btn>}
+          {!revealed && <Btn variant="accent" grow onClick={startReveal} disabled={exo === "searching"}>{t("btn.seeSolution")}</Btn>}
+          {revealed && <Btn grow onClick={() => { setStepIx(null); setShowHint(false); }}>{t("learn.hide")}</Btn>}
           {revealed && !isExo && ix < LESSONS.length - 1 && (
             <Btn variant="primary" grow onClick={() => onSelectIx(ix + 1)}>{t("learn.nextTech")}</Btn>
           )}
