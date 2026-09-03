@@ -16,6 +16,7 @@ import { initPurchases, getOffer, buy, restore } from "./purchases.js";
 import { C_LIGHT, C_DARK, cssVars, META_COLOR } from "./theme.js";
 import { TECH_NAMES, withArticle, frTechList } from "./techNames.js";
 import { t, setLang, getLang, detectLang } from "./i18n.js";
+import { notationFor } from "./notation.js";
 import { cellAriaLabel } from "./a11y.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
@@ -37,7 +38,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 const FREE_SCANS = 50;
 
 /* ---------- Réglages (persistés via KEYS.settings) ---------- */
-const DEFAULT_SETTINGS = { hideTimer: false, theme: "auto", lang: "auto" };
+const DEFAULT_SETTINGS = { hideTimer: false, theme: "auto", lang: "auto", notation: "auto" };
 
 /* ---------- Niveaux de difficulté (générateur) — libellés via i18n ---------- */
 const LEVEL_IDS = [1, 2, 3, 4, 5];
@@ -673,6 +674,11 @@ export default function App() {
   const [generating, setGenerating] = useState(false);
   const [sel, setSel] = useState(null);
   const [noteMode, setNoteMode] = useState(false);
+  /* Dernier mode appliqué par « Noter » ("snyder" | "complete" | null) —
+     pilote le LinkBtn de bascule ponctuelle. Le ref garde le flash
+     pédagogique à une seule apparition par partie. */
+  const [lastNotation, setLastNotation] = useState(null);
+  const notationFlashRef = useRef(false);
   const [plan, setPlan] = useState(null);
   const [level, setLevel] = useState(0); // 0 indice1, 1 indice2, 2 solution
   const [msg, setMsg] = useState(null);
@@ -844,7 +850,7 @@ export default function App() {
   /* ----- cycle de vie de la grille ----- */
   function newGame(lvl) {
     setScreen("board"); setGenerating(true);
-    setPlan(null); setSel(null); setNoteMode(false); clearErrors();
+    setPlan(null); setSel(null); setNoteMode(false); clearErrors(); resetNotationCue();
     // setTimeout : laisse React peindre l'overlay avant l'appel synchrone.
     setTimeout(() => {
       try {
@@ -877,7 +883,7 @@ export default function App() {
       return;
     }
     setScreen("board"); setGenerating(true);
-    setPlan(null); setSel(null); setNoteMode(false); clearErrors();
+    setPlan(null); setSel(null); setNoteMode(false); clearErrors(); resetNotationCue();
     // setTimeout : laisse React peindre l'overlay avant l'appel synchrone —
     // indispensable ici, la génération du défi n'a pas de time-box (cf. daily.js).
     setTimeout(() => {
@@ -918,7 +924,7 @@ export default function App() {
     resetClock();
     bumpStats((s) => recordStart(s, "custom"));
     histRef.current = [];
-    setPlan(null); setNoteMode(false);
+    setPlan(null); setNoteMode(false); resetNotationCue();
     if (multi) flash(t("flash.lockedMulti"), "warn");
     else flash(t("flash.locked"), "success");
   }
@@ -941,6 +947,7 @@ export default function App() {
   function backToEdit() {
     setPhase("edit"); setGivens(Array(81).fill(false));
     setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setNoteMode(false); setGameLevel(null); setGameOrigin(null);
+    resetNotationCue();
     resetClock();
     flash(t("flash.editMode"));
   }
@@ -950,6 +957,7 @@ export default function App() {
     setNotes(Array.from({ length: 81 }, () => []));
     setGivens(Array(81).fill(false));
     setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null); setGameOrigin(null);
+    resetNotationCue();
     resetClock();
   }
   function restartPuzzle() {
@@ -1142,31 +1150,41 @@ export default function App() {
     }
   }
 
-  /* ----- notes automatiques (bascule : efface s'il y a des notes, sinon calcule) ----- */
-  function autoNotes() {
+  /* ----- « ✍️ Noter » (bascule : efface s'il y a des notes, sinon note selon la stratégie) ----- */
+  function applyNotation(mode) {
+    if (mode === "snyder") { setNotes(snyderNotes(grid)); return; }
+    const nn = Array.from({ length: 81 }, () => []);
+    for (let i = 0; i < 81; i++) if (grid[i] === 0) nn[i] = candidatesFromGrid(grid, i);
+    setNotes(nn);
+  }
+  function resetNotationCue() {
+    setLastNotation(null);
+    notationFlashRef.current = false;
+  }
+  function applyNotes() {
     if (phase !== "play") { flash(t("flash.playOnly")); return; }
     pushHist();
     if (notes.some((a) => a.length)) {
       setNotes(Array.from({ length: 81 }, () => []));
+      setLastNotation(null);
       flash(t("flash.notesCleared"));
       return;
     }
-    const nn = notes.map((a) => a.slice());
-    let singles = 0;
-    for (let i = 0; i < 81; i++) {
-      if (grid[i] === 0) {
-        nn[i] = candidatesFromGrid(grid, i);
-        if (nn[i].length === 1) singles++;
-      }
+    const mode = notationFor(levelKey(gameLevel), settings.notation);
+    applyNotation(mode);
+    setLastNotation(mode);
+    if (notationFlashRef.current) {
+      flash(t(`flash.notation.applied.${mode}`));
+      return;
     }
-    setNotes(nn);
-    flash(singles ? t("flash.autoNotesSingles") : t("flash.autoNotesDone"));
-  }
-  function snyderMode() {
-    if (phase !== "play") { flash(t("flash.playOnly")); return; }
-    pushHist();
-    setNotes(snyderNotes(grid));
-    flash(t("flash.snyder"));
+    notationFlashRef.current = true;
+    const fromPref = settings.notation === "snyder" || settings.notation === "complete";
+    const key = fromPref
+      ? `flash.notation.pref.${mode}`
+      : mode === "complete"
+        ? "flash.notation.complete.level"
+        : gameLevel ? "flash.notation.snyder.level" : "flash.notation.snyder.custom";
+    flash(t(key, { level: gameLevel ? levelName(gameLevel) : "" }), "info", 9000);
   }
 
   /* ----- OCR photo (via /api/ocr sur Vercel) ----- */
@@ -1264,6 +1282,7 @@ export default function App() {
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
       setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null);
+      resetNotationCue();
       if (!unlimited) {
         const used = (Number(readSync(KEYS.scans)) || 0) + 1; // relit le storage (robuste multi-onglets)
         persist(KEYS.scans, used);
@@ -1664,6 +1683,13 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                 { value: "en", label: "English" },
               ]}
               onChange={(v) => updateSettings({ lang: v })} />
+            <SegmentRow label={t("settings.notation")} value={settings.notation}
+              options={[
+                { value: "auto", label: t("settings.notation.auto") },
+                { value: "snyder", label: t("settings.notation.snyder") },
+                { value: "complete", label: t("settings.notation.complete") },
+              ]}
+              onChange={(v) => updateSettings({ notation: v })} />
             <ToggleRow label={t("settings.hideTimer")} hint={t("settings.hideTimer.hint")}
               value={settings.hideTimer} onChange={(v) => updateSettings({ hideTimer: v })} />
           </div>
@@ -1889,8 +1915,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow active={noteMode} ariaPressed={noteMode} onClick={() => setNoteMode((m) => !m)}>{t("btn.notes")}</Btn>
-                <Btn grow active={hasNotes} ariaPressed={hasNotes} onClick={autoNotes}>{t("btn.autoNotes")}</Btn>
-                <Btn grow onClick={snyderMode}>{t("btn.snyder")}</Btn>
+                <Btn grow active={hasNotes} ariaPressed={hasNotes} onClick={applyNotes}>{t("btn.note")}</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow onClick={checkErrors}>{t("btn.check")}</Btn>
