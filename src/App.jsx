@@ -727,6 +727,9 @@ export default function App() {
   const notationFlashRef = useRef(false);
   const [plan, setPlan] = useState(null);
   const [level, setLevel] = useState(0); // 0 indice1, 1 indice2, 2 solution
+  /* Pas à pas de la solution du coach : null (pas commencé) | index de
+     l'étape courante | "all" (tout voir). Ne concerne que les plans à chaîne. */
+  const [coachStep, setCoachStep] = useState(null);
   const [msg, setMsg] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [scansUsed, setScansUsed] = useState(0); // chargé au boot via loadAll()
@@ -1065,13 +1068,13 @@ export default function App() {
       return;
     }
     const p = buildPlan(grid, target, getLang());
-    if (p && (!solRef || multiSol || p.digit === solRef[target])) { setPlan(p); setLevel(0); setHintsUsed((h) => h + 1); }
+    if (p && (!solRef || multiSol || p.digit === solRef[target])) { setPlan(p); setLevel(0); setCoachStep(null); setHintsUsed((h) => h + 1); }
     else {
       const kind = stuckPlanFor(false);
       if (kind === "wrong-digit") setPlan({ kind: "stuckError" });
       else if (kind === "multi-sol") setPlan({ kind: "stuckMulti", target });
       else setPlan({ kind: "stuck", target }); // grille unique : panneau par case inchangé
-      setLevel(0);
+      setLevel(0); setCoachStep(null);
     }
   }
   // Quand plus rien n'est déductible : choisir le panneau honnête. Sur grille
@@ -1098,14 +1101,14 @@ export default function App() {
     if (!plans.length) {
       const kind = stuckPlanFor(false);
       setPlan({ kind: { "wrong-digit": "stuckError", "multi-sol": "stuckMulti", "beyond-coach": "stuckAll" }[kind] });
-      setLevel(0);
+      setLevel(0); setCoachStep(null);
       return;
     }
     const min = Math.min(...plans.map((p) => p.difficulty));
     const easiest = plans.filter((p) => p.difficulty === min);
     const p = easiest[Math.floor(Math.random() * easiest.length)];
     p.revealTech = true; // leçon guidée : la technique est annoncée dès l'indice 1
-    setSel(p.target); setPlan(p); setLevel(0);
+    setSel(p.target); setPlan(p); setLevel(0); setCoachStep(null);
     setHintsUsed((h) => h + 1);
   }
   // 📚 Revoir cette technique (👣) : bascule sur l'onglet Apprendre, leçon du keyKind.
@@ -1137,7 +1140,7 @@ export default function App() {
       ],
       unitCells: [],
     });
-    setLevel(2);
+    setLevel(2); setCoachStep("all"); // pas de chaîne : conclusion directe
   }
   // Mur légitime (stuckAll) : révèle LA case vide au moins de candidats —
   // celle qui a le plus de chances de relancer les déductions du coach.
@@ -1169,7 +1172,12 @@ export default function App() {
     if (isComplete(ng)) flash(t("flash.won"), "success");
     else flash(t("flash.placed", { cell: cellName(target, getLang()), d }), "success");
   }
-  function closePlan() { setPlan(null); setLevel(0); }
+  function closePlan() { setPlan(null); setLevel(0); setCoachStep(null); }
+  /* « Voir la solution » : chaîne présente → pas à pas ; sinon conclusion directe. */
+  function openSolution() {
+    setLevel(2);
+    setCoachStep(planStepScript(plan) ? 0 : "all");
+  }
 
   /* ----- vérification des erreurs à l'instant t ----- */
   function checkErrors() {
@@ -1542,16 +1550,23 @@ export default function App() {
       flash(streak > 1 ? t("flash.dailyStreak", { n: streak }) : t("flash.dailyDone"), "success", 7000);
     }
   }, [won, gameOrigin, dailyDone, gameLevel, hintsUsed, assisted]);
+  const coachScript = useMemo(() => planStepScript(plan), [plan]);
+  const coachDone = level >= 2 && (!coachScript || coachStep === "all"
+    || (typeof coachStep === "number" && coachStep >= coachScript.length - 1));
   const planHL = useMemo(() => {
     const res = { unit: new Set(), chain: new Set(), target: null };
     if (!plan) return res;
     if (plan.target != null) res.target = plan.target;
     if (plan.kind === "ok") {
       if (level >= 1 && plan.unitCells) plan.unitCells.forEach((c) => res.unit.add(c));
-      if (level >= 2 && plan.chain) plan.chain.forEach((s) => (s.cells || []).forEach((c) => res.chain.add(c)));
+      if (level >= 2 && plan.chain) {
+        const cur = coachScript && typeof coachStep === "number" ? coachScript[coachStep] : null;
+        if (cur && !cur.conclusion) (cur.cells || []).forEach((c) => res.chain.add(c));
+        else if (!cur) plan.chain.forEach((s) => (s.cells || []).forEach((c) => res.chain.add(c)));
+      }
     }
     return res;
-  }, [plan, level]);
+  }, [plan, level, coachScript, coachStep]);
 
   function cellStyle(i) {
     const r = rowOf(i), c = colOf(i);
@@ -2152,9 +2167,13 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                   {level >= 1 && plan.hint2 ? <p style={pStyle}><Rich text={plan.hint2} /></p> : null}
                   {level >= 2 && (
                     <>
-                      {plan.chain.map((s, ixx) => (
+                      {(typeof coachStep === "number"
+                        ? plan.chain.slice(0, coachStep + 1)
+                        : plan.chain
+                      ).map((s, ixx, arr) => (
                         <div key={ixx} style={{
-                          border: `1px solid ${C.hintBorder}`, background: C.hintBg,
+                          border: `1px solid ${!coachDone && ixx === arr.length - 1 ? C.teal : C.hintBorder}`,
+                          background: C.hintBg,
                           borderRadius: 10, padding: "8px 10px",
                         }}>
                           <div style={{
@@ -2168,29 +2187,37 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                           </div>
                         </div>
                       ))}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {plan.paras.map((p, ixx) => (
-                          <p key={ixx} style={pStyle}><Rich text={p} /></p>
-                        ))}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
-                        <div style={{
-                          width: 46, height: 46, borderRadius: 12, background: C.ink, color: C.onInk,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 24, fontWeight: 800, fontFamily: NUMFONT,
-                        }}>
-                          {plan.digit}
-                        </div>
-                        <div style={{ fontSize: 13, color: C.gray }}>
-                          {t("coach.toPlace")} <strong style={{ color: C.ink }}>{cellName(plan.target, getLang())}</strong>
-                        </div>
-                      </div>
+                      {!coachDone && coachScript && (
+                        <Stepper n={coachStep + 1} total={coachScript.length}
+                          onNext={() => setCoachStep(coachStep + 1)} onAll={() => setCoachStep("all")} />
+                      )}
+                      {coachDone && (
+                        <>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {plan.paras.map((p, ixx) => (
+                              <p key={ixx} style={pStyle}><Rich text={p} /></p>
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
+                            <div style={{
+                              width: 46, height: 46, borderRadius: 12, background: C.ink, color: C.onInk,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 24, fontWeight: 800, fontFamily: NUMFONT,
+                            }}>
+                              {plan.digit}
+                            </div>
+                            <div style={{ fontSize: 13, color: C.gray }}>
+                              {t("coach.toPlace")} <strong style={{ color: C.ink }}>{cellName(plan.target, getLang())}</strong>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     {level === 0 && <Btn variant="accent" grow onClick={() => setLevel(1)}>{t("btn.oneMoreHint")}</Btn>}
-                    {level < 2 && <Btn grow onClick={() => setLevel(2)}>{t("btn.seeSolution")}</Btn>}
-                    {level >= 2 && <Btn variant="primary" grow onClick={placeFromPlan}>{t("btn.place", { d: plan.digit })}</Btn>}
+                    {level < 2 && <Btn grow onClick={openSolution}>{t("btn.seeSolution")}</Btn>}
+                    {coachDone && <Btn variant="primary" grow onClick={placeFromPlan}>{t("btn.place", { d: plan.digit })}</Btn>}
                     {level >= 2 && <Btn grow onClick={closePlan}>{t("common.close")}</Btn>}
                   </div>
                 </>
