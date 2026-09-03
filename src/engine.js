@@ -1548,7 +1548,7 @@ export function packageExercise(kind, e, values, candsArr, lang = "fr") {
   const { unit, focus } = elimHighlight(e);
   const ex = {
     kind, given: values, notes, removals, unit, focus,
-    explain: [d.text], hint: hintFromZone(e, d.zone, lang),
+    explain: [d.text], explainCells: [d.cells], hint: hintFromZone(e, d.zone, lang),
   };
   // Bonus : une case qui passe à candidat unique après application (l'unicité
   // de la solution garantit que ce candidat est le bon chiffre).

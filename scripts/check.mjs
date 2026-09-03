@@ -26,6 +26,7 @@ import { readFileSync } from "node:fs";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1, conceptSentence } from "../src/coachCopy.js";
 import { notationFor, NOTATION_PREFS } from "../src/notation.js";
+import { lessonStepScript, planStepScript, exerciseStepScript, stepReveal } from "../src/stepper.js";
 
 const T0 = Date.now();
 let failures = 0;
@@ -372,6 +373,72 @@ for (const L of LESSONS) {
     }
   }
   ok(bad === 0, "les strikes portent sur des candidats affichés");
+}
+
+/* ---------- 3f. Stepper : dérivation pure (stepper.js) ---------- */
+console.log("Stepper — dérivation pure :");
+{
+  const sameStrikes = (a, b) => JSON.stringify(
+    Object.fromEntries(Object.entries(a).map(([k, v]) => [k, [...v].sort()]).sort())
+  ) === JSON.stringify(
+    Object.fromEntries(Object.entries(b).map(([k, v]) => [k, [...v].sort()]).sort())
+  );
+  // Leçon 4 (paire pointante) : 3 étapes, conclusion à la dernière.
+  const L4 = LESSONS.find((l) => l.id === "pointing-pair");
+  const sL = lessonStepScript(L4);
+  ok(sL && sL.length === 3 && !sL[0].conclusion && sL[2].conclusion,
+    "leçon 4 : script de 3 étapes, conclusion en dernière");
+  ok(lessonStepScript({ steps: ["a"], stepCells: [[1], [2]], stepStrikes: [{}] }) === null,
+    "champs désalignés → null (repli tout-d'un-bloc)");
+  // Plan à chaîne (fixture 2b) : 2 pointantes + conclusion.
+  const gRS = REPRO_STEPWISE.split("").map(Number);
+  const plan = buildPlan(gRS, 24);
+  const sP = planStepScript(plan);
+  ok(sP && sP.length === plan.chain.length + 1 && sP[sP.length - 1].conclusion,
+    `plan R3C7 : ${plan.chain.length} maillons + 1 conclusion`);
+  const rawNorm = (i) => {
+    const out = {};
+    for (const r of plan.rawChain[i].removals) out[r.cell] = [...new Set([...(out[r.cell] || []), ...r.digits])].sort((a, b) => a - b);
+    return out;
+  };
+  ok(sP.slice(0, -1).every((s, i) => JSON.stringify(s.strikes) === JSON.stringify(rawNorm(i))),
+    "strikes de l'étape i == removals de rawChain[i]");
+  ok(sP[sP.length - 1].cells.length && sP[sP.length - 1].cells.every((c) => plan.unitCells.includes(c)),
+    "la conclusion surligne la zone du single");
+  ok(planStepScript({ kind: "ok", chain: [] }) === null && planStepScript(null) === null,
+    "plan direct (chaîne vide) ou absent → null");
+  // stepReveal : accumulation passé/courant, « tout voir » == union totale.
+  const v0 = stepReveal(sP, 0), v1 = stepReveal(sP, 1), vAll = stepReveal(sP, "all");
+  ok(v0 && Object.keys(v0.struckPast).length === 0 && sameStrikes(v0.struckNow, Object.fromEntries(Object.entries(sP[0].strikes).map(([k, v]) => [k, new Set(v)]))),
+    "étape 0 : rien au passé, strikes courants en rouge");
+  ok(v1 && sameStrikes(v1.struckPast, Object.fromEntries(Object.entries(sP[0].strikes).map(([k, v]) => [k, new Set(v)]))),
+    "étape 1 : les strikes de l'étape 0 passent au passé");
+  {
+    const union = {};
+    for (const s of sP) {
+      for (const [k, arr] of Object.entries(s.strikes)) {
+        if (!union[k]) union[k] = new Set();
+        for (const d of arr) union[k].add(d);
+      }
+    }
+    ok(vAll.showAnswer && Object.keys(vAll.struckPast).length === 0 && sameStrikes(vAll.struckNow, union),
+      "« tout voir » : union totale des strikes + réponse visible");
+  }
+  ok(!v0.showAnswer && stepReveal(sP, sP.length - 1).showAnswer, "la réponse n'apparaît qu'à la conclusion");
+  // Exercice packagé (position de la leçon 4) : explainCells présent.
+  const given4 = Array(81).fill(0);
+  for (const [k, v] of Object.entries(L4.given)) given4[Number(k)] = v;
+  const candsArr4 = Array.from({ length: 81 }, (_, i) => L4.notes[i] || []);
+  const e4 = ELIM_FINDER_BY_KIND.pointing(candsArr4.map((a) => new Set(a)), new Set(Object.keys(L4.removals).map(Number)));
+  const ex4 = packageExercise("pointing", e4, given4, candsArr4);
+  ok(Array.isArray(ex4.explainCells) && ex4.explainCells.length === ex4.explain.length,
+    "packageExercise : explainCells parallèle à explain");
+  const sE = exerciseStepScript(ex4);
+  ok(sE && sE.length === ex4.explain.length && sE[sE.length - 1].conclusion
+    && JSON.stringify(sE[sE.length - 1].strikes) === JSON.stringify(ex4.removals),
+    "exercice : la dernière étape porte les removals et la conclusion");
+  ok(exerciseStepScript({ explain: ["x"], unit: [3, 4], removals: {} })[0].cells.join(",") === "3,4",
+    "exercice sans explainCells → repli sur unit");
 }
 
 /* ---------- 4. Techniques intermédiaires et expertes : détection sur motifs isolés ---------- */
@@ -982,6 +1049,8 @@ const checkExercise = (kind, ex) => {
     for (const d of ds) if (!shown.includes(d)) remOk = false;
   }
   ok(remOk, `${kind} : removals ⊆ notes case par case`);
+  ok(!ex.explainCells || ex.explainCells.length === ex.explain.length,
+    `${kind} : explainCells parallèle à explain`);
   if (kind === "nakedSingle") {
     const cs = candidatesFromGrid(ex.given, ex.target);
     ok(cs.length === 1 && cs[0] === ex.answer,
