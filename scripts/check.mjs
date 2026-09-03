@@ -1076,6 +1076,100 @@ console.log("Leçons EN :");
     `conceptSentence EN : première phrase anglaise complète (${cs.slice(0, 48)}…)`);
 }
 
+/* ---------- 5n. Fidélité fr ↔ en des 17 leçons (permanent) ---------- */
+console.log("Fidélité fr ↔ en des leçons :");
+{
+  const refs = (s) => (String(s).match(/[LR]\d+C\d+/g) || []).map((r) => r.slice(1)).sort();
+  // Les {…} peuvent contenir des chiffres OU des cases (leçon 16) : on
+  // neutralise la lettre de notation (LxCy/RxCy) avant de comparer.
+  const sets = (s) => (String(s).match(/\{[^}]*\}/g) || [])
+    .map((x) => x.replace(/\s+/g, "").replace(/[LR](\d+C\d+)/g, "$1")).sort();
+  for (const L of LESSONS) {
+    const fr = [L.concept, L.question, L.hint, ...L.steps].join(" ");
+    const en = [L.en.concept, L.en.question, L.en.hint, ...L.en.steps].join(" ");
+    const okRefs = JSON.stringify(refs(fr)) === JSON.stringify(refs(en));
+    const okSets = JSON.stringify(sets(fr)) === JSON.stringify(sets(en));
+    const okLen = L.steps.length === L.en.steps.length;
+    ok(okRefs, `[${L.num}] mêmes cases citées fr/en${okRefs ? "" : ` (fr: ${refs(fr).join(",")} ≠ en: ${refs(en).join(",")})`}`);
+    ok(okSets, `[${L.num}] mêmes ensembles {…} cités fr/en${okSets ? "" : ` (fr: ${sets(fr).join(" ")} ≠ en: ${sets(en).join(" ")})`}`);
+    ok(okLen, `[${L.num}] même nombre d'étapes fr/en`);
+  }
+}
+
+/* ---------- 5o. Lint de lisibilité (charte 3c — périmètre pilote) ---------- */
+console.log("Lint de lisibilité (charte 3c) :");
+{
+  // Une phrase ≤ 25 mots ; une étape ≤ 3 phrases ; jamais de « −{ » ni de « → ».
+  const lint = (raw, { maxSentences = Infinity } = {}) => {
+    const errs = [];
+    if (raw.includes("−{")) errs.push("contient −{");
+    if (raw.includes("→")) errs.push("contient →");
+    const s = String(raw).replace(/\*\*/g, "").replace(/\[\[(.+?)\]\]/g, "$1");
+    const sentences = s.split(/[.!?…]+/).map((x) => x.trim()).filter(Boolean);
+    if (sentences.length > maxSentences) errs.push(`${sentences.length} phrases`);
+    for (const sent of sentences) {
+      const words = (sent.match(/\S+/g) || []).length;
+      if (words > 25) errs.push(`phrase de ${words} mots : « ${sent.slice(0, 40)}… »`);
+    }
+    return errs;
+  };
+  const lintAll = (label, texts, opts) => {
+    const errs = texts.flatMap((t) => lint(t, opts));
+    ok(errs.length === 0, `${label}${errs.length ? ` — ${errs.join(" ; ")}` : ""}`);
+  };
+  // Leçons réécrites (1, 4, 7) : étapes (≤ 3 phrases) + concept/question/indice.
+  for (const id of ["naked-single", "pointing-pair", "x-wing"]) {
+    const L = LESSONS.find((l) => l.id === id);
+    lintAll(`${id} : steps fr`, L.steps, { maxSentences: 3 });
+    lintAll(`${id} : steps en`, L.en.steps, { maxSentences: 3 });
+    lintAll(`${id} : concept/question/indice fr`, [L.concept, L.question, L.hint]);
+    lintAll(`${id} : concept/question/indice en`, [L.en.concept, L.en.question, L.en.hint]);
+  }
+  // 3 plans par langue à chaîne 100 % pointing/xWing (cibles fixées en dur —
+  // seuls les textes des branches réécrites et le gabarit hiddenSingle sont
+  // lintés ; paras/hint2 attendront la généralisation 3d).
+  const PLAN_FIXTURES = [
+    [REPRO_STEPWISE, 24],
+    [SAMPLES[0], 23],
+    [SAMPLES[0], 26],
+  ];
+  for (const lang of ["fr", "en"]) {
+    for (const [s, cell] of PLAN_FIXTURES) {
+      const p = buildPlan(s.split("").map(Number), cell, lang);
+      ok(p && p.chain.length > 0 && p.chainKinds.every((k) => k === "pointing" || k === "xWing"),
+        `plan ${lang} ${cellName(cell, lang)} : chaîne pointing/xWing (${p ? p.chainKinds.join("+") : "null"})`);
+      lintAll(`plan ${lang} ${cellName(cell, lang)} : étapes de chaîne`, p.chain.map((st) => st.text), { maxSentences: 3 });
+      if (p.techKind === "hiddenSingle") {
+        lintAll(`plan ${lang} ${cellName(cell, lang)} : indice 1 (gabarit single caché)`, [stepHint1(p, lang)]);
+      }
+    }
+  }
+  // 3 exercices par langue : pointing (leçon 4), xWing (leçon 7), pointing
+  // transformé (seed fixe) — lint des textes explain uniquement.
+  const exoFromLesson = (id, kind, lang, transform) => {
+    const L = LESSONS.find((l) => l.id === id);
+    let pos = { given: L.given, notes: L.notes, removals: L.removals, unit: L.unit, focus: L.focus, target: L.target, answer: L.answer };
+    if (transform) pos = transformPosition(pos, transform);
+    const given = Array(81).fill(0);
+    for (const [k, v] of Object.entries(pos.given)) given[Number(k)] = v;
+    const candsArr = Array.from({ length: 81 }, (_, i) => pos.notes[i] || []);
+    const e = ELIM_FINDER_BY_KIND[kind](candsArr.map((a) => new Set(a)), new Set(Object.keys(pos.removals).map(Number)))
+      || ELIM_FINDER_BY_KIND[kind](candsArr.map((a) => new Set(a)), null);
+    return e && packageExercise(kind, e, given, candsArr, lang);
+  };
+  for (const lang of ["fr", "en"]) {
+    const exos = [
+      ["pointing (leçon 4)", exoFromLesson("pointing-pair", "pointing", lang)],
+      ["xWing (leçon 7)", exoFromLesson("x-wing", "xWing", lang)],
+      ["pointing transformé", exoFromLesson("pointing-pair", "pointing", lang, randomTransform(makeRng(42)))],
+    ];
+    for (const [label, ex] of exos) {
+      ok(!!ex, `exercice ${lang} ${label} : construit`);
+      if (ex) lintAll(`exercice ${lang} ${label} : explain`, ex.explain, { maxSentences: 3 });
+    }
+  }
+}
+
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
 // Invariants d'un exercice, revérifiés par le finder — partagé par les
 // sections 6 (recherche), 8 (constructif) et 9 (acceptation getExercise).
