@@ -1161,6 +1161,15 @@ export default function App() {
     setLastNotation(null);
     notationFlashRef.current = false;
   }
+  /* Bascule ponctuelle : re-note CETTE grille dans l'autre mode, sans toucher
+     à la préférence Réglages. */
+  function switchNotation() {
+    const other = lastNotation === "snyder" ? "complete" : "snyder";
+    pushHist();
+    applyNotation(other);
+    setLastNotation(other);
+    flash(t(`flash.notation.applied.${other}`));
+  }
   function applyNotes() {
     if (phase !== "play") { flash(t("flash.playOnly")); return; }
     pushHist();
@@ -1917,6 +1926,13 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                 <Btn grow active={noteMode} ariaPressed={noteMode} onClick={() => setNoteMode((m) => !m)}>{t("btn.notes")}</Btn>
                 <Btn grow active={hasNotes} ariaPressed={hasNotes} onClick={applyNotes}>{t("btn.note")}</Btn>
               </div>
+              {lastNotation && hasNotes && (
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <LinkBtn onClick={switchNotation}>
+                    {lastNotation === "snyder" ? t("link.noteComplete") : t("link.noteSnyder")}
+                  </LinkBtn>
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow onClick={checkErrors}>{t("btn.check")}</Btn>
                 <Btn onClick={undo} title={t("btn.undo")} ariaLabel={t("btn.undo")}>↩︎</Btn>
