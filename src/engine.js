@@ -796,6 +796,24 @@ const findElim = (cands, prefer, maxTier = 5) => {
 function applyElim(cands, e) {
   for (const r of e.removals) for (const d of r.digits) cands[r.cell].delete(d);
 }
+/* Éliminations en toutes lettres (charte 3c) : « barre le 4 de L2C2 et de
+   L2C4 » — jamais de « −{ } ». Regroupe par chiffre commun quand possible. */
+function remWords(removals, lang = "fr") {
+  const en = lang === "en";
+  const cn = (i) => cellName(i, lang);
+  const allDigits = [...new Set(removals.flatMap((r) => r.digits))];
+  if (allDigits.length === 1) {
+    const d = allDigits[0];
+    const cells = removals.map((r) => cn(r.cell));
+    return en
+      ? `cross out the ${d} in ${cells.join(" and in ")}`
+      : `barre le ${d} de ${cells.join(" et de ")}`;
+  }
+  const seg = removals.map((r) => en
+    ? `the ${r.digits.join(" and the ")} in ${cn(r.cell)}`
+    : `le ${r.digits.join(" et le ")} de ${cn(r.cell)}`);
+  return en ? `cross out ${seg.join(", then ")}` : `barre ${seg.join(", puis ")}`;
+}
 /* Une élimination → { title, zone, cells, text } dans la langue demandée.
    Deux corps distincts (pas du mot-à-mot) : la grammaire FR (articles,
    contractions) ne se paramètre pas proprement. */
@@ -815,7 +833,7 @@ function describeElimFr(e) {
   if (e.kind === "pointing") {
     return {
       title: TECH_NAMES.pointing.fr, zone: `le bloc ${BOX_NAMES.fr[e.box]}`, cells: involved,
-      text: `Dans le bloc **${BOX_NAMES.fr[e.box]}**, le **${e.digit}** ne peut aller qu’en ${unitLabel(e.line)} (${e.cells.map(cellName).join(", ")}). Il occupera forcément l’une de ces cases → on retire le ${e.digit} du reste de ${unitLabel(e.line)} : ${remTxt}.`,
+      text: `Dans le bloc **${BOX_NAMES.fr[e.box]}**, suis le **${e.digit}** : il ne peut aller que sur ${unitLabel(e.line)}, en ${e.cells.map(cellName).join(" ou ")}. Il occupera forcément l’une de ces cases. Aucune autre case de ${unitLabel(e.line)} ne peut donc être un ${e.digit} : ${remWords(e.removals, "fr")}.`,
     };
   }
   if (e.kind === "claiming") {
@@ -824,12 +842,19 @@ function describeElimFr(e) {
       text: `Sur ${unitLabel(e.line)}, le **${e.digit}** est confiné au bloc **${BOX_NAMES.fr[e.box]}** (${e.cells.map(cellName).join(", ")}). Il occupera l’une de ces cases → on retire le ${e.digit} des autres cases de ce bloc : ${remTxt}.`,
     };
   }
-  if (e.kind === "xWing" || e.kind === "swordfish") {
-    const name = TECH_NAMES[e.kind].fr;
+  if (e.kind === "xWing") {
     const base = e.lineType === "row" ? "lignes" : "colonnes";
     const perp = e.lineType === "row" ? "colonnes" : "lignes";
     return {
-      title: name, zone: `${e.size} ${base}`, cells: involved,
+      title: TECH_NAMES.xWing.fr, zone: `${e.size} ${base}`, cells: involved,
+      text: `Suis le **${e.digit}** : sur 2 ${base}, il n’a plus que deux places, dans les mêmes 2 ${perp} (${e.cells.map(cellName).join(", ")}). Ces quatre cases dessinent un rectangle : un [[X-Wing]]. Aucune autre case de ces 2 ${perp} ne peut être un ${e.digit} : ${remWords(e.removals, "fr")}.`,
+    };
+  }
+  if (e.kind === "swordfish") {
+    const base = e.lineType === "row" ? "lignes" : "colonnes";
+    const perp = e.lineType === "row" ? "colonnes" : "lignes";
+    return {
+      title: TECH_NAMES.swordfish.fr, zone: `${e.size} ${base}`, cells: involved,
       text: `Le **${e.digit}** est confiné aux mêmes ${e.size} ${perp} sur ${e.size} ${base} (${e.cells.map(cellName).join(", ")}). Ces ${e.size} ${perp} accueilleront le ${e.digit} sur ces ${base} → on le retire du reste de ces ${perp} : ${remTxt}.`,
     };
   }
@@ -923,7 +948,7 @@ function describeElimEn(e) {
   if (e.kind === "pointing") {
     return {
       title: TECH_NAMES.pointing.en, zone: `the ${BOX_NAMES.en[e.box]} box`, cells: involved,
-      text: `In the **${BOX_NAMES.en[e.box]}** box, the **${e.digit}** can only go in ${uL(e.line)} (${e.cells.map(cn).join(", ")}). It will necessarily occupy one of those cells → remove the ${e.digit} from the rest of ${uL(e.line)}: ${remTxt}.`,
+      text: `In the **${BOX_NAMES.en[e.box]}** box, follow the **${e.digit}**: it can only go on ${uL(e.line)}, in ${e.cells.map(cn).join(" or ")}. It must occupy one of those cells. So no other cell of ${uL(e.line)} can be a ${e.digit}: ${remWords(e.removals, "en")}.`,
     };
   }
   if (e.kind === "claiming") {
@@ -932,12 +957,19 @@ function describeElimEn(e) {
       text: `On ${uL(e.line)}, the **${e.digit}** is confined to the **${BOX_NAMES.en[e.box]}** box (${e.cells.map(cn).join(", ")}). It will occupy one of those cells → remove the ${e.digit} from the other cells of that box: ${remTxt}.`,
     };
   }
-  if (e.kind === "xWing" || e.kind === "swordfish") {
-    const name = TECH_NAMES[e.kind].en;
+  if (e.kind === "xWing") {
     const base = e.lineType === "row" ? "rows" : "columns";
     const perp = e.lineType === "row" ? "columns" : "rows";
     return {
-      title: name, zone: `${e.size} ${base}`, cells: involved,
+      title: TECH_NAMES.xWing.en, zone: `${e.size} ${base}`, cells: involved,
+      text: `Follow the **${e.digit}**: in 2 ${base}, it has only two places left, in the same 2 ${perp} (${e.cells.map(cn).join(", ")}). Those four cells draw a rectangle: an [[X-Wing]]. No other cell of those 2 ${perp} can be a ${e.digit}: ${remWords(e.removals, "en")}.`,
+    };
+  }
+  if (e.kind === "swordfish") {
+    const base = e.lineType === "row" ? "rows" : "columns";
+    const perp = e.lineType === "row" ? "columns" : "rows";
+    return {
+      title: TECH_NAMES.swordfish.en, zone: `${e.size} ${base}`, cells: involved,
       text: `The **${e.digit}** is confined to the same ${e.size} ${perp} across ${e.size} ${base} (${e.cells.map(cn).join(", ")}). Those ${e.size} ${perp} will host the ${e.digit} on those ${base} → remove it from the rest of those ${perp}: ${remTxt}.`,
     };
   }

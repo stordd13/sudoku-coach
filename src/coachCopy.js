@@ -80,7 +80,7 @@ const ofZone = (zone) =>
 export function stepHint1(plan, lang = "fr") {
   if (lang === "en") {
     const base = plan.techKind === "hiddenSingle"
-      ? `In ${plan.techZone}, one digit has only one possible place left. Take the digits still missing from ${plan.techZone} and follow them one by one.`
+      ? `In ${plan.techZone}, one digit has only one possible place left: that is a [[hidden single]]. Take the digits still missing from ${plan.techZone}. Follow them one by one.`
       : `Take stock of cell ${cellName(plan.target, "en")}: sweep its row, its column and its box, and mentally cross out every digit already placed. Only one will survive.`;
     const orient = plan.chainKinds.length
       ? `The cell doesn’t yield directly: first look for ${techPhraseEn(plan.chainKinds[0])} around ${plan.chain[0].zone}. Only then, ${lowerFirst(base)}`
@@ -88,7 +88,7 @@ export function stepHint1(plan, lang = "fr") {
     return `${conceptSentence(plan.keyKind, "en")} ${orient}`.trim();
   }
   const base = plan.techKind === "hiddenSingle"
-    ? `Dans ${plan.techZone}, un chiffre n’a plus qu’une seule place possible. Prends les chiffres encore absents ${ofZone(plan.techZone)} et suis-les un par un.`
+    ? `Dans ${plan.techZone}, un chiffre n’a plus qu’une seule place possible : c’est un [[single caché]]. Prends les chiffres encore absents ${ofZone(plan.techZone)}. Suis-les un par un.`
     : `Fais l’inventaire de la case ${cellName(plan.target)} : parcours sa ligne, sa colonne et son bloc, et barre mentalement chaque chiffre déjà posé. Un seul survivra.`;
   const orient = plan.chainKinds.length
     ? `La case ne cède pas directement : commence par chercher ${techPhraseFr(plan.chainKinds[0])} du côté ${ofZone(plan.chain[0].zone)}. Ensuite seulement, ${lowerFirst(base)}`
