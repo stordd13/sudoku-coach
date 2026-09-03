@@ -42,7 +42,6 @@ const DEFAULT_SETTINGS = { hideTimer: false, theme: "auto", lang: "auto" };
 /* ---------- Niveaux de difficulté (générateur) — libellés via i18n ---------- */
 const LEVEL_IDS = [1, 2, 3, 4, 5];
 const levelName = (n) => t(`level.${n}.name`);
-const levelDesc = (n) => t(`level.${n}.desc`);
 const MAX_LEVEL = 5;
 
 /* Pluriel : clé .one ou .other selon n (pas de moteur de pluriel). */
@@ -1631,7 +1630,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
           <div style={{ width: W, display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
             <div style={{ fontWeight: 800, fontSize: 16 }}>{t("levels.title")}</div>
             {LEVEL_IDS.map((n, i) => (
-              <Card key={n} emoji={["🟢", "🟡", "🟠", "🔴", "🟣"][i] || "🎲"} title={levelName(n)} sub={levelDesc(n)}
+              <Card key={n} emoji={["🟢", "🟡", "🟠", "🔴", "🟣"][i] || "🎲"} title={levelName(n)}
                 onClick={() => newGame(n)} />
             ))}
           </div>
