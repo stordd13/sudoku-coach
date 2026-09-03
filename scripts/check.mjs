@@ -25,6 +25,7 @@ import { cellAriaLabel } from "../src/a11y.js";
 import { readFileSync } from "node:fs";
 import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1, conceptSentence } from "../src/coachCopy.js";
+import { notationFor, NOTATION_PREFS } from "../src/notation.js";
 
 const T0 = Date.now();
 let failures = 0;
@@ -208,6 +209,30 @@ console.log("Notation Snyder :");
   ok(badCount === 0, "chaque chiffre noté apparaît exactement 2 fois dans son bloc");
   ok(badCand === 0, "chaque occurrence est un candidat valide d'une case vide");
   ok(badPlaced === 0, "aucun chiffre noté n'est déjà posé dans le bloc");
+}
+
+/* ---------- 2e. Notation : notationFor ---------- */
+console.log("Notation (bouton Noter) :");
+{
+  const truth = [
+    // [levelKey, pref, attendu]
+    ["1", "auto", "snyder"], ["2", "auto", "snyder"], ["custom", "auto", "snyder"],
+    ["3", "auto", "complete"], ["4", "auto", "complete"], ["5", "auto", "complete"],
+    ["1", "snyder", "snyder"], ["2", "snyder", "snyder"], ["3", "snyder", "snyder"],
+    ["4", "snyder", "snyder"], ["5", "snyder", "snyder"], ["custom", "snyder", "snyder"],
+    ["1", "complete", "complete"], ["2", "complete", "complete"], ["3", "complete", "complete"],
+    ["4", "complete", "complete"], ["5", "complete", "complete"], ["custom", "complete", "complete"],
+  ];
+  let bad = 0;
+  for (const [lk, pref, want] of truth) {
+    if (notationFor(lk, pref) !== want) { bad++; console.error(`    ✗ notationFor(${lk}, ${pref}) ≠ ${want}`); }
+  }
+  ok(bad === 0, `table de vérité 6 niveaux × 3 préférences (${truth.length} cas)`);
+  ok(notationFor("2", "n'importe quoi") === "snyder" && notationFor("4", "n'importe quoi") === "complete",
+    "préférence inconnue → comportement auto");
+  ok(notationFor(undefined) === "snyder" && notationFor("weird") === "snyder",
+    "levelKey inattendu → Snyder (le choix prudent)");
+  ok(NOTATION_PREFS.join(",") === "auto,snyder,complete", "NOTATION_PREFS expose les trois réglages");
 }
 
 /* ---------- 3. Leçons : cohérence interne ---------- */
