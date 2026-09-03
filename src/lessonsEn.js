@@ -10,13 +10,13 @@
 export const LESSONS_EN = {
   "naked-single": {
     "title": "Naked single",
-    "concept": "A cell only \"sees\" one possible digit left: the digits already placed in its row, column and box eliminate the other 8. This is the most basic technique — always start with it.",
-    "question": "Which digit goes in R5C5?",
-    "hint": "Write out 1 to 9, then cross off every digit the cell sees in its row, column and box. What is left?",
+    "concept": "Every empty cell has a few possible digits: these are its [[candidates]]. When a cell keeps only one, that digit must be the right one. This is the [[naked single]] — the most basic technique, always try it first.",
+    "question": "Which digit goes in cell R5C5?",
+    "hint": "Write the digits 1 to 9 on paper. [[Cross out]] every digit that cell R5C5 [[sees]] in its [[row]], its [[column]] and its [[box]]. What is left?",
     "steps": [
-      "Cell **R5C5** sees: row 5 → {1, 2, 3} · column 5 → {4, 5} · center box → {6, 8, 9}.",
-      "That rules out eight digits: 1, 2, 3, 4, 5, 6, 8 and 9.",
-      "Only one candidate remains: **7** → **R5C5 = 7**."
+      "Look at cell **R5C5**. Its [[row]] already holds 1, 2 and 3. Its [[column]] holds 4 and 5, and its [[box]] holds 6, 8 and 9.",
+      "[[Cross out]] these eight digits in the cell: 1, 2, 3, 4, 5, 6, 8 and 9 are impossible.",
+      "Only one [[candidate]] is left: the **7**. So write **7** in cell **R5C5**."
     ]
   },
   "hidden-single": {
@@ -44,13 +44,13 @@ export const LESSONS_EN = {
   },
   "pointing-pair": {
     "title": "Pointing pair",
-    "concept": "Inside a box, a digit is only possible on a single row (or column). Since it must end up in the box on that row, you can cross it out on the rest of the row, outside the box.",
-    "question": "Look at the 4s in the top-right box… which digit goes in R2C4?",
-    "hint": "In the top-right box, where can the 4 still go? Notice how those cells line up.",
+    "concept": "Inside a [[box]], a digit sometimes has its remaining places on a single [[row]] only. That digit must end up in the box, on that row. So you can [[cross out]] that digit on the rest of the row, outside the box. This is the [[pointing pair]].",
+    "question": "Follow the 4s in the top-right box. Which digit goes in cell R2C4?",
+    "hint": "Find the cells of the top-right box that can still take a 4. Look at how they line up.",
     "steps": [
-      "In the top-right box, the **4** appears only in **R2C7** and **R2C9** — two cells in the same **row 2**.",
-      "The box's 4 must therefore be one of these two cells → no other cell in row 2 can be a 4: R2C2 −{4}, R2C4 −{4}.",
-      "**R2C4** goes from {4, 7} to {7} → **R2C4 = 7**."
+      "Follow the **4** in the top-right box. It has only two places left: **R2C7** and **R2C9**, both on [[row]] 2. This is a [[pointing pair]].",
+      "So the box's 4 will be **R2C7** or **R2C9**. No other cell of row 2 can be a 4. [[Cross out]] the 4 in **R2C2** and in **R2C4**.",
+      "In cell **R2C4**, only the **7** remains. So write **7** in **R2C4**."
     ]
   },
   "claiming": {
@@ -77,13 +77,13 @@ export const LESSONS_EN = {
   },
   "x-wing": {
     "title": "X-Wing",
-    "concept": "A digit is down to two possible spots in two rows, and those spots fall in the same two columns: they form a rectangle. The digit will occupy one diagonal or the other — either way, it is \"reserved\" for those two columns. So you cross it out everywhere else in those columns.",
-    "question": "The 4 is locked in rows 1 and 5: which digit gets freed up in R3C2?",
-    "hint": "Follow the 4 across rows 1 and 5: which columns does it hide in? Notice the rectangle.",
+    "concept": "Sometimes a digit has only two places left in each of two [[rows]], in the same two [[columns]]. Those four cells draw a rectangle: this is the [[X-Wing]]. The digit will take one corner at the top and one at the bottom, one per column. So it is reserved for those two columns: [[cross out]] that digit everywhere else in them.",
+    "question": "The 4 is locked on rows 1 and 5. Which digit gets freed in cell R3C2?",
+    "hint": "Follow the 4 on row 1, then on row 5. Which columns does it fall into? Look at the rectangle.",
     "steps": [
-      "Follow the **4** across rows 1 and 5: each row has only two possible cells left — **R1C2/R1C6** and **R5C2/R5C6**, all in columns 2 and 6.",
-      "These four cells form a rectangle (**X-Wing**). In each column, the 4 will be claimed by one of the two rows → no other cell in columns 2 and 6 can be a 4: R3C2 −{4}, R8C6 −{4}.",
-      "**R3C2** goes from {4, 7} to {7} → **R3C2 = 7**."
+      "Follow the **4** on row 1: only **R1C2** and **R1C6** remain. On row 5, only **R5C2** and **R5C6** remain. All these places fall in [[columns]] 2 and 6.",
+      "These four cells draw a rectangle: an [[X-Wing]]. Each column will take a 4 on row 1 or row 5. No other cell of columns 2 and 6 can be a 4: [[cross out]] the 4 in **R3C2** and in **R8C6**.",
+      "In cell **R3C2**, only the **7** remains. So write **7** in **R3C2**."
     ]
   },
   "xy-wing": {

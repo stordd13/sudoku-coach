@@ -57,6 +57,16 @@ export const GLOSSARY = [
     en: { term: "cross out", aliases: ["crossed out", "eliminate", "elimination"], def: "Removing a candidate from a cell because it has become impossible." },
   },
   {
+    id: "pointing-pair",
+    fr: { term: "paire pointante", aliases: ["paires pointantes"], def: "Dans un bloc, un chiffre dont toutes les places restantes tombent sur la même ligne ou colonne : on le barre sur le reste de cette ligne." },
+    en: { term: "pointing pair", aliases: ["pointing pairs"], def: "A digit whose remaining places in a box all fall on the same row or column: cross it out on the rest of that line." },
+  },
+  {
+    id: "x-wing-term",
+    fr: { term: "X-Wing", aliases: [], def: "Un rectangle de quatre cases où un chiffre est bloqué sur deux lignes et deux colonnes : il se barre ailleurs dans ces colonnes." },
+    en: { term: "X-Wing", aliases: [], def: "A rectangle of four cells where a digit is locked into two rows and two columns: cross it out elsewhere in those columns." },
+  },
+  {
     id: "pair",
     fr: { term: "paire", aliases: ["paires"], def: "Deux cases d’une même zone qui se partagent les deux mêmes chiffres." },
     en: { term: "pair", aliases: ["pairs"], def: "Two cells of the same zone that share the same two digits." },
