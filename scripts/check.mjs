@@ -27,6 +27,7 @@ import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js
 import { techBreadcrumb, stepHint1, conceptSentence } from "../src/coachCopy.js";
 import { notationFor, NOTATION_PREFS } from "../src/notation.js";
 import { lessonStepScript, planStepScript, exerciseStepScript, stepReveal } from "../src/stepper.js";
+import { GLOSSARY, lookupTerm, glossaryList } from "../src/glossary.js";
 
 const T0 = Date.now();
 let failures = 0;
@@ -439,6 +440,45 @@ console.log("Stepper — dérivation pure :");
     "exercice : la dernière étape porte les removals et la conclusion");
   ok(exerciseStepScript({ explain: ["x"], unit: [3, 4], removals: {} })[0].cells.join(",") === "3,4",
     "exercice sans explainCells → repli sur unit");
+}
+
+/* ---------- 3g. Glossaire « Les mots du sudoku » ---------- */
+console.log("Glossaire :");
+{
+  ok(GLOSSARY.length >= 12, `au moins 12 termes (${GLOSSARY.length})`);
+  const incomplete = GLOSSARY.filter((g) =>
+    !g.id || !g.fr || !g.en || !g.fr.term || !g.fr.def || !g.en.term || !g.en.def);
+  ok(incomplete.length === 0, "chaque entrée a id + term/def dans les deux langues");
+  // Une définition = UNE phrase (une seule ponctuation forte, à la fin).
+  const multi = GLOSSARY.filter((g) => [g.fr.def, g.en.def].some((d) => {
+    const strong = d.match(/[.!?](?!\s*»?\s*$)/g); // ponctuation forte non finale
+    return strong !== null || !/[.!?]\s*»?\s*$/.test(d);
+  }));
+  ok(multi.length === 0, `une seule phrase par définition${multi.length ? ` (${multi.map((g) => g.id).join(",")})` : ""}`);
+  ok(GLOSSARY.every((g) => lookupTerm(g.fr.term, "fr") && lookupTerm(g.en.term, "en")),
+    "lookupTerm retrouve chaque terme dans sa langue");
+  ok(GLOSSARY.every((g) => (g.fr.aliases || []).every((a) => lookupTerm(a, "fr"))
+    && (g.en.aliases || []).every((a) => lookupTerm(a, "en"))),
+    "lookupTerm retrouve chaque alias");
+  ok(lookupTerm("Candidat", "fr") && lookupTerm("CANDIDATE", "en") && lookupTerm("inconnu-xyz", "fr") === null,
+    "insensible à la casse ; inconnu → null");
+  ok(glossaryList("fr").length === GLOSSARY.length && glossaryList("en").length === GLOSSARY.length
+    && glossaryList("fr").every((e) => e.term && e.def),
+    "glossaryList expose term + def dans les deux langues");
+  // Chaque [[…]] rencontré dans les leçons existe dans le glossaire (fr et en).
+  let unknown = [];
+  for (const L of LESSONS) {
+    const scan = (texts, lg) => {
+      for (const s of texts) {
+        for (const m of String(s).matchAll(/\[\[(.+?)\]\]/g)) {
+          if (!lookupTerm(m[1], lg)) unknown.push(`${L.id}/${lg}:[[${m[1]}]]`);
+        }
+      }
+    };
+    scan([L.concept, L.question, L.hint, ...L.steps], "fr");
+    if (L.en) scan([L.en.concept, L.en.question, L.en.hint, ...(L.en.steps || [])], "en");
+  }
+  ok(unknown.length === 0, `chaque [[terme]] des leçons est au glossaire${unknown.length ? ` (${unknown.join(" · ")})` : ""}`);
 }
 
 /* ---------- 4. Techniques intermédiaires et expertes : détection sur motifs isolés ---------- */
