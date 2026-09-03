@@ -340,6 +340,40 @@ for (const L of LESSONS) {
   ok(remClash === 0, "les éliminations portent sur des candidats affichés");
 }
 
+/* ---------- 3e. Stepper des leçons : stepCells / stepStrikes ---------- */
+console.log("Stepper des leçons :");
+for (const L of LESSONS) {
+  console.log(` [${L.num}] ${L.title}`);
+  ok(Array.isArray(L.stepCells) && Array.isArray(L.stepStrikes)
+    && L.stepCells.length === L.steps.length && L.stepStrikes.length === L.steps.length,
+    "stepCells et stepStrikes alignés sur steps");
+  // Union des strikes == removals (mêmes cases, mêmes chiffres)
+  const union = {};
+  for (const st of L.stepStrikes) {
+    for (const [k, arr] of Object.entries(st)) {
+      union[k] = [...new Set([...(union[k] || []), ...arr])];
+    }
+  }
+  const remKeys = Object.keys(L.removals).sort();
+  const sameKeys = JSON.stringify(Object.keys(union).sort()) === JSON.stringify(remKeys);
+  const sameDigits = sameKeys && remKeys.every((k) =>
+    JSON.stringify([...union[k]].sort()) === JSON.stringify([...L.removals[k]].sort()));
+  ok(sameKeys && sameDigits, "l'union des stepStrikes == removals");
+  // Chaque case surlignée appartient aux zones de la leçon
+  const zones = new Set([...L.unit, ...L.focus, L.target]);
+  const badCell = L.stepCells.flat().filter((i) => !zones.has(i));
+  ok(badCell.length === 0, `cases d'étape dans unit ∪ focus ∪ cible${badCell.length ? ` (hors zone : ${badCell.join(",")})` : ""}`);
+  // Chaque strike barre un candidat réellement affiché
+  let bad = 0;
+  for (const st of L.stepStrikes) {
+    for (const [k, arr] of Object.entries(st)) {
+      const shown = L.notes[Number(k)] || [];
+      for (const d of arr) if (!shown.includes(d)) bad++;
+    }
+  }
+  ok(bad === 0, "les strikes portent sur des candidats affichés");
+}
+
 /* ---------- 4. Techniques intermédiaires et expertes : détection sur motifs isolés ---------- */
 console.log("Techniques intermédiaires et expertes :");
 {

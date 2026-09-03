@@ -7,6 +7,10 @@
    - unit     : cases teintées (zone étudiée)
    - focus    : cases encadrées (cases clés de la technique)
    - target   : case résolue, answer : chiffre trouvé
+   Pas à pas (optionnel, partagé fr/en — parallèle à steps) :
+   - stepCells   : [[index, ...], ...] cases surlignées à l'étape i
+   - stepStrikes : [{index: [chiffres]}, ...] candidats barrés PAR l'étape i
+     (l'union des stepStrikes == removals ; absents → révélation d'un bloc)
    ================================================================ */
 import { ROWS, COLS, BOXES } from "./engine.js";
 import { LESSONS_EN } from "./lessonsEn.js";
@@ -33,6 +37,8 @@ export const LESSONS = [
       "Huit chiffres sont donc exclus : 1, 2, 3, 4, 5, 6, 8 et 9.",
       "Il ne reste qu’un seul candidat : le **7** → **L5C5 = 7**.",
     ],
+    stepCells: [[40], [40], [40]],
+    stepStrikes: [{}, {}, {}],
   },
   {
     id: "hidden-single",
@@ -56,6 +62,8 @@ export const LESSONS = [
       "**L3C1** : impossible — le 5 de **L6C1** occupe déjà la colonne 1.",
       "**L3C2** ne voit aucun 5 : c’est la seule place restante → **L3C2 = 5**.",
     ],
+    stepCells: [[2, 9, 11, 18, 19], [2, 6, 9, 11, 13], [18, 45], [19]],
+    stepStrikes: [{}, {}, {}, {}],
   },
   {
     id: "naked-pair",
@@ -81,6 +89,8 @@ export const LESSONS = [
       "On retire donc 3 et 8 des autres cases de la ligne : L4C4 −{8}, L4C6 −{3}, L4C7 −{3, 8}.",
       "**L4C7** passe de {3, 6, 8} à {6} → **L4C7 = 6**. Une paire nue vient de fabriquer un candidat unique.",
     ],
+    stepCells: [[27, 28], [27, 28, 30, 32, 33], [33]],
+    stepStrikes: [{}, { 30: [8], 32: [3], 33: [3, 8] }, {}],
   },
   {
     id: "pointing-pair",
@@ -106,6 +116,8 @@ export const LESSONS = [
       "Le 4 de ce bloc sera donc forcément l’une de ces deux cases → aucune autre case de la ligne 2 ne peut être un 4 : L2C2 −{4}, L2C4 −{4}.",
       "**L2C4** passe de {4, 7} à {7} → **L2C4 = 7**.",
     ],
+    stepCells: [[16, 17], [10, 12, 16, 17], [12]],
+    stepStrikes: [{}, { 10: [4], 12: [4] }, {}],
   },
   {
     id: "claiming",
@@ -131,6 +143,8 @@ export const LESSONS = [
       "Le 6 de la colonne 5 tombera donc dans ce bloc → les autres cases du bloc central ne peuvent pas être un 6 : L5C4 −{6}, L4C6 −{6}.",
       "**L5C4** passe de {5, 6} à {5} → **L5C4 = 5**.",
     ],
+    stepCells: [[31, 40], [31, 32, 39, 40], [39]],
+    stepStrikes: [{}, { 39: [6], 32: [6] }, {}],
   },
   {
     id: "hidden-pair",
@@ -156,6 +170,8 @@ export const LESSONS = [
       "Ces deux cases sont donc réservées au duo {2, 9} → leurs autres candidats s’effacent : L8C2 −{4, 6}, L9C3 −{1, 5}.",
       "Conséquence : le **1** du bloc n’a plus qu’une seule place possible, **L7C1** → **L7C1 = 1**. Un duo caché vient de débloquer un single caché.",
     ],
+    stepCells: [[64, 74], [64, 74], [54]],
+    stepStrikes: [{}, { 64: [4, 6], 74: [1, 5] }, {}],
   },
   {
     id: "x-wing",
@@ -181,6 +197,8 @@ export const LESSONS = [
       "Ces quatre cases forment un rectangle (**X-Wing**). Sur chaque colonne, le 4 sera pris par l’une des deux lignes → aucune autre case des colonnes 2 et 6 ne peut être un 4 : L3C2 −{4}, L8C6 −{4}.",
       "**L3C2** passe de {4, 7} à {7} → **L3C2 = 7**.",
     ],
+    stepCells: [[1, 5, 37, 41], [1, 5, 19, 37, 41, 68], [19]],
+    stepStrikes: [{}, { 19: [4], 68: [4] }, {}],
   },
   {
     id: "xy-wing",
@@ -203,6 +221,8 @@ export const LESSONS = [
       "Si L5C5 = 1, alors L5C1 = 3 ; si L5C5 = 2, alors L1C5 = 3. Dans tous les cas, **un 3 apparaît en L5C1 ou L1C5**.",
       "**L1C1** voit ces deux pinces : elle ne peut pas être un 3. Elle passe de {3, 7} à {7} → **L1C1 = 7**.",
     ],
+    stepCells: [[40, 36, 4], [40, 36, 4], [0, 36, 4]],
+    stepStrikes: [{}, {}, { 0: [3] }],
   },
   {
     id: "swordfish",
@@ -228,6 +248,8 @@ export const LESSONS = [
       "Ces trois colonnes se partageront les 3 de ces trois lignes (**Swordfish**) → aucune autre case des colonnes 3, 5 et 7 ne peut être un 3 : L3C3 −{3}.",
       "**L3C3** passe de {3, 9} à {9} → **L3C3 = 9**.",
     ],
+    stepCells: [[2, 4, 40, 42, 74, 78], [2, 4, 20, 40, 42, 74, 78], [20]],
+    stepStrikes: [{}, { 20: [3] }, {}],
   },
   {
     id: "skyscraper",
@@ -253,6 +275,8 @@ export const LESSONS = [
       "La base ne peut pas porter deux 5 → l’un des deux « toits » (**L1C5** ou **L4C6**) est forcément un 5.",
       "**L2C6** voit ces deux toits (par la colonne 6 et par le bloc) : elle perd le 5 et passe de {5, 8} à {8} → **L2C6 = 8**.",
     ],
+    stepCells: [[0, 4, 27, 32], [4, 32], [4, 14, 32]],
+    stepStrikes: [{}, {}, { 14: [5] }],
   },
   {
     id: "remote-pairs",
@@ -278,6 +302,8 @@ export const LESSONS = [
       "Le 1 et le 2 s’échangent le long de la chaîne : les extrémités **L1C1** et **L5C9** sont de couleurs opposées — l’une porte le 1, l’autre le 2.",
       "**L1C9** voit ces deux extrémités : elle ne peut être ni 1 ni 2. Elle perd le 2 et passe de {2, 5} à {5} → **L1C9 = 5**.",
     ],
+    stepCells: [[0, 4, 40, 44], [0, 44], [0, 8, 44]],
+    stepStrikes: [{}, {}, { 8: [2] }],
   },
   {
     id: "xyz-wing",
@@ -301,6 +327,8 @@ export const LESSONS = [
       "Dans les trois cas, un 9 apparaît dans le trio → toute case qui voit **les trois** ne peut pas être un 9 : L5C5 −{9}, L5C6 −{9}.",
       "**L5C5** passe de {4, 9} à {4} → **L5C5 = 4**.",
     ],
+    stepCells: [[39, 36, 31], [39, 36, 31], [31, 36, 39, 40, 41], [40]],
+    stepStrikes: [{}, {}, { 40: [9], 41: [9] }, {}],
   },
   {
     id: "w-wing",
@@ -324,6 +352,8 @@ export const LESSONS = [
       "Dans tous les cas, l'une des deux paires vaut **4** → toute case qui voit les deux barre le 4 : L6C2 −{4}, L2C8 −{4}.",
       "**L6C2** passe de {4, 8} à {8} → **L6C2 = 8**.",
     ],
+    stepCells: [[10, 52, 13, 49], [10, 52, 13, 49], [10, 46, 52], [46]],
+    stepStrikes: [{}, {}, { 46: [4], 16: [4] }, {}],
   },
   {
     id: "kite",
@@ -347,6 +377,8 @@ export const LESSONS = [
       "**L8C5** voit ces deux extrémités (colonne 5 pour l'une, ligne 8 pour l'autre) → L8C5 −{3}.",
       "**L8C5** passe de {3, 6} à {6} → **L8C5 = 6**.",
     ],
+    stepCells: [[13, 17, 24, 69], [13, 69], [13, 67, 69], [67]],
+    stepStrikes: [{}, {}, { 67: [3] }, {}],
   },
   {
     id: "empty-rectangle",
@@ -370,6 +402,8 @@ export const LESSONS = [
       "Suppose **L5C8 = 6** : la ligne 5 et la colonne 8 se vident → L8C8 ≠ 6 → **L8C4 = 6** → la colonne 4 se vide aussi… et le bloc central n'a plus aucune place pour son 6. Contradiction → L5C8 −{6}.",
       "**L5C8** passe de {6, 9} à {9} → **L5C8 = 9**.",
     ],
+    stepCells: [[30, 39, 40, 41, 48], [66, 70], [43, 66, 70], [43]],
+    stepStrikes: [{}, {}, { 43: [6] }, {}],
   },
   {
     id: "coloring",
@@ -395,6 +429,8 @@ export const LESSONS = [
       "Or **L2C3 ➊** et **L3C1 ➊** partagent le bloc haut-gauche : la couleur ➊ mettrait deux 5 dans le même bloc → ➊ est fausse partout : L2C3, L8C7 et L3C1 perdent leur 5.",
       "La couleur ➋ est donc vraie : **L8C3 = 5** (et L3C7 = 5).",
     ],
+    stepCells: [[11, 65, 69, 24, 18], [11, 65, 69, 24, 18], [11, 18, 69], [24, 65]],
+    stepStrikes: [{}, {}, { 11: [5], 69: [5], 18: [5] }, {}],
   },
   {
     id: "sue-de-coq",
@@ -418,6 +454,8 @@ export const LESSONS = [
       "Bilan : le 1 et le 2 sont entièrement casés dans la ligne 1 (L1C8 + intersection) → on les barre ailleurs dans la ligne : L1C5 −{1, 2}. Et le 5 et le 7 sont casés dans le bloc → L2C2 −{5}.",
       "**L1C5** passe de {1, 2, 4} à {4} → **L1C5 = 4**.",
     ],
+    stepCells: [[0, 1, 7, 18], [0, 1, 7, 18], [4, 10], [4]],
+    stepStrikes: [{}, {}, { 4: [1, 2], 10: [5] }, {}],
   },
 ];
 
