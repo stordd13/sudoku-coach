@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, Fragment } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment, createContext, useContext } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
   candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, stuckPanelKind, SAMPLES,
@@ -18,6 +18,7 @@ import { TECH_NAMES, withArticle, frTechList } from "./techNames.js";
 import { t, setLang, getLang, detectLang } from "./i18n.js";
 import { notationFor } from "./notation.js";
 import { lessonStepScript, planStepScript, exerciseStepScript, stepReveal } from "./stepper.js";
+import { lookupTerm, glossaryList } from "./glossary.js";
 import { cellAriaLabel } from "./a11y.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
@@ -50,12 +51,34 @@ const MAX_LEVEL = 5;
 const tn = (base, n, params) => t(n === 1 ? `${base}.one` : `${base}.other`, { n, ...params });
 
 /* ---------- Petits composants UI ---------- */
+/* Ouvre la définition d'un terme du glossaire (carte flottante d'App).
+   Sans provider (ou terme inconnu), les [[ ]] sont consommés en texte nu. */
+const TermContext = createContext(null);
+function Term({ label }) {
+  const openTerm = useContext(TermContext);
+  const entry = lookupTerm(label, getLang());
+  if (!entry || !openTerm) return <>{label}</>;
+  return (
+    <button type="button" onClick={() => openTerm(entry)}
+      style={{
+        background: "none", border: "none", borderBottom: `1px dotted ${C.textSoft}`,
+        padding: 0, margin: 0, font: "inherit", color: "inherit", cursor: "pointer",
+        WebkitTapHighlightColor: "transparent",
+      }}>
+      {label}
+    </button>
+  );
+}
+/* Texte riche : **gras** puis [[terme]] (touchable) dans chaque fragment. */
 function Rich({ text }) {
+  const sub = (s, base) => String(s).split(/\[\[(.+?)\]\]/g).map((p, j) =>
+    j % 2 ? <Term key={`${base}-${j}`} label={p} /> : <Fragment key={`${base}-${j}`}>{p}</Fragment>
+  );
   const parts = String(text).split(/\*\*(.+?)\*\*/g);
   return (
     <>
       {parts.map((p, i) =>
-        i % 2 ? <strong key={i} style={{ color: C.ink }}>{p}</strong> : <span key={i}>{p}</span>
+        i % 2 ? <strong key={i} style={{ color: C.ink }}>{sub(p, i)}</strong> : <span key={i}>{sub(p, i)}</span>
       )}
     </>
   );
@@ -451,6 +474,7 @@ function saveExoCache(c) {
    technique) doit pouvoir l'imposer depuis l'écran de jeu. */
 function LearnView({ ix, onSelectIx }) {
   const [stepIx, setStepIx] = useState(null); // null (caché) | index d'étape | "all"
+  const [showGloss, setShowGloss] = useState(false); // écran « Les mots du sudoku »
   const [showHint, setShowHint] = useState(false);
   const [exo, setExo] = useState(null); // null | "searching" | exercice
   const refillRef = useRef(new Set()); // kinds en cours de refill (anti-cumul)
@@ -517,9 +541,43 @@ function LearnView({ ix, onSelectIx }) {
     : L;
   const question = isExo ? t("learn.findIt", { name: exoName(L.id) }) : LT.question;
   const hint = isExo ? exo.hint : LT.hint;
+
+  if (showGloss) {
+    return (
+      <>
+        <div style={{
+          width: W, background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 14,
+          padding: "12px 14px", boxShadow: "0 8px 24px rgba(31,39,46,0.08)",
+        }}>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>{t("glossary.title")}</div>
+          <p style={{ fontSize: 12.5, lineHeight: 1.5, margin: "4px 0 0", color: C.gray }}>{t("glossary.sub")}</p>
+        </div>
+        {glossaryList(getLang()).map((e) => (
+          <div key={e.id} style={{
+            width: W, background: C.surface, border: `1px solid ${C.borderSoft}`, borderRadius: 12,
+            padding: "10px 14px", fontSize: 13.5, lineHeight: 1.5,
+          }}>
+            <strong style={{ color: C.ink }}>{e.term}</strong>
+            <span style={{ color: C.textStrong }}> — {e.def}</span>
+          </div>
+        ))}
+        <LinkBtn onClick={() => setShowGloss(false)}>{t("glossary.back")}</LinkBtn>
+      </>
+    );
+  }
   return (
     <>
       <div style={{ width: W, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, alignItems: "center" }}>
+        <button type="button" onClick={() => setShowGloss(true)} style={{
+          flex: "0 0 auto", border: `1px solid ${C.border}`,
+          background: C.surface, color: C.ink,
+          borderRadius: 999, padding: "7px 12px", fontSize: 12.5, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+          WebkitTapHighlightColor: "transparent",
+          minHeight: 44, touchAction: "manipulation",
+        }}>
+          {t("learn.glossary")}
+        </button>
         {LESSONS.map((l, i) => {
           const newSection = i === 0 || LESSONS[i - 1].level !== l.level;
           const sectionLabel =
@@ -731,6 +789,7 @@ export default function App() {
      l'étape courante | "all" (tout voir). Ne concerne que les plans à chaîne. */
   const [coachStep, setCoachStep] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [glossTerm, setGlossTerm] = useState(null); // entrée du glossaire affichée en carte flottante
   const [scanning, setScanning] = useState(false);
   const [scansUsed, setScansUsed] = useState(0); // chargé au boot via loadAll()
   const [unlimited, setUnlimited] = useState(false); // entitlement RevenueCat (natif)
@@ -1601,6 +1660,7 @@ export default function App() {
 
   /* ================================ RENDER ================================ */
   return (
+    <TermContext.Provider value={setGlossTerm}>
     <div style={{
       minHeight: "100vh", backgroundColor: C.paper,
       backgroundImage: `linear-gradient(${C.gridPaper} 1px, transparent 1px), linear-gradient(90deg, ${C.gridPaper} 1px, transparent 1px)`,
@@ -2233,6 +2293,29 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
       {tab !== "learn" && (
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPhoto} />
       )}
+
+      {/* ---------- Carte flottante du glossaire ---------- */}
+      {glossTerm && (
+        <div role="dialog" aria-label={glossTerm.term} style={{
+          position: "fixed", left: "50%", transform: "translateX(-50%)",
+          bottom: "calc(16px + env(safe-area-inset-bottom))", width: W, maxWidth: "94vw",
+          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14,
+          padding: "10px 12px", boxShadow: "0 12px 32px rgba(31,39,46,0.20)", zIndex: 60,
+          display: "flex", gap: 10, alignItems: "flex-start",
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 13.5 }}>📖 {glossTerm.term}</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, color: C.textStrong, marginTop: 2 }}>{glossTerm.def}</div>
+          </div>
+          <button type="button" onClick={() => setGlossTerm(null)} aria-label={t("common.close")}
+            style={{
+              background: "none", border: "none", color: C.gray, cursor: "pointer",
+              fontSize: 16, lineHeight: 1, padding: "4px 6px", fontFamily: "inherit",
+              WebkitTapHighlightColor: "transparent",
+            }}>✕</button>
+        </div>
+      )}
     </div>
+    </TermContext.Provider>
   );
 }
