@@ -9,7 +9,7 @@
    candidat compte comme résolue. engine.js insère ces finders dans
    ELIM_FINDERS par leur kind (ordre pédagogique = contrat).
    ================================================================ */
-import { UNITS, PEERS, combos } from "./grid.js";
+import { ROWS, COLS, UNITS, PEERS, rowOf, colOf, boxOf, combos } from "./grid.js";
 
 // Garde commune : removals non vides et, si prefer, au moins une case visée.
 const accept = (removals, prefer) =>
@@ -77,11 +77,62 @@ export const findHiddenTripleE = hiddenSubsetFinder(3, "hiddenTriple");
 export const findNakedQuadE = nakedSubsetFinder(4, "nakedQuad");
 export const findHiddenQuadE = hiddenSubsetFinder(4, "hiddenQuad");
 
+/* ---------- A6. X-Wing à nageoire (finned / sashimi) ----------
+   Deux lignes de base où le chiffre tient dans deux colonnes de couverture,
+   à l'exception d'une ou plusieurs « nageoires », toutes dans un même bloc.
+   Soit une nageoire porte le chiffre (ses voisines de bloc le perdent), soit
+   aucune et c'est un X-Wing (éventuellement sashimi : une ligne n'a qu'une
+   case en couverture) qui réserve les deux colonnes. Dans les deux cas, les
+   cases des colonnes de couverture situées dans le bloc des nageoires, hors
+   lignes de base, perdent le chiffre. Sans nageoire → laissé à xWing. */
+export function findFinnedXWingE(cands, prefer) {
+  const orient = [
+    { base: ROWS, cross: COLS, lineIdx: rowOf, crossIdx: colOf, lineType: "row" },
+    { base: COLS, cross: ROWS, lineIdx: colOf, crossIdx: rowOf, lineType: "col" },
+  ];
+  for (const o of orient) {
+    for (let d = 1; d <= 9; d++) {
+      const linePos = o.base.map((cells) => cells.filter((i) => cands[i].has(d)));
+      const eligible = [];
+      for (let li = 0; li < 9; li++) if (linePos[li].length >= 2 && linePos[li].length <= 5) eligible.push(li);
+      for (const [l1, l2] of combos(eligible, 2)) {
+        const all = [...linePos[l1], ...linePos[l2]];
+        const crossAll = [...new Set(all.map(o.crossIdx))].sort(asc);
+        if (crossAll.length < 3) continue; // 2 colonnes exactement = X-Wing pur
+        for (const C of combos(crossAll, 2)) {
+          const inC = (i) => C.includes(o.crossIdx(i));
+          const fins = all.filter((i) => !inC(i));
+          if (!fins.length) continue;
+          const finBox = boxOf(fins[0]);
+          if (fins.some((f) => boxOf(f) !== finBox)) continue;
+          if (!linePos[l1].some(inC) || !linePos[l2].some(inC)) continue;
+          const removals = [];
+          for (const cx of C) {
+            for (const i of o.cross[cx]) {
+              const li = o.lineIdx(i);
+              if (li === l1 || li === l2 || boxOf(i) !== finBox) continue;
+              if (cands[i].has(d)) removals.push({ cell: i, digits: [d] });
+            }
+          }
+          if (!accept(removals, prefer)) continue;
+          return {
+            kind: "finnedXWing", digit: d, lineType: o.lineType, lines: [l1, l2], cross: C,
+            fins, finBox, corners: all.filter(inC), cells: all, digits: [d], removals,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /* Rempli technique par technique (A1 → A6) ; un kind absent est ignoré par
-   engine.js (filtre typeof === "function"). */
+   engine.js (filtre typeof === "function"). Jellyfish = findFish(4), dans
+   engine.js avec X-Wing et Swordfish. */
 export const PALIER_A_FINDERS = {
   nakedTriple: findNakedTripleE, hiddenTriple: findHiddenTripleE,
   nakedQuad: findNakedQuadE, hiddenQuad: findHiddenQuadE,
+  finnedXWing: findFinnedXWingE,
 };
 
 export { accept, sees };

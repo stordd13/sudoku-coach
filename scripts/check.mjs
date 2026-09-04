@@ -594,7 +594,8 @@ console.log("Palier A (v2.3) :");
   };
   const F = ELIM_FINDER_BY_KIND;
   const NEW_KINDS = ["nakedTriple", "hiddenTriple", "nakedQuad", "hiddenQuad"];
-  ok(NEW_KINDS.every((k) => typeof F[k] === "function"), `finders du palier A branchés : ${NEW_KINDS.join(", ")}`);
+  const PALIER_A = [...NEW_KINDS, "finnedXWing", "jellyfish"];
+  ok(PALIER_A.every((k) => typeof F[k] === "function"), `finders du palier A branchés : ${PALIER_A.join(", ")}`);
 
   // Triplet nu : la leçon (ligne 5) et un cas presque valide (union de 4 chiffres).
   {
@@ -640,6 +641,44 @@ console.log("Palier A (v2.3) :");
     g[idx(2, 2)] = S(1, 5, 6, 7, 8, 9);
     ok(F.hiddenQuad(g, null) === null, "négatif : un chiffre du quadruplet caché qui déborde annule le motif");
   }
+  // X-Wing à nageoire : lignes 1 et 5, colonnes 2 et 6, nageoire L5C4 (bloc
+  // central) → seule la case du bloc central dans la colonne 6 perd le 4.
+  {
+    const g = empty();
+    g[idx(0, 1)] = S(4, 8); g[idx(0, 5)] = S(4, 9); g[idx(4, 1)] = S(4, 6); g[idx(4, 5)] = S(4, 5);
+    g[idx(4, 3)] = S(4, 7); // la nageoire
+    g[idx(3, 5)] = S(2, 4); // victime : bloc central, colonne 6
+    g[idx(7, 5)] = S(3, 4); // hors du bloc de la nageoire : épargnée
+    const e = F.finnedXWing(g, null);
+    ok(e && e.kind === "finnedXWing" && e.fins.join() === String(idx(4, 3)) && hit(e, idx(3, 5), 4)
+      && e.removals.length === 1, "X-Wing à nageoire : retire le 4 de L4C6 seulement (bloc de la nageoire)");
+    ok(F.xWing(g, null) === null, "le X-Wing pur ne voit pas ce motif (la nageoire l'empêche)");
+    // Sashimi : le coin L5C6 disparaît, la nageoire reste → même élimination.
+    g[idx(4, 5)] = S(5);
+    const s = F.finnedXWing(g, null);
+    ok(s && hit(s, idx(3, 5), 4), "sashimi : sans le coin L5C6, la nageoire suffit encore");
+    // Négatifs : nageoires dans deux blocs différents ; aucune nageoire.
+    g[idx(4, 5)] = S(4, 5); g[idx(4, 7)] = S(1, 4);
+    ok(F.finnedXWing(g, null) === null, "négatif : deux nageoires dans deux blocs → rien");
+    const pure = empty();
+    [[0, 1], [0, 5], [4, 1], [4, 5]].forEach(([r, c]) => (pure[idx(r, c)] = S(4)));
+    pure[idx(2, 1)] = S(4, 7);
+    ok(F.finnedXWing(pure, null) === null && !!F.xWing(pure, null), "négatif : sans nageoire, c'est un X-Wing, pas un X-Wing à nageoire");
+  }
+  // Jellyfish : le 5 sur 4 lignes tient dans 4 colonnes ; négatif : 5 colonnes.
+  {
+    const g = empty();
+    const rows = [0, 2, 5, 8], cols = [1, 3, 6, 7];
+    for (const r of rows) for (const c of cols) g[idx(r, c)] = S(5, 9);
+    g[idx(4, 3)] = S(1, 5); g[idx(6, 7)] = S(2, 5);
+    const e = F.jellyfish(g, null);
+    ok(e && e.kind === "jellyfish" && hit(e, idx(4, 3), 5) && hit(e, idx(6, 7), 5) && e.removals.length === 2,
+      "Jellyfish : retire le 5 de L5C4 et L7C8");
+    ok(F.swordfish(g, null) === null, "le Swordfish ne voit pas ce motif à 4 lignes");
+    g[idx(2, 0)] = S(5, 8); // la ligne 3 déborde sur une 5e colonne
+    ok(F.jellyfish(g, null) === null, "négatif : cinq colonnes ne font pas un Jellyfish");
+  }
+  ok(TECH_TIER.finnedXWing === 4 && TECH_TIER.jellyfish === 4, "X-Wing à nageoire et Jellyfish : palier 4");
   // Ordre pédagogique et paliers : triplets/quads au palier 3, entre paires et poissons.
   ok(NEW_KINDS.every((k) => TECH_TIER[k] === 3), "triplets et quadruplets : palier 3");
   {

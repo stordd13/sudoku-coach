@@ -262,7 +262,8 @@ function findHiddenPairE(cands, prefer) {
 }
 /* ---------- Techniques intermédiaires ---------- */
 
-// X-Wing (size 2) et Swordfish (size 3) : même « poisson », généralisé.
+// X-Wing (size 2), Swordfish (size 3) et Jellyfish (size 4) : même « poisson ».
+const FISH_KIND = { 2: "xWing", 3: "swordfish", 4: "jellyfish" };
 function findFish(cands, size, prefer) {
   const orient = [
     { cross: COLS, lineIdx: rowOf, crossIdx: colOf, lineType: "row" },
@@ -293,7 +294,7 @@ function findFish(cands, size, prefer) {
         if (!removals.length) continue;
         if (prefer && !removals.some((r) => prefer.has(r.cell))) continue;
         return {
-          kind: size === 2 ? "xWing" : "swordfish",
+          kind: FISH_KIND[size],
           digit: d, size, lineType: o.lineType,
           lines: combo, cross: [...crossSet], cells, digits: [d], removals,
         };
@@ -304,6 +305,7 @@ function findFish(cands, size, prefer) {
 }
 export const findXWingE = (cands, prefer) => findFish(cands, 2, prefer);
 export const findSwordfishE = (cands, prefer) => findFish(cands, 3, prefer);
+export const findJellyfishE = (cands, prefer) => findFish(cands, 4, prefer);
 
 // Skyscraper : deux liens forts (un chiffre, 2 cases) partageant une base ;
 // toute case voyant les deux « toits » perd ce chiffre.
@@ -751,7 +753,7 @@ const ELIM_FINDERS = [
   [findXWingE, "xWing"], [PA.finnedXWing, "finnedXWing"],
   [findXYWingE, "xyWing"],
   [findXYZWingE, "xyzWing"], [findWWingE, "wWing"],
-  [findSwordfishE, "swordfish"], [PA.jellyfish, "jellyfish"],
+  [findSwordfishE, "swordfish"], [findJellyfishE, "jellyfish"],
   [findKiteE, "kite"],
   [findSkyscraperE, "skyscraper"], [findEmptyRectangleE, "emptyRectangle"],
   [findRemotePairE, "remotePair"],
@@ -883,6 +885,25 @@ function describeElimFr(e) {
       text: `Suis le **${e.digit}** sur 3 ${base} : il tient dans les mêmes 3 ${perp} (${cl(e.cells)}). Ces 3 ${perp} se partageront le ${e.digit} sur ces ${base}, c’est un [[Swordfish]] : aucune autre case de ces ${perp} ne peut être un ${e.digit}. ${capFirst(rem)}.`,
     };
   }
+  if (e.kind === "jellyfish") {
+    const base = e.lineType === "row" ? "lignes" : "colonnes";
+    const perp = e.lineType === "row" ? "colonnes" : "lignes";
+    const nums = (arr) => andList(arr.map((x) => x + 1));
+    return {
+      title: TECH_NAMES.jellyfish.fr, zone: `${e.size} ${base}`, cells: involved,
+      text: `Suis le **${e.digit}** sur les ${base} ${nums(e.lines)} : il tient dans les ${perp} ${nums(e.cross)}. Ces 4 ${perp} se partageront le ${e.digit} sur ces ${base}, c’est un [[Jellyfish]] : aucune autre case de ces ${perp} ne peut être un ${e.digit}. ${capFirst(rem)}.`,
+    };
+  }
+  if (e.kind === "finnedXWing") {
+    const base = e.lineType === "row" ? "lignes" : "colonnes";
+    const perp = e.lineType === "row" ? "colonnes" : "lignes";
+    const nums = (arr) => andList(arr.map((x) => x + 1));
+    const fins = e.fins.map(cellName).join(" et ");
+    return {
+      title: TECH_NAMES.finnedXWing.fr, zone: `le ${e.digit}`, cells: involved,
+      text: `Suis le **${e.digit}** sur les ${base} ${nums(e.lines)} : presque un [[X-Wing]] dans les ${perp} ${nums(e.cross)}. Seule la [[nageoire]] **${fins}** dépasse, dans le bloc ${BOX_NAMES.fr[e.finBox]} : si elle porte le ${e.digit}, ses voisines le perdent, sinon le X-Wing joue. Dans les deux cas, ${rem}.`,
+    };
+  }
   if (e.kind === "skyscraper") {
     return {
       title: TECH_NAMES.skyscraper.fr, zone: `le ${e.digit}`, cells: involved,
@@ -1012,6 +1033,25 @@ function describeElimEn(e) {
     return {
       title: TECH_NAMES.swordfish.en, zone: `${e.size} ${base}`, cells: involved,
       text: `Follow the **${e.digit}** on 3 ${base}: it stays within the same 3 ${perp} (${cl(e.cells)}). Those 3 ${perp} will share the ${e.digit} on those ${base}, a [[Swordfish]]: no other cell of those ${perp} can be a ${e.digit}. ${capFirst(rem)}.`,
+    };
+  }
+  if (e.kind === "jellyfish") {
+    const base = e.lineType === "row" ? "rows" : "columns";
+    const perp = e.lineType === "row" ? "columns" : "rows";
+    const nums = (arr) => andList(arr.map((x) => x + 1), "en");
+    return {
+      title: TECH_NAMES.jellyfish.en, zone: `${e.size} ${base}`, cells: involved,
+      text: `Follow the **${e.digit}** on ${base} ${nums(e.lines)}: it fits in ${perp} ${nums(e.cross)}. Those 4 ${perp} will share the ${e.digit} on those ${base}, this is a [[Jellyfish]]: no other cell of those ${perp} can be a ${e.digit}. ${capFirst(rem)}.`,
+    };
+  }
+  if (e.kind === "finnedXWing") {
+    const base = e.lineType === "row" ? "rows" : "columns";
+    const perp = e.lineType === "row" ? "columns" : "rows";
+    const nums = (arr) => andList(arr.map((x) => x + 1), "en");
+    const fins = e.fins.map(cn).join(" and ");
+    return {
+      title: TECH_NAMES.finnedXWing.en, zone: `the ${e.digit}`, cells: involved,
+      text: `Follow the **${e.digit}** on ${base} ${nums(e.lines)}: almost an [[X-Wing]] in ${perp} ${nums(e.cross)}. Only the [[fin]] **${fins}** sticks out, in the ${BOX_NAMES.en[e.finBox]} box: if it holds the ${e.digit}, its neighbours lose it, otherwise the X-Wing applies. Either way, ${rem}.`,
     };
   }
   if (e.kind === "skyscraper") {
@@ -1248,7 +1288,7 @@ function pruneChain(grid, chain, goal) {
       lineThrough(e.base[0], e.roof[0]).forEach((c) => addNeed(c, e.digit));
       lineThrough(e.base[1], e.roof[1]).forEach((c) => addNeed(c, e.digit));
     }
-    else if (e.kind === "xWing" || e.kind === "swordfish") {
+    else if (e.kind === "xWing" || e.kind === "swordfish" || e.kind === "jellyfish" || e.kind === "finnedXWing") {
       const base = e.lineType === "row" ? ROWS : COLS;
       e.lines.forEach((li) => base[li].forEach((c) => addNeed(c, e.digit)));
     }
@@ -1582,9 +1622,13 @@ function elimHighlight(e) {
       unit = [...e.unit.cells]; break;
     case "pointing": case "claiming":
       unit = [...BOXES[e.box], ...e.line.cells]; break;
-    case "xWing": case "swordfish": {
+    case "xWing": case "swordfish": case "jellyfish": {
       const cross = e.lineType === "row" ? COLS : ROWS;
       unit = e.cross.flatMap((c) => cross[c]); break;
+    }
+    case "finnedXWing": {
+      const base = e.lineType === "row" ? ROWS : COLS;
+      unit = [...e.lines.flatMap((l) => base[l]), ...BOXES[e.finBox]]; break;
     }
     case "kite":
       unit = [...ROWS[e.row], ...COLS[e.col]]; break;
@@ -1603,13 +1647,14 @@ function elimHighlight(e) {
 }
 
 // « Regarde du côté de {zone} » avec la contraction française qui va bien.
+const FISH_ZONE = new Set(["xWing", "swordfish", "jellyfish", "finnedXWing"]);
 function hintFromZone(e, zone, lang = "fr") {
   // Pour les poissons, la zone (« 2 lignes ») est moins parlante que le chiffre.
   if (lang === "en") {
-    const z = e.kind === "xWing" || e.kind === "swordfish" ? `the ${e.digit}` : zone;
+    const z = FISH_ZONE.has(e.kind) ? `the ${e.digit}` : zone;
     return `Look around ${z}.`;
   }
-  const z = e.kind === "xWing" || e.kind === "swordfish" ? `le ${e.digit}` : zone;
+  const z = FISH_ZONE.has(e.kind) ? `le ${e.digit}` : zone;
   const de = z.startsWith("le ") ? `du ${z.slice(3)}`
     : z.startsWith("les ") ? `des ${z.slice(4)}` : `de ${z}`;
   return `Regarde du côté ${de}.`;

@@ -168,6 +168,21 @@ export const GLOSSARY = [
     en: { term: "hidden quad", aliases: [], def: "Four digits that fit only in four cells of a zone: those cells lose their other candidates." },
   },
   {
+    id: "fin",
+    fr: { term: "nageoire", aliases: ["nageoires"], def: "La case en trop qui empêche un poisson d’être parfait, tolérée quand elle reste dans le bloc où l’on élimine." },
+    en: { term: "fin", aliases: ["fins"], def: "The extra cell that keeps a fish from being perfect, tolerated when it stays in the box where you eliminate." },
+  },
+  {
+    id: "finned-x-wing",
+    fr: { term: "X-Wing à nageoire", aliases: ["X-Wings à nageoire"], def: "Un X-Wing presque parfait, dont la nageoire dépasse dans un bloc : on n’élimine que dans ce bloc." },
+    en: { term: "Finned X-Wing", aliases: ["finned X-Wing"], def: "An almost perfect X-Wing whose fin sticks out into one box: you only eliminate inside that box." },
+  },
+  {
+    id: "jellyfish",
+    fr: { term: "Jellyfish", aliases: [], def: "Le poisson à quatre lignes : un chiffre confiné aux quatre mêmes colonnes sur quatre lignes y est réservé." },
+    en: { term: "Jellyfish", aliases: [], def: "The four-row fish: a digit confined to the same four columns on four rows is reserved for them." },
+  },
+  {
     id: "sue-de-coq",
     fr: { term: "Sue de Coq", aliases: [], def: "Deux cases à cheval entre une ligne et un bloc qui puisent dans quatre chiffres, partagés avec une case de la ligne et une du bloc : chaque chiffre a sa place, on nettoie autour." },
     en: { term: "Sue de Coq", aliases: [], def: "Two cells straddling a row and a box that draw from four digits, split with one cell of the row and one of the box: every digit has its place, so clean up around them." },
