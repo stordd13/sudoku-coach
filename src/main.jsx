@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
+import { Analytics } from "@vercel/analytics/react";
+import { isNative } from "./native.js";
 
 /* Filet anti-écran-blanc : si l'app crashe au rendu, une carte propre
    remplace la page vide (les données restent en localStorage). */
@@ -47,6 +49,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
+      {/* Statistiques d'audience anonymes (Vercel Web Analytics), web
+          uniquement : dans le WebView Capacitor l'endpoint n'existe pas,
+          l'usage natif se lit dans App Store Connect. Si aucune donnée
+          n'arrive après déploiement, forcer mode="production" (Vite
+          n'expose pas toujours NODE_ENV au paquet). */}
+      {!isNative() && <Analytics />}
     </ErrorBoundary>
   </React.StrictMode>
 );
