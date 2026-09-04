@@ -148,6 +148,26 @@ export const GLOSSARY = [
     en: { term: "Empty rectangle", aliases: [], def: "In a box, the candidates of a digit fit in one row and one column: with a strong link elsewhere, the digit is crossed out at a precise crossing." },
   },
   {
+    id: "naked-triple",
+    fr: { term: "triplet nu", aliases: ["triplets nus", "triplet", "triplets"], def: "Trois cases d’une zone qui, à elles trois, n’acceptent que trois chiffres : ces chiffres leur sont réservés." },
+    en: { term: "naked triple", aliases: ["naked triples", "triple", "triples"], def: "Three cells of a zone that, together, accept only three digits: those digits are reserved for them." },
+  },
+  {
+    id: "hidden-triple",
+    fr: { term: "triplet caché", aliases: ["triplets cachés"], def: "Trois chiffres qui n’ont de place que dans trois cases d’une zone : ces cases perdent leurs autres candidats." },
+    en: { term: "hidden triple", aliases: ["hidden triples"], def: "Three digits that fit only in three cells of a zone: those cells lose their other candidates." },
+  },
+  {
+    id: "naked-quad",
+    fr: { term: "quadruplet nu", aliases: ["quadruplet", "quadruplets"], def: "Quatre cases d’une zone qui, à elles quatre, n’acceptent que quatre chiffres : ces chiffres leur sont réservés." },
+    en: { term: "naked quad", aliases: ["quad", "quads"], def: "Four cells of a zone that, together, accept only four digits: those digits are reserved for them." },
+  },
+  {
+    id: "hidden-quad",
+    fr: { term: "quadruplet caché", aliases: [], def: "Quatre chiffres qui n’ont de place que dans quatre cases d’une zone : ces cases perdent leurs autres candidats." },
+    en: { term: "hidden quad", aliases: [], def: "Four digits that fit only in four cells of a zone: those cells lose their other candidates." },
+  },
+  {
     id: "sue-de-coq",
     fr: { term: "Sue de Coq", aliases: [], def: "Deux cases à cheval entre une ligne et un bloc qui puisent dans quatre chiffres, partagés avec une case de la ligne et une du bloc : chaque chiffre a sa place, on nettoie autour." },
     en: { term: "Sue de Coq", aliases: [], def: "Two cells straddling a row and a box that draw from four digits, split with one cell of the row and one of the box: every digit has its place, so clean up around them." },

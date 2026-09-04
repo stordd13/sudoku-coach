@@ -827,11 +827,32 @@ function describeElimFr(e) {
   const rem = remWords(e.removals, "fr");
   const involved = [...e.cells, ...e.removals.map((r) => r.cell)];
   const cl = (cells) => cells.map(cellName).join(", ");
+  // « **L5C1**, **L5C4** et **L5C8** » — cases en gras, liste en toutes lettres.
+  const bold = (cells) => {
+    const n = cells.map((i) => `**${cellName(i)}**`);
+    return n.length === 1 ? n[0] : `${n.slice(0, -1).join(", ")} et ${n[n.length - 1]}`;
+  };
   if (e.kind === "nakedPair") {
     const [A, B] = e.cells, [x, y] = e.digits;
     return {
       title: TECH_NAMES.nakedPair.fr, zone: unitLabel(e.unit), cells: involved,
       text: `Dans ${unitLabel(e.unit)}, **${cellName(A)}** et **${cellName(B)}** n’acceptent que ${x} et ${y} : c’est une [[paire nue]], ces deux chiffres leur sont réservés. Aucune autre case de la zone ne peut les porter. ${capFirst(rem)}.`,
+    };
+  }
+  if (e.kind === "nakedTriple" || e.kind === "nakedQuad") {
+    const n = e.kind === "nakedTriple" ? "trois" : "quatre";
+    const name = e.kind === "nakedTriple" ? "triplet nu" : "quadruplet nu";
+    return {
+      title: TECH_NAMES[e.kind].fr, zone: unitLabel(e.unit), cells: involved,
+      text: `Dans ${unitLabel(e.unit)}, ${bold(e.cells)} n’acceptent à elles ${n} que ${andList(e.digits)} : c’est un [[${name}]]. Ces ${n} chiffres leur sont réservés, aucune autre case de la zone ne peut les porter. ${capFirst(rem)}.`,
+    };
+  }
+  if (e.kind === "hiddenTriple" || e.kind === "hiddenQuad") {
+    const n = e.kind === "hiddenTriple" ? "trois" : "quatre";
+    const name = e.kind === "hiddenTriple" ? "triplet caché" : "quadruplet caché";
+    return {
+      title: TECH_NAMES[e.kind].fr, zone: unitLabel(e.unit), cells: involved,
+      text: `Dans ${unitLabel(e.unit)}, les chiffres ${andList(e.digits)} n’apparaissent que dans ${bold(e.cells)} : c’est un [[${name}]]. Ces ${n} cases leur sont réservées, leurs autres candidats s’effacent. ${capFirst(rem)}.`,
     };
   }
   if (e.kind === "pointing") {
@@ -938,11 +959,31 @@ function describeElimEn(e) {
   const rem = remWords(e.removals, "en");
   const involved = [...e.cells, ...e.removals.map((r) => r.cell)];
   const cl = (cells) => cells.map(cn).join(", ");
+  const bold = (cells) => {
+    const n = cells.map((i) => `**${cn(i)}**`);
+    return n.length === 1 ? n[0] : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`;
+  };
   if (e.kind === "nakedPair") {
     const [A, B] = e.cells, [x, y] = e.digits;
     return {
       title: TECH_NAMES.nakedPair.en, zone: uL(e.unit), cells: involved,
       text: `In ${uL(e.unit)}, **${cn(A)}** and **${cn(B)}** accept only ${x} and ${y}: this is a [[naked pair]], those two digits are reserved for them. No other cell of the zone can hold them. ${capFirst(rem)}.`,
+    };
+  }
+  if (e.kind === "nakedTriple" || e.kind === "nakedQuad") {
+    const n = e.kind === "nakedTriple" ? "three" : "four";
+    const name = e.kind === "nakedTriple" ? "naked triple" : "naked quad";
+    return {
+      title: TECH_NAMES[e.kind].en, zone: uL(e.unit), cells: involved,
+      text: `In ${uL(e.unit)}, ${bold(e.cells)} together accept only ${andList(e.digits, "en")}: this is a [[${name}]]. Those ${n} digits are reserved for them, no other cell of the zone can hold them. ${capFirst(rem)}.`,
+    };
+  }
+  if (e.kind === "hiddenTriple" || e.kind === "hiddenQuad") {
+    const n = e.kind === "hiddenTriple" ? "three" : "four";
+    const name = e.kind === "hiddenTriple" ? "hidden triple" : "hidden quad";
+    return {
+      title: TECH_NAMES[e.kind].en, zone: uL(e.unit), cells: involved,
+      text: `In ${uL(e.unit)}, the digits ${andList(e.digits, "en")} appear only in ${bold(e.cells)}: this is a [[${name}]]. Those ${n} cells are reserved for them, their other candidates vanish. ${capFirst(rem)}.`,
     };
   }
   if (e.kind === "pointing") {
@@ -1200,7 +1241,9 @@ function pruneChain(grid, chain, goal) {
     // Prémisses de l'étape gardée : ce qu'elle « lit » devient à son tour nécessaire
     if (e.kind === "pointing") BOXES[e.box].forEach((c) => addNeed(c, e.digit));
     else if (e.kind === "claiming") e.line.cells.forEach((c) => addNeed(c, e.digit));
-    else if (e.kind === "hiddenPair") e.unit.cells.forEach((c) => { addNeed(c, e.digits[0]); addNeed(c, e.digits[1]); });
+    else if (e.kind === "hiddenPair" || e.kind === "hiddenTriple" || e.kind === "hiddenQuad") {
+      e.unit.cells.forEach((c) => e.digits.forEach((d) => addNeed(c, d)));
+    }
     else if (e.kind === "skyscraper") {
       lineThrough(e.base[0], e.roof[0]).forEach((c) => addNeed(c, e.digit));
       lineThrough(e.base[1], e.roof[1]).forEach((c) => addNeed(c, e.digit));
@@ -1224,7 +1267,7 @@ function pruneChain(grid, chain, goal) {
     else if (e.kind === "coloring") {
       e.linkUnits.forEach((u) => u.cells.forEach((c) => addNeed(c, e.digit)));
     }
-    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair, xyWing, xyzWing, sueDeCoq, remotePair…
+    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair/Triple/Quad, xyWing, xyzWing, sueDeCoq, remotePair…
   }
   return kept;
 }
@@ -1535,6 +1578,7 @@ function elimHighlight(e) {
   let unit;
   switch (e.kind) {
     case "nakedPair": case "hiddenPair":
+    case "nakedTriple": case "hiddenTriple": case "nakedQuad": case "hiddenQuad":
       unit = [...e.unit.cells]; break;
     case "pointing": case "claiming":
       unit = [...BOXES[e.box], ...e.line.cells]; break;

@@ -16,7 +16,7 @@ import { TECH_NAMES } from "./techNames.js";
 export const KIND_BY_LESSON = {
   "naked-single": "nakedSingle", "hidden-single": "hiddenSingle",
   "naked-pair": "nakedPair", "pointing-pair": "pointing", "claiming": "claiming",
-  "hidden-pair": "hiddenPair", "x-wing": "xWing", "xy-wing": "xyWing",
+  "hidden-pair": "hiddenPair", "triples": "nakedTriple", "x-wing": "xWing", "xy-wing": "xyWing",
   "swordfish": "swordfish", "skyscraper": "skyscraper", "remote-pairs": "remotePair",
   "xyz-wing": "xyzWing", "w-wing": "wWing", "kite": "kite",
   "empty-rectangle": "emptyRectangle", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
@@ -73,7 +73,7 @@ function transformExercise(kind, rng = Math.random, lang = "fr") {
    - transformation : coloring et Sue de Coq résistent aux deux voies. */
 const SEARCH_KINDS = new Set([
   "nakedSingle", "hiddenSingle", "pointing", "claiming", "nakedPair",
-  "hiddenPair", "xyWing", "xyzWing", "wWing", "emptyRectangle",
+  "hiddenPair", "nakedTriple", "xyWing", "xyzWing", "wWing", "emptyRectangle",
 ]);
 const CONSTRUCT_KINDS = new Set(["xWing", "swordfish", "skyscraper", "kite", "remotePair"]);
 

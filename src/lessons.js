@@ -174,8 +174,37 @@ export const LESSONS = [
     stepStrikes: [{}, { 64: [4, 6], 74: [1, 5] }, {}],
   },
   {
-    id: "x-wing",
+    id: "triples",
     num: 7,
+    level: "classic",
+    title: "Triplets",
+    concept:
+      "Trois cases d’une [[zone]] ne contiennent, à elles trois, que trois chiffres : c’est un [[triplet nu]]. Ces trois chiffres leur sont réservés, [[barre]]-les partout ailleurs dans la zone. Lu à l’envers, trois chiffres confinés à trois cases forment un [[triplet caché]] : leurs autres [[candidats]] s’effacent. Une case du triplet peut n’avoir que deux candidats, l’important est le compte : trois cases, trois chiffres.",
+    question: "Le triplet nu de la ligne 5 libère un 1 dans la colonne 2. Dans quelle case ?",
+    hint: "Cherche trois cases de la ligne 5 qui, ensemble, n’utilisent que trois chiffres. Barre ces chiffres ailleurs sur la ligne, puis suis le 1 dans la colonne 2.",
+    given: { 38: 7, 41: 8, 42: 9 },
+    notes: {
+      36: [1, 2], 39: [2, 3], 43: [1, 3],
+      37: [1, 4, 5], 40: [2, 5, 6], 44: [3, 4, 6],
+      1: [7, 8], 55: [1, 8],
+    },
+    removals: { 37: [1], 40: [2], 44: [3] },
+    unit: [...ROWS[4], ...COLS[1]],
+    focus: [36, 39, 43],
+    target: 55,
+    answer: 1,
+    steps: [
+      "Regarde la ligne 5 : **L5C1**, **L5C4** et **L5C8** n’acceptent que 1, 2 et 3. Trois cases pour trois chiffres : c’est un [[triplet nu]]. Ces trois chiffres leur sont réservés.",
+      "Aucune autre case de la ligne ne peut donc porter 1, 2 ou 3. [[Barre]] le 1 de **L5C2**, le 2 de **L5C5** et le 3 de **L5C9**.",
+      "Vois la même chose à l’envers : 4, 5 et 6 n’ont de place que dans **L5C2**, **L5C5** et **L5C9**. C’est un [[triplet caché]], la lecture complémentaire : même conclusion.",
+      "Suis maintenant le **1** dans la colonne 2 : il ne reste que **L7C2**. Écris donc **1** dans **L7C2**.",
+    ],
+    stepCells: [[36, 39, 43], [36, 39, 43, 37, 40, 44], [37, 40, 44], [55]],
+    stepStrikes: [{}, { 37: [1], 40: [2], 44: [3] }, {}, {}],
+  },
+  {
+    id: "x-wing",
+    num: 8,
     level: "intermediate",
     title: "X-Wing",
     concept:
@@ -202,7 +231,7 @@ export const LESSONS = [
   },
   {
     id: "xy-wing",
-    num: 8,
+    num: 9,
     level: "intermediate",
     title: "XY-Wing",
     concept:
@@ -226,7 +255,7 @@ export const LESSONS = [
   },
   {
     id: "swordfish",
-    num: 9,
+    num: 10,
     level: "intermediate",
     title: "Swordfish",
     concept:
@@ -253,7 +282,7 @@ export const LESSONS = [
   },
   {
     id: "skyscraper",
-    num: 10,
+    num: 11,
     level: "intermediate",
     title: "Skyscraper",
     concept:
@@ -280,7 +309,7 @@ export const LESSONS = [
   },
   {
     id: "remote-pairs",
-    num: 11,
+    num: 12,
     level: "intermediate",
     title: "Remote Pairs",
     concept:
@@ -307,7 +336,7 @@ export const LESSONS = [
   },
   {
     id: "xyz-wing",
-    num: 12,
+    num: 13,
     level: "advanced",
     title: "XYZ-Wing",
     concept:
@@ -332,7 +361,7 @@ export const LESSONS = [
   },
   {
     id: "w-wing",
-    num: 13,
+    num: 14,
     level: "advanced",
     title: "W-Wing",
     concept:
@@ -357,7 +386,7 @@ export const LESSONS = [
   },
   {
     id: "kite",
-    num: 14,
+    num: 15,
     level: "advanced",
     title: "2-String Kite",
     concept:
@@ -382,7 +411,7 @@ export const LESSONS = [
   },
   {
     id: "empty-rectangle",
-    num: 15,
+    num: 16,
     level: "advanced",
     title: "Empty Rectangle",
     concept:
@@ -407,7 +436,7 @@ export const LESSONS = [
   },
   {
     id: "coloring",
-    num: 16,
+    num: 17,
     level: "advanced",
     title: "Coloriage",
     concept:
@@ -434,7 +463,7 @@ export const LESSONS = [
   },
   {
     id: "sue-de-coq",
-    num: 17,
+    num: 18,
     level: "advanced",
     title: "Sue de Coq",
     concept:

@@ -1,9 +1,13 @@
 /* ================================================================
-   Noms des 17 techniques — SOURCE UNIQUE (module pur, zéro import).
+   Noms des techniques du coach — SOURCE UNIQUE (module pur, zéro import).
    Avant ce module, les noms vivaient en 4 endroits (lessons.js,
    describeElim, FEM_TITLES de coachCopy, EXO_NAME_BY_ID + liste inline
-   d'App.jsx) — l'i18n imposait de les consolider. Ordre = numérotation
-   des leçons (1 → 17), utilisé tel quel par frTechList().
+   d'App.jsx) — l'i18n imposait de les consolider. Ordre = ordre
+   pédagogique (les kinds à leçon suivent la numérotation des leçons),
+   utilisé tel quel par frTechList() ; le nombre de techniques se dérive
+   d'ici (jamais en dur ailleurs).
+   Champs : lesson (id de la leçon propre, ou null) ; revise (kind sans
+   leçon : la leçon mère à revoir — triplet caché → « Triplets »).
    Drapeaux : fem (une/la), plural (des/les), elide (l'), proper (garde
    sa casse après article : « le X-Wing » mais « le coloriage »).
    ================================================================ */
@@ -15,6 +19,10 @@ export const TECH_NAMES = {
   pointing: { fr: "Paire pointante", en: "Pointing pair", fem: true, lesson: "pointing-pair" },
   claiming: { fr: "Réduction bloc/ligne", en: "Box/line reduction", fem: true, lesson: "claiming" },
   hiddenPair: { fr: "Duo caché", en: "Hidden pair", lesson: "hidden-pair" },
+  nakedTriple: { fr: "Triplet nu", en: "Naked triple", lesson: "triples", lessonTitle: "Triplets", lessonTitleEn: "Triples" },
+  hiddenTriple: { fr: "Triplet caché", en: "Hidden triple", lesson: null, revise: "triples" },
+  nakedQuad: { fr: "Quadruplet nu", en: "Naked quad", lesson: null, revise: "triples" },
+  hiddenQuad: { fr: "Quadruplet caché", en: "Hidden quad", lesson: null, revise: "triples" },
   xWing: { fr: "X-Wing", en: "X-Wing", proper: true, lesson: "x-wing" },
   xyWing: { fr: "XY-Wing", en: "XY-Wing", proper: true, lesson: "xy-wing" },
   swordfish: { fr: "Swordfish", en: "Swordfish", proper: true, lesson: "swordfish" },
@@ -53,8 +61,8 @@ export function withArticle(kind, lang = "fr") {
   return `the ${t.proper ? t.en : t.en.toLowerCase()}`;
 }
 
-/* Liste des 17 techniques dans l'ordre des leçons — panneaux « au-delà
-   du coach » (stuckAll, révélation). */
+/* Liste de toutes les techniques dans l'ordre pédagogique — panneaux
+   « au-delà du coach » (stuckAll, révélation). */
 export function frTechList(lang = "fr") {
   return Object.values(TECH_NAMES)
     .map((t) => {

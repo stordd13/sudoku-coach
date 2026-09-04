@@ -75,6 +75,18 @@ export const LESSONS_EN = {
       "The **1** of the box has only one place left: **R7C1**. So write **1** in **R7C1**: the hidden pair has unlocked a [[hidden single]]."
     ]
   },
+  "triples": {
+    "title": "Triples",
+    "concept": "Three cells of a [[zone]] hold, between them, only three digits: this is a [[naked triple]]. Those three digits are reserved for them, [[cross out]] them everywhere else in the zone. Read the other way round, three digits confined to three cells form a [[hidden triple]]: their other [[candidates]] vanish. A cell of the triple may hold only two candidates, what matters is the count: three cells, three digits.",
+    "question": "The naked triple of row 5 frees a 1 in column 2. In which cell?",
+    "hint": "Look for three cells of row 5 that, together, use only three digits. Cross out those digits elsewhere in the row, then follow the 1 in column 2.",
+    "steps": [
+      "Look at row 5: **R5C1**, **R5C4** and **R5C8** accept only 1, 2 and 3. Three cells for three digits: this is a [[naked triple]]. Those three digits are reserved for them.",
+      "So no other cell of the row can hold 1, 2 or 3. [[Cross out]] the 1 in **R5C2**, the 2 in **R5C5** and the 3 in **R5C9**.",
+      "Now read it the other way round: 4, 5 and 6 fit only in **R5C2**, **R5C5** and **R5C9**. This is a [[hidden triple]], the complementary reading: same conclusion.",
+      "Now follow the **1** in column 2: only **R7C2** is left. So write **1** in **R7C2**."
+    ]
+  },
   "x-wing": {
     "title": "X-Wing",
     "concept": "Sometimes a digit has only two places left in each of two [[rows]], in the same two [[columns]]. Those four cells draw a rectangle: this is the [[X-Wing]]. The digit will take one corner at the top and one at the bottom, one per column. So it is reserved for those two columns: [[cross out]] that digit everywhere else in them.",

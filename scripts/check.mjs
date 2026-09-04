@@ -1,7 +1,7 @@
 /* Vérifications automatiques : moteur + leçons + exemples.
    Lancer : npm run check */
 import {
-  PEERS, BOXES, COLS, candidatesFromGrid, allCands, conflictSet,
+  PEERS, BOXES, COLS, ROWS, candidatesFromGrid, allCands, conflictSet,
   findHiddenSingleFor, solveGrid, buildPlan, stuckPanelKind, SAMPLES, cellName, rowOf, colOf,
   findXWingE, findSwordfishE, findSkyscraperE, findXYWingE, findRemotePairE,
   findXYZWingE, findWWingE, findKiteE, findEmptyRectangleE,
@@ -140,19 +140,19 @@ console.log("Difficulté des plans :");
 /* ---------- 2c'. Coach 👣 : mapping leçon, fil d'Ariane, indice 1 ---------- */
 console.log("Coach 👣 (leçon guidée) :");
 {
-  // Mapping kind → leçon : exhaustif (15 kinds d'élimination + 2 singles) et
-  // conforme à la numérotation des leçons.
+  // Mapping kind → leçon : exhaustif (chaque kind d'élimination + 2 singles,
+  // via sa leçon propre ou la leçon mère) et conforme à la numérotation.
   const EXPECTED = {
     nakedSingle: 1, hiddenSingle: 2, nakedPair: 3, pointing: 4, claiming: 5,
-    hiddenPair: 6, xWing: 7, xyWing: 8, swordfish: 9, skyscraper: 10,
-    remotePair: 11, xyzWing: 12, wWing: 13, kite: 14, emptyRectangle: 15,
-    coloring: 16, sueDeCoq: 17,
+    hiddenPair: 6, nakedTriple: 7, xWing: 8, xyWing: 9, swordfish: 10, skyscraper: 11,
+    remotePair: 12, xyzWing: 13, wWing: 14, kite: 15, emptyRectangle: 16,
+    coloring: 17, sueDeCoq: 18,
   };
   const kinds = [...Object.keys(ELIM_FINDER_BY_KIND), "nakedSingle", "hiddenSingle"];
   ok(kinds.length === Object.keys(TECH_NAMES).length && kinds.every((k) => !!lessonToRevise(k)),
     `mapping exhaustif : chacun des ${kinds.length} kinds du moteur a sa leçon (propre ou à revoir)`);
   ok(Object.entries(EXPECTED).every(([k, n]) => LESSON_BY_KIND[k] && LESSON_BY_KIND[k].num === n),
-    "numéros de leçon conformes (nakedSingle 1 … sueDeCoq 17)");
+    `numéros de leçon conformes (nakedSingle 1 … sueDeCoq ${LESSONS.length})`);
 
   // 4 plans représentatifs : nu direct, caché direct, chaîne 1 étape, chaîne 2 étapes.
   const g0 = SAMPLES[0].split("").map(Number);
@@ -276,6 +276,19 @@ for (const L of LESSONS) {
       ok(cellsWithD.length === 2 && L.focus.every((f) => cellsWithD.includes(f)),
         `le ${d} n'apparaît que dans les deux cases du duo`);
     }
+  } else if (L.id === "triples") {
+    // Triplet nu {1,2,3} en L5C1/L5C4/L5C8 ; conclusion : single caché du 1 en colonne 2.
+    const union = new Set(L.focus.flatMap((f) => L.notes[f] || []));
+    ok(L.focus.length === 3 && union.size === 3, "trois cases focus, trois chiffres en tout");
+    const others = ROWS[4].filter((i) => !L.focus.includes(i) && L.notes[i]);
+    ok(others.length === 3 && others.every((i) => (L.removals[i] || []).some((d) => union.has(d))),
+      "chacune des trois autres cases de la ligne perd un chiffre du triplet");
+    const left = COLS[1].filter((i) => {
+      const shown = (L.notes[i] || []).filter((d) => !(L.removals[i] || []).includes(d));
+      return shown.includes(L.answer);
+    });
+    ok(left.length === 1 && left[0] === L.target,
+      `après nettoyage, le ${L.answer} n'a plus qu'une place en colonne 2 → ${cellName(L.target)}`);
   } else if (L.id === "x-wing" || L.id === "swordfish") {
     const before = L.notes[L.target] || [], rem = L.removals[L.target] || [];
     const after = before.filter((d) => !rem.includes(d));
@@ -563,6 +576,76 @@ console.log("Techniques intermédiaires et expertes :");
     const e = findSueDeCoqE(fromNotes(lessonById("sue-de-coq").notes), null);
     ok(e && e.kind === "sueDeCoq" && hit(e, idx(0, 4), 1) && hit(e, idx(0, 4), 2) && hit(e, idx(1, 1), 5),
       "Sue de Coq nettoie L1C5 −{1, 2} et L2C2 −{5}");
+  }
+}
+
+/* ---------- 4b. Palier A (v2.3) : motifs isolés, positif ET négatif ---------- */
+console.log("Palier A (v2.3) :");
+{
+  const S = (...d) => new Set(d);
+  const empty = () => Array.from({ length: 81 }, () => new Set());
+  const idx = (r, c) => r * 9 + c;
+  const hit = (e, cell, d) => !!e && e.removals.some((x) => x.cell === cell && x.digits.includes(d));
+  const lessonById = (id) => LESSONS.find((l) => l.id === id);
+  const fromNotes = (notes) => {
+    const g = empty();
+    for (const [k, arr] of Object.entries(notes)) g[Number(k)] = new Set(arr);
+    return g;
+  };
+  const F = ELIM_FINDER_BY_KIND;
+  const NEW_KINDS = ["nakedTriple", "hiddenTriple", "nakedQuad", "hiddenQuad"];
+  ok(NEW_KINDS.every((k) => typeof F[k] === "function"), `finders du palier A branchés : ${NEW_KINDS.join(", ")}`);
+
+  // Triplet nu : la leçon (ligne 5) et un cas presque valide (union de 4 chiffres).
+  {
+    const e = F.nakedTriple(fromNotes(lessonById("triples").notes), null);
+    ok(e && e.kind === "nakedTriple" && hit(e, idx(4, 1), 1) && hit(e, idx(4, 4), 2) && hit(e, idx(4, 8), 3)
+      && e.cells.join() === [idx(4, 0), idx(4, 3), idx(4, 7)].join(),
+      "triplet nu de la leçon : retire 1 de L5C2, 2 de L5C5, 3 de L5C9");
+    const g = empty();
+    g[idx(0, 0)] = S(1, 2); g[idx(0, 1)] = S(2, 3); g[idx(0, 2)] = S(3, 4); g[idx(0, 5)] = S(1, 4, 9);
+    ok(F.nakedTriple(g, null) === null, "négatif : trois cases à quatre chiffres ne font pas un triplet nu");
+  }
+  // Triplet caché : la même position lue à l'envers ; négatif : un chiffre déborde.
+  {
+    const e = F.hiddenTriple(fromNotes(lessonById("triples").notes), null);
+    ok(e && e.kind === "hiddenTriple" && e.digits.join() === "4,5,6" && hit(e, idx(4, 1), 1) && hit(e, idx(4, 7 + 1), 3),
+      "triplet caché {4,5,6} de la leçon : mêmes éliminations");
+    const g = fromNotes(lessonById("triples").notes);
+    g[idx(4, 0)] = S(1, 2, 4); // le 4 a maintenant une 3e place hors des trois cases
+    ok(F.hiddenTriple(g, null) === null, "négatif : un chiffre du triplet caché qui déborde annule le motif");
+  }
+  // Quadruplet nu : {1,2,3,4} sur quatre cases d'une colonne ; négatif : union de 5.
+  {
+    const g = empty();
+    g[idx(0, 0)] = S(1, 2); g[idx(2, 0)] = S(2, 3); g[idx(4, 0)] = S(3, 4); g[idx(6, 0)] = S(1, 4);
+    g[idx(8, 0)] = S(2, 5, 7);
+    const e = F.nakedQuad(g, null);
+    ok(e && e.kind === "nakedQuad" && hit(e, idx(8, 0), 2) && e.removals.length === 1,
+      "quadruplet nu en colonne 1 : retire le 2 de L9C1");
+    g[idx(6, 0)] = S(1, 4, 6);
+    ok(F.nakedQuad(g, null) === null, "négatif : quatre cases à cinq chiffres ne font pas un quadruplet nu");
+  }
+  // Quadruplet caché : {1,2,3,4} confinés à quatre cases d'un bloc, le reste
+  // du bloc porte 5..9 ; négatif : le 1 déborde sur une 5e case.
+  {
+    const g = empty();
+    const cells = [idx(0, 0), idx(0, 1), idx(1, 0), idx(1, 1)];
+    g[cells[0]] = S(1, 2, 5); g[cells[1]] = S(2, 3, 6); g[cells[2]] = S(3, 4, 7); g[cells[3]] = S(4, 1, 8);
+    g[idx(2, 2)] = S(5, 6, 7, 8, 9); g[idx(2, 0)] = S(5, 9); g[idx(2, 1)] = S(6, 9);
+    g[idx(0, 2)] = S(7, 9); g[idx(1, 2)] = S(8, 9);
+    const e = F.hiddenQuad(g, null);
+    ok(e && e.kind === "hiddenQuad" && e.digits.join() === "1,2,3,4" && hit(e, cells[0], 5) && hit(e, cells[3], 8),
+      "quadruplet caché {1,2,3,4} dans le bloc haut-gauche : nettoie les extras");
+    g[idx(2, 2)] = S(1, 5, 6, 7, 8, 9);
+    ok(F.hiddenQuad(g, null) === null, "négatif : un chiffre du quadruplet caché qui déborde annule le motif");
+  }
+  // Ordre pédagogique et paliers : triplets/quads au palier 3, entre paires et poissons.
+  ok(NEW_KINDS.every((k) => TECH_TIER[k] === 3), "triplets et quadruplets : palier 3");
+  {
+    const order = Object.keys(F);
+    ok(order.indexOf("hiddenPair") < order.indexOf("nakedTriple") && order.indexOf("hiddenQuad") < order.indexOf("xWing"),
+      "findElim : nakedTriple … hiddenQuad entre hiddenPair et xWing");
   }
 }
 
@@ -865,8 +948,10 @@ console.log("Noms de techniques :");
     === JSON.stringify(LESSONS.map((L) => L.id)),
     "les kinds à leçon suivent l'ordre des leçons");
   // Les titres des leçons restent la référence d'affichage : zéro dérive.
-  ok(LESSONS.every((L) => TECH_NAMES[KIND_BY_LESSON[L.id]].fr === L.title),
-    "chaque titre de leçon === TECH_NAMES.fr");
+  // Une leçon qui couvre plusieurs kinds (« Triplets ») déclare son titre
+  // dans TECH_NAMES.lessonTitle ; sinon le titre est le nom de la technique.
+  ok(LESSONS.every((L) => { const T = TECH_NAMES[KIND_BY_LESSON[L.id]]; return (T.lessonTitle || T.fr) === L.title; }),
+    "chaque titre de leçon === TECH_NAMES.fr (ou lessonTitle)");
   ok(techName("pointing") === "Paire pointante" && techName("pointing", "en") === "Pointing pair"
     && techName("pointing", "xx") === "Paire pointante", "techName : fr par défaut, repli fr");
   ok(frWithArticle("emptyRectangle") === "l’Empty Rectangle", "élision : l’Empty Rectangle");
@@ -1073,7 +1158,7 @@ console.log("Leçons EN :");
   ok(badRefs === 0, "chaque RxCy EN correspond à un LxCy FR (aucune invention)");
   ok(LESSONS.every((L) => [L.en.concept, L.en.question, L.en.hint, ...L.en.steps]
     .every((s) => ((s.match(/\*\*/g) || []).length % 2) === 0)), "markdown ** équilibré dans chaque chaîne EN");
-  ok(LESSONS.every((L) => L.en.title === TECH_NAMES[KIND_BY_LESSON[L.id]].en),
+  ok(LESSONS.every((L) => { const T = TECH_NAMES[KIND_BY_LESSON[L.id]]; return L.en.title === (T.lessonTitleEn || T.en); }),
     "titres EN = TECH_NAMES.en (aucune dérive)");
   const FRISH = /( le | la | les | des | une | dans | chaque |é|è|ê|ç|à|ù)/;
   ok(LESSONS.every((L) => !FRISH.test(` ${allEn(L)} `)), "aucun français résiduel (heuristique accents + mots outils)");
