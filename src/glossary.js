@@ -19,7 +19,7 @@ export const GLOSSARY = [
   {
     id: "see",
     fr: { term: "voir", aliases: ["voit", "voient", "vue", "vues"], def: "Deux cases se « voient » quand elles partagent une ligne, une colonne ou un bloc." },
-    en: { term: "see", aliases: ["sees", "seen"], def: "Two cells “see” each other when they share a row, a column, or a box." },
+    en: { term: "see", aliases: ["sees", "seen", "seeing"], def: "Two cells “see” each other when they share a row, a column, or a box." },
   },
   {
     id: "row",
@@ -90,6 +90,67 @@ export const GLOSSARY = [
     id: "color",
     fr: { term: "couleur", aliases: ["couleurs", "coloriage", "colorie"], def: "Marquer les cases d’une chaîne en deux couleurs alternées : l’une est vraie, l’autre fausse." },
     en: { term: "color", aliases: ["colors", "coloring"], def: "Marking the cells of a chain in two alternating colors: one is true, the other false." },
+  },
+  /* ---- Noms de techniques (balisés [[…]] à leur première occurrence) ---- */
+  {
+    id: "naked-pair",
+    fr: { term: "paire nue", aliases: ["paires nues"], def: "Deux cases d’une zone qui n’acceptent que les deux mêmes chiffres : on barre ces chiffres ailleurs dans la zone." },
+    en: { term: "naked pair", aliases: ["naked pairs"], def: "Two cells of a zone that accept only the same two digits: cross those digits out elsewhere in the zone." },
+  },
+  {
+    id: "claiming",
+    fr: { term: "réduction bloc/ligne", aliases: ["réductions bloc/ligne"], def: "Sur une ligne ou une colonne, un chiffre dont toutes les places restantes tombent dans le même bloc : on le barre du reste du bloc." },
+    en: { term: "box/line reduction", aliases: ["box/line reductions"], def: "On a row or column, a digit whose remaining places all fall in the same box: cross it out from the rest of the box." },
+  },
+  {
+    id: "hidden-pair",
+    fr: { term: "duo caché", aliases: ["duos cachés"], def: "Deux chiffres qui n’ont que les deux mêmes cases possibles dans une zone : ces cases perdent leurs autres candidats." },
+    en: { term: "hidden pair", aliases: ["hidden pairs"], def: "Two digits that share the same two possible cells in a zone: those cells lose their other candidates." },
+  },
+  {
+    id: "xy-wing",
+    fr: { term: "XY-Wing", aliases: [], def: "Un pivot à deux candidats et deux pinces qu’il voit : quel que soit le pivot, une pince porte le chiffre commun, barré partout où l’on voit les deux pinces." },
+    en: { term: "XY-Wing", aliases: [], def: "A two-candidate pivot and two pincers it sees: whatever the pivot is, one pincer holds the shared digit, crossed out wherever both pincers are seen." },
+  },
+  {
+    id: "swordfish",
+    fr: { term: "Swordfish", aliases: [], def: "Un chiffre réparti sur trois lignes et confiné à trois colonnes : on le barre ailleurs dans ces colonnes." },
+    en: { term: "Swordfish", aliases: [], def: "A digit spread over three rows and confined to three columns: cross it out elsewhere in those columns." },
+  },
+  {
+    id: "skyscraper",
+    fr: { term: "Skyscraper", aliases: [], def: "Deux liens forts d’un chiffre qui partagent une colonne : l’un des deux toits porte le chiffre, barré partout où l’on voit les deux." },
+    en: { term: "Skyscraper", aliases: [], def: "Two strong links on a digit that share a column: one of the two roofs holds the digit, crossed out wherever both are seen." },
+  },
+  {
+    id: "remote-pairs",
+    fr: { term: "Remote Pairs", aliases: ["remote pair"], def: "Une chaîne de cases à la même paire, coloriée en alternance : une case qui voit deux couleurs opposées ne peut porter aucun des deux chiffres." },
+    en: { term: "Remote pairs", aliases: ["remote pair"], def: "A chain of cells with the same pair, colored alternately: a cell that sees two opposite colors can hold neither digit." },
+  },
+  {
+    id: "xyz-wing",
+    fr: { term: "XYZ-Wing", aliases: [], def: "Un pivot à trois candidats et deux pinces : le chiffre commun se barre seulement dans les cases qui voient les trois." },
+    en: { term: "XYZ-Wing", aliases: [], def: "A three-candidate pivot and two pincers: the shared digit is crossed out only in cells that see all three." },
+  },
+  {
+    id: "w-wing",
+    fr: { term: "W-Wing", aliases: [], def: "Deux cases à la même paire, reliées par un lien fort sur l’un des chiffres : l’autre chiffre se barre partout où l’on voit les deux." },
+    en: { term: "W-Wing", aliases: [], def: "Two cells with the same pair, joined by a strong link on one digit: the other digit is crossed out wherever both are seen." },
+  },
+  {
+    id: "kite",
+    fr: { term: "2-String Kite", aliases: ["cerf-volant"], def: "Une ligne et une colonne à deux places pour un chiffre, reliées par un bloc : le chiffre se barre au croisement des deux extrémités libres." },
+    en: { term: "2-String Kite", aliases: ["kite"], def: "A row and a column with two places for a digit, joined through a box: the digit is crossed out where the two free ends cross." },
+  },
+  {
+    id: "empty-rectangle",
+    fr: { term: "Empty Rectangle", aliases: [], def: "Dans un bloc, les candidats d’un chiffre tiennent dans une ligne et une colonne : avec un lien fort ailleurs, le chiffre se barre à un croisement précis." },
+    en: { term: "Empty rectangle", aliases: [], def: "In a box, the candidates of a digit fit in one row and one column: with a strong link elsewhere, the digit is crossed out at a precise crossing." },
+  },
+  {
+    id: "sue-de-coq",
+    fr: { term: "Sue de Coq", aliases: [], def: "Deux cases à cheval entre une ligne et un bloc qui puisent dans quatre chiffres, partagés avec une case de la ligne et une du bloc : chaque chiffre a sa place, on nettoie autour." },
+    en: { term: "Sue de Coq", aliases: [], def: "Two cells straddling a row and a box that draw from four digits, split with one cell of the row and one of the box: every digit has its place, so clean up around them." },
   },
 ];
 

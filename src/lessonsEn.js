@@ -21,25 +21,25 @@ export const LESSONS_EN = {
   },
   "hidden-single": {
     "title": "Hidden single",
-    "concept": "Instead of looking at one cell, you scan a whole unit (row, column or box) following ONE digit: if only one cell in the unit can still take it, that is where it goes — even if that cell still has other candidates.",
+    "concept": "Follow a single digit inside a [[zone]]: if it has only one possible place left, it goes there. This is the [[hidden single]]. The cell may hold other [[candidates]]: it does not matter, that digit has nowhere else to go.",
     "question": "Where does the 5 go in the top-left box?",
-    "hint": "Follow the 5: which empty cells of the box are \"seen\" by a 5 already placed (same row or same column)?",
+    "hint": "Follow the 5. Which free cells of the box are [[seen]] by a 5 already placed, on the same row or the same column?",
     "steps": [
-      "Question: where does the **5** go in the top-left box? Empty cells: R1C3, R2C1, R2C3, R3C1, R3C2.",
-      "**R1C3**: impossible — the 5 in **R1C7** already occupies row 1. **R2C1** and **R2C3**: impossible — the 5 in **R2C5** blocks row 2.",
-      "**R3C1**: impossible — the 5 in **R6C1** already occupies column 1.",
-      "**R3C2** sees no 5: it is the only spot left → **R3C2 = 5**."
+      "Look for where to place the **5** in the top-left box. Its free cells are R1C3, R2C1, R2C3, R3C1 and R3C2.",
+      "Look at the 5 in **R1C7**: it already occupies row 1, so **R1C3** is impossible. The 5 in **R2C5** occupies row 2: **R2C1** and **R2C3** are impossible.",
+      "Look at the 5 in **R6C1**: it already occupies column 1, so **R3C1** is impossible.",
+      "Only **R3C2** is left: it [[sees]] no 5. So write **5** in **R3C2**."
     ]
   },
   "naked-pair": {
     "title": "Naked pair",
-    "concept": "Two cells in the same unit contain only the same two candidates. Those two digits are \"reserved\" for those two cells (in either order): you can therefore cross them off everywhere else in the unit.",
-    "question": "The {3, 8} pair in row 4 unlocks one cell: which one, and with which digit?",
-    "hint": "Spot the two cells in row 4 that share exactly the same two candidates… then cross those digits off elsewhere.",
+    "concept": "Two cells of the same [[zone]] accept only the same two digits: this is a [[naked pair]]. Those two digits are reserved for those two cells, in one order or the other. So you can [[cross out]] both digits everywhere else in the zone.",
+    "question": "The 3 and 8 pair in row 4 unlocks one cell. Which one, and with which digit?",
+    "hint": "Spot the two cells of row 4 that share exactly the same two [[candidates]]. Then cross out those digits elsewhere in the row.",
     "steps": [
-      "**R4C1** and **R4C2** contain only {3, 8}: wherever the 3 and the 8 of row 4 end up, it will be in these two cells.",
-      "So remove 3 and 8 from the other cells in the row: R4C4 −{8}, R4C6 −{3}, R4C7 −{3, 8}.",
-      "**R4C7** drops from {3, 6, 8} to {6} → **R4C7 = 6**. A naked pair has just created a naked single."
+      "Look at **R4C1** and **R4C2**: each accepts only 3 and 8. The 3 and the 8 of row 4 must go in these two cells. This is a [[naked pair]].",
+      "So no other cell of row 4 can be a 3 or an 8. Cross out the 8 in **R4C4**, the 3 in **R4C6**, and the 3 and the 8 in **R4C7**.",
+      "In **R4C7**, only the **6** remains. So write **6** in **R4C7**: the naked pair has created a [[naked single]]."
     ]
   },
   "pointing-pair": {
@@ -55,24 +55,24 @@ export const LESSONS_EN = {
   },
   "claiming": {
     "title": "Box/line reduction",
-    "concept": "This is the pointing pair in reverse: on a row (or column), a digit is only possible inside a single box. It therefore \"belongs\" to that box through this row: you cross it out of the box's other cells.",
-    "question": "Follow the 6 in column 5… which digit goes in R5C4?",
+    "concept": "On a [[row]] or a [[column]], a digit sometimes has its remaining places inside a single [[box]] only. That digit must end up in that box, on that line. You can [[cross out]] that digit from the other cells of the box: this is the [[box/line reduction]], the pointing pair in reverse.",
+    "question": "Follow the 6 in column 5. Which digit goes in cell R5C4?",
     "hint": "In column 5, which cells can still take a 6? Which box do they all fall into?",
     "steps": [
-      "In **column 5**, the **6** is only possible in **R4C5** and **R5C5** — both in the **center box**.",
-      "Column 5's 6 will therefore land in that box → the other cells of the center box cannot be a 6: R5C4 −{6}, R4C6 −{6}.",
-      "**R5C4** goes from {5, 6} to {5} → **R5C4 = 5**."
+      "Follow the **6** in column 5: it has only two places left, **R4C5** and **R5C5**. Both are in the center box.",
+      "So the 6 of column 5 will land in the center box. No other cell of that box can be a 6. Cross out the 6 in **R5C4** and in **R4C6**.",
+      "In cell **R5C4**, only the **5** remains. So write **5** in **R5C4**."
     ]
   },
   "hidden-pair": {
     "title": "Hidden pair",
-    "concept": "Two digits appear only in the same two cells of a unit: those cells are reserved for them. Their other candidates disappear — and this big cleanup often unlocks the next move.",
-    "question": "Find the hidden pair in the bottom-left box… which cell gets unlocked next?",
-    "hint": "Go through the digits one by one: which ones appear only in the same two cells of the box?",
+    "concept": "Two digits each have only two places in a [[zone]], and those are the same two cells: this is a [[hidden pair]]. Those two cells are reserved for them. You can [[cross out]] all their other [[candidates]], and that cleanup often unlocks the next move.",
+    "question": "Find the hidden pair in the bottom-left box. Which cell gets unlocked next?",
+    "hint": "Go through the digits one by one. Which ones appear only in the same two cells of the box?",
     "steps": [
-      "In the bottom-left box, follow the **2** and the **9**: each appears only in **R8C2** and **R9C3**.",
-      "These two cells are therefore reserved for the pair {2, 9} → their other candidates disappear: R8C2 −{4, 6}, R9C3 −{1, 5}.",
-      "As a result, the **1** in the box has only one possible place left, **R7C1** → **R7C1 = 1**. A hidden pair has just unlocked a hidden single."
+      "In the bottom-left box, follow the **2** then the **9**: each appears only in **R8C2** and **R9C3**. This is a [[hidden pair]].",
+      "Those two cells are reserved for the 2 and the 9. Cross out their other candidates: the 4 and the 6 in **R8C2**, the 1 and the 5 in **R9C3**.",
+      "The **1** of the box has only one place left: **R7C1**. So write **1** in **R7C1**: the hidden pair has unlocked a [[hidden single]]."
     ]
   },
   "x-wing": {
@@ -88,118 +88,118 @@ export const LESSONS_EN = {
   },
   "xy-wing": {
     "title": "XY-Wing",
-    "concept": "Three bi-value cells linked in a Y: a pivot {a, b} and two \"pincers\" {a, c} and {b, c} that it sees. Whatever value the pivot takes, one of the pincers will be c. So any cell that sees both pincers loses c.",
-    "question": "The pivot R5C5 and its two pincers unlock R1C1: with which digit?",
-    "hint": "Spot the {1, 2} pivot. Its two pincers share the same third digit: which one?",
+    "concept": "Three cells with two [[candidates]] form a Y: a [[pivot]] and two [[pincers]] it [[sees]]. The pivot hesitates between a and b, one pincer between a and c, the other between b and c. Whatever the pivot is, one pincer will be c: any cell that sees both pincers loses the c. This is the [[XY-Wing]].",
+    "question": "The pivot R5C5 and its two pincers unlock R1C1. With which digit?",
+    "hint": "Spot the pivot that hesitates between 1 and 2. Its two pincers share the same third digit: which one?",
     "steps": [
-      "**R5C5** holds only {1, 2}. Its two pincers: **R5C1** = {1, 3} (same row) and **R1C5** = {2, 3} (same column).",
-      "If R5C5 = 1, then R5C1 = 3; if R5C5 = 2, then R1C5 = 3. Either way, **a 3 appears in R5C1 or R1C5**.",
-      "**R1C1** sees both pincers: it cannot be a 3. It goes from {3, 7} to {7} → **R1C1 = 7**."
+      "The [[pivot]] **R5C5** hesitates between 1 and 2. Its first [[pincer]] **R5C1** hesitates between 1 and 3, on the same row. Its second pincer **R1C5** hesitates between 2 and 3, on the same column.",
+      "If R5C5 is 1, then R5C1 is 3. If R5C5 is 2, then R1C5 is 3. Either way, a 3 appears in **R5C1** or in **R1C5**.",
+      "**R1C1** sees both pincers: it cannot be a 3. Cross out the 3 in R1C1: only the **7** remains. So write **7** in **R1C1**."
     ]
   },
   "swordfish": {
     "title": "Swordfish",
-    "concept": "The X-Wing scaled up: a digit spreads across three rows, entirely contained in three columns (two or three cells per row). Those three columns will share the digit across those rows → you cross it out everywhere else in those columns.",
-    "question": "The 3 draws a Swordfish on rows 1, 5 and 9: what happens to R3C3?",
-    "hint": "Follow the 3 across rows 1, 5 and 9: how many different columns does it occupy in total?",
+    "concept": "A digit spreads across three [[rows]], and all its places fall in the same three [[columns]]: this is the [[Swordfish]], a bigger X-Wing. Those three columns will share the digit across those rows. So you can [[cross out]] that digit elsewhere in those columns.",
+    "question": "The 3 draws a Swordfish on rows 1, 5 and 9. What happens to cell R3C3?",
+    "hint": "Follow the 3 on rows 1, 5 and 9. How many different columns does it occupy in total?",
     "steps": [
-      "Follow the **3** across rows 1, 5 and 9: each time it is confined to columns 3, 5 and 7 (six highlighted cells).",
-      "Those three columns will share the 3s of these three rows (**Swordfish**) → no other cell in columns 3, 5 and 7 can be a 3: R3C3 −{3}.",
-      "**R3C3** goes from {3, 9} to {9} → **R3C3 = 9**."
+      "Follow the **3** on three rows. Row 1: **R1C3** and **R1C5**; row 5: **R5C5** and **R5C7**; row 9: **R9C3** and **R9C7**. It never leaves columns 3, 5 and 7.",
+      "Those three columns will share the 3s of those three rows: this is a [[Swordfish]]. No other cell of columns 3, 5 and 7 can be a 3. Cross out the 3 in **R3C3**.",
+      "In cell **R3C3**, only the **9** remains. So write **9** in **R3C3**."
     ]
   },
   "skyscraper": {
     "title": "Skyscraper",
-    "concept": "A digit forms two “strong links” (only two possible cells) in two rows, and those links share the same column (the base). Since the base cannot hold the digit twice, one of the two “roofs” must hold it: any cell that sees both roofs loses this digit.",
-    "question": "The two strong links on 5 meet in column 1: which digit goes in R2C6?",
-    "hint": "The 5 has only two places in row 1 and two in row 4. What do these links share?",
+    "concept": "A digit forms two [[strong links]] on two [[rows]], and those links share the same [[column]]: this is the [[Skyscraper]]. That column is the base, the two other cells are the roofs. The base cannot hold the digit twice: one of the two roofs must hold it. Any cell that [[sees]] both roofs loses that digit.",
+    "question": "The two strong links on 5 meet in column 1. Which digit goes in cell R2C6?",
+    "hint": "The 5 has only two places on row 1 and two on row 4. What do those two links share?",
     "steps": [
-      "The **5** has only two places in row 1 (**R1C1**, **R1C5**) and two in row 4 (**R4C1**, **R4C6**). The two “feet” R1C1 and R4C1 share column 1: that is the base.",
-      "The base cannot hold two 5s → one of the two “roofs” (**R1C5** or **R4C6**) must be a 5.",
-      "**R2C6** sees both roofs (via column 6 and via the box): it loses the 5 and goes from {5, 8} to {8} → **R2C6 = 8**."
+      "Follow the **5**: on row 1, it has only **R1C1** and **R1C5**; on row 4, it has only **R4C1** and **R4C6**. The feet R1C1 and R4C1 share column 1: that is the base.",
+      "The base cannot hold two 5s. So one of the two roofs, **R1C5** or **R4C6**, must be a 5.",
+      "**R2C6** sees both roofs, through column 6 and through the box: it loses the 5. Cross out the 5 in R2C6: only the **8** remains. So write **8** in **R2C6**."
     ]
   },
   "remote-pairs": {
     "title": "Remote pairs",
-    "concept": "A chain of cells all holding only the same pair {a, b}, linked one to the next. Along the chain, a and b alternate (two “colors”). Any outside cell that sees two links of opposite colors can be neither a nor b.",
-    "question": "The {1, 2} chain snakes its way around to corner R1C9: which digit goes there?",
+    "concept": "Several cells accept only the same two digits and follow one another step by step: these are [[Remote Pairs]]. Along the chain, the two digits alternate, like two [[colors]]. Any outside cell that [[sees]] two links of opposite colors can be neither digit.",
+    "question": "The 1 and 2 chain snakes its way to R1C9. Which digit goes there?",
     "hint": "Color the chain alternately. Which cells does R1C9 see at the two ends?",
     "steps": [
-      "Four cells hold only {1, 2} and form a chain: **R1C1 – R1C5 – R5C5 – R5C9**. Color them alternately.",
-      "The 1 and the 2 swap places along the chain: the ends **R1C1** and **R5C9** have opposite colors — one holds the 1, the other the 2.",
-      "**R1C9** sees both ends: it can be neither 1 nor 2. It loses the 2 and goes from {2, 5} to {5} → **R1C9 = 5**."
+      "Four cells accept only 1 and 2 and form a chain: **R1C1**, **R1C5**, **R5C5** then **R5C9**. Color them alternately.",
+      "The 1 and the 2 swap places along the chain. The ends **R1C1** and **R5C9** have opposite colors: one holds the 1, the other the 2.",
+      "**R1C9** sees both ends: it can be neither 1 nor 2. Cross out the 2 in R1C9: only the **5** remains. So write **5** in **R1C9**."
     ]
   },
   "xyz-wing": {
     "title": "XYZ-Wing",
-    "concept": "The XY-Wing’s cousin, with a pivot holding THREE candidates {x, y, z}, linked to two pincers {x, z} and {y, z}. Whatever the pivot’s value, a z appears in the trio — but here the pivot itself can be z: you only eliminate z from cells that see all three cells at once.",
-    "question": "Pivot in R5C4, pincers in R5C1 and R4C5… which digit goes in R5C5?",
+    "concept": "The cousin of the XY-Wing, with a [[pivot]] holding three [[candidates]]: this is the [[XYZ-Wing]]. The pivot hesitates between x, y and z; one pincer between x and z, the other between y and z. Whatever the pivot is, a z appears in the trio, sometimes in the pivot itself. So you only cross out the z in cells that [[see]] all three.",
+    "question": "Pivot in R5C4, pincers in R5C1 and R4C5. Which digit goes in cell R5C5?",
     "hint": "Test the three possible values of the pivot R5C4. In each scenario, where does the 9 appear?",
     "steps": [
-      "The **pivot R5C4** holds {2, 5, 9}; its pincers: **R5C1** {2, 9} (same row) and **R4C5** {5, 9} (same box).",
-      "Three scenarios: pivot = 2 → R5C1 = 9 · pivot = 5 → R4C5 = 9 · pivot = 9 → the pivot itself is a 9.",
-      "In all three cases, a 9 appears in the trio → any cell that sees **all three** cannot be a 9: R5C5 −{9}, R5C6 −{9}.",
-      "**R5C5** goes from {4, 9} to {4} → **R5C5 = 4**."
+      "The [[pivot]] **R5C4** hesitates between 2, 5 and 9. Its [[pincer]] **R5C1** hesitates between 2 and 9, on the same row. Its pincer **R4C5** hesitates between 5 and 9, in the same box.",
+      "If the pivot is 2, then R5C1 is 9. If it is 5, then R4C5 is 9. If it is 9, the pivot itself is the 9.",
+      "In all three scenarios, a 9 appears in the trio. Any cell that sees **all three** cannot be a 9. Cross out the 9 in **R5C5** and in **R5C6**.",
+      "In cell **R5C5**, only the **4** remains. So write **4** in **R5C5**."
     ]
   },
   "w-wing": {
     "title": "W-Wing",
-    "concept": "Two distant cells share exactly the same pair {a, b} without seeing each other. If a strong link on b connects them (a unit where b has only two places, each seeing one of the two cells), then one of the two cells must be a — so you eliminate a from every cell that sees both.",
-    "question": "Two {4, 7} pairs linked by the 7s in column 5… which digit goes in R6C2?",
-    "hint": "In column 5, the 7 has only two places. Try each one in turn: what happens to R2C2 and R6C8?",
+    "concept": "Two distant cells hold only the same two digits a and b, without [[seeing]] each other. Joined by a [[strong link]] on b, they form a [[W-Wing]]. The strong link is a zone where b has only two places, each seeing one of the two cells. One of the two cells must then be a: [[cross out]] a everywhere that sees both.",
+    "question": "Two 4 and 7 pairs linked by the 7s in column 5. Which digit goes in cell R6C2?",
+    "hint": "In column 5, the 7 has only two places. Suppose each one true in turn: what happens to R2C2 and R6C8?",
     "steps": [
-      "**R2C2** and **R6C8** share the same pair {4, 7} without seeing each other. In **column 5**, the 7 has only two places: **R2C5** and **R6C5**.",
-      "If R2C5 = 7 → R2C2 loses its 7 (same row) → **R2C2 = 4**. If R6C5 = 7 → R6C8 loses its 7 → **R6C8 = 4**.",
-      "Either way, one of the two pairs is a **4** → every cell that sees both drops the 4: R6C2 −{4}, R2C8 −{4}.",
-      "**R6C2** goes from {4, 8} to {8} → **R6C2 = 8**."
+      "**R2C2** and **R6C8** both hesitate between 4 and 7, without seeing each other. In **column 5**, the 7 has only two places: **R2C5** and **R6C5**. This is a [[strong link]].",
+      "If R2C5 is 7, then R2C2 loses its 7 and is **4**. If R6C5 is 7, then R6C8 loses its 7 and is **4**.",
+      "Either way, one of the two pairs is 4: this is a [[W-Wing]]. Any cell that sees both loses the 4. Cross out the 4 in **R6C2** and in **R2C8**.",
+      "In cell **R6C2**, only the **8** remains. So write **8** in **R6C2**."
     ]
   },
   "kite": {
     "title": "2-String Kite",
-    "concept": "A kite: for one digit, a row with two places and a column with two places, with one place from each landing in the same box. Those two can't both be true → at least one of the two free ends holds the digit: eliminate it where they intersect.",
-    "question": "The 3 forms a kite between row 2 and column 7… which digit goes in R8C5?",
+    "concept": "A digit has two places on a [[row]] and two on a [[column]], one of each in the same [[box]]: this is the [[2-String Kite]]. Those two places in the box cannot both be true. So one of the two free ends holds the digit: [[cross out]] that digit where they cross.",
+    "question": "The 3 forms a kite between row 2 and column 7. Which digit goes in cell R8C5?",
     "hint": "In the top-right box, can R2C9 and R3C7 both be 3s? Follow the consequences.",
     "steps": [
-      "Track the **3**: row 2 → only **R2C5** and **R2C9** · column 7 → only **R3C7** and **R8C7**. And **R2C9** + **R3C7** share the top-right box.",
-      "If R2C5 is not a 3 → R2C9 = 3 → R3C7 can no longer be one (same box) → **R8C7 = 3**. So R2C5 or R8C7 must be a 3.",
-      "**R8C5** sees both of those ends (column 5 for one, row 8 for the other) → R8C5 −{3}.",
-      "**R8C5** goes from {3, 6} to {6} → **R8C5 = 6**."
+      "Follow the **3**: on row 2, only **R2C5** and **R2C9**; on column 7, only **R3C7** and **R8C7**. And **R2C9** and **R3C7** share the top-right box.",
+      "If R2C5 is not a 3, then R2C9 is 3. R3C7 can no longer be one, same box, so **R8C7** is 3. Thus R2C5 or R8C7 must be a 3.",
+      "**R8C5** sees both ends: R2C5 through column 5, R8C7 through row 8. It cannot be a 3. Cross out the 3 in **R8C5**.",
+      "In cell **R8C5**, only the **6** remains. So write **6** in **R8C5**."
     ]
   },
   "empty-rectangle": {
     "title": "Empty rectangle",
-    "concept": "In one box, all the candidates for a digit fit in a single row + a single column (the rest of the box is \"empty\"). Combined with a strong link elsewhere, this lets you eliminate the digit at a precise intersection: if the target cell were true, the box would have no place left for that digit.",
-    "question": "The 6s in the central box fit in row 5 and column 4… which digit goes in R5C8?",
-    "hint": "Suppose R5C8 = 6 and follow the consequences: what happens to the strong link in row 8, then to the central box?",
+    "concept": "In a [[box]], all [[candidates]] of a digit fit in one row plus one column, and the rest is empty: this is the [[Empty Rectangle]]. Combined with a [[strong link]] elsewhere, it crosses out the digit at a precise crossing. If the target cell were true, the box would have no place left for that digit.",
+    "question": "The 6s of the center box fit in row 5 and column 4. Which digit goes in cell R5C8?",
+    "hint": "Suppose R5C8 equals 6, and follow the consequences. What happens to the strong link of row 8, then to the center box?",
     "steps": [
-      "In the **central box**, the 6 appears only in **row 5** and **column 4** (R4C4, R5C4, R5C5, R5C6, R6C4) — the rest of the rectangle is empty.",
-      "Another clue: in **row 8**, the 6 has only two places, **R8C4** and **R8C8** — and R8C4 sits precisely in column 4.",
-      "Suppose **R5C8 = 6**: row 5 and column 8 empty out → R8C8 ≠ 6 → **R8C4 = 6** → column 4 empties out too… and the central box has no place left for its 6. Contradiction → R5C8 −{6}.",
-      "**R5C8** goes from {6, 9} to {9} → **R5C8 = 9**."
+      "In the **center box**, the 6 sits only in **row 5** and **column 4**: R4C4, R5C4, R5C5, R5C6 and R6C4. The rest of the rectangle is empty.",
+      "Another clue: in **row 8**, the 6 has only two places, **R8C4** and **R8C8**. This is a [[strong link]], and R8C4 sits precisely in column 4.",
+      "Suppose **R5C8** equals 6: row 5 and column 8 empty out, so R8C8 loses the 6 and **R8C4** is 6. Column 4 empties out too, and the center box has no place left for its 6. Contradiction: cross out the 6 in R5C8.",
+      "In cell **R5C8**, only the **9** remains. So write **9** in **R5C8**."
     ]
   },
   "coloring": {
     "title": "Coloring",
-    "concept": "You track ONE digit through its conjugate links (units where it has only two places), coloring the cells alternately: one color is true, the other false. If two cells of the SAME color end up in the same unit, that color is false everywhere — and the other is true everywhere.",
-    "question": "Color the 5s along the chain… which digit goes in R8C3?",
-    "hint": "Alternate ➊ / ➋ along the links. Don't two ➊ cells share the same box?",
+    "concept": "Follow a single digit through its [[strong links]], coloring the cells in two alternating [[colors]]: this is [[Coloring]]. One color is true everywhere, the other false everywhere. If two cells of the same color end up in the same zone, that color is false everywhere, and the other is true everywhere.",
+    "question": "Color the 5s along the chain. Which digit goes in cell R8C3?",
+    "hint": "Alternate ➊ and ➋ along the links. Do two ➊ cells not share the same box?",
     "steps": [
-      "Chain of conjugate links on the **5**: column 3 {R2C3, R8C3} → row 8 {R8C3, R8C7} → column 7 {R8C7, R3C7} → row 3 {R3C7, R3C1}.",
+      "Follow the **5** from [[strong link]] to strong link. Column 3: R2C3 and R8C3, then row 8: R8C3 and R8C7. Column 7: R8C7 and R3C7, then row 3: R3C7 and R3C1.",
       "Color alternately: R2C3 ➊, R8C3 ➋, R8C7 ➊, R3C7 ➋, R3C1 ➊. One color is entirely true, the other entirely false.",
-      "But **R2C3 ➊** and **R3C1 ➊** share the top-left box: color ➊ would put two 5s in the same box → ➊ is false everywhere: R2C3, R8C7 and R3C1 lose their 5.",
-      "Color ➋ is therefore true: **R8C3 = 5** (and R3C7 = 5)."
+      "But **R2C3** ➊ and **R3C1** ➊ share the top-left box: color ➊ would put two 5s in the same box. So it is false everywhere. Cross out the 5 in R2C3, in R8C7 and in R3C1.",
+      "Color ➋ is therefore true. Write **5** in **R8C3**, and also in R3C7."
     ]
   },
   "sue-de-coq": {
     "title": "Sue de Coq",
-    "concept": "A tight count straddling a row and a box: two intersection cells whose candidates come from a pool of four digits, plus a bi-value cell in the row and a bi-value cell in the box that split this pool without overlapping. The count is exact — every digit in the pool has its reserved spot, and you clean up everything around it.",
-    "question": "Four digits {1, 2, 5, 7} for four cells… which digit goes in R1C5?",
-    "hint": "R1C8 takes one digit from {1, 2}, R3C1 one from {5, 7}. What is left for the two intersection cells R1C1 and R1C2?",
+    "concept": "A tight count straddling a [[row]] and a [[box]]: this is the [[Sue de Coq]]. Two intersection cells draw from a pool of four digits. One cell of the row and one cell of the box, with two [[candidates]] each, split that pool without overlapping. Every digit of the pool then has its reserved place: you clean up all around.",
+    "question": "Four digits 1, 2, 5 and 7 for four cells. Which digit goes in cell R1C5?",
+    "hint": "R1C8 takes one digit among 1 and 2, R3C1 one digit among 5 and 7. What is left for the two intersection cells R1C1 and R1C2?",
     "steps": [
-      "The pool {1, 2, 5, 7}: **R1C1** {1, 2, 5} and **R1C2** {2, 5, 7} (intersection row 1 ∩ box), **R1C8** {1, 2} in the row, **R3C1** {5, 7} in the box.",
-      "R1C8 takes one digit from {1, 2} — the intersection, which sees it, can only keep the other. R3C1 takes one digit from {5, 7} — same thing. So the two intersection cells hold exactly one digit from {1, 2} and one from {5, 7}.",
-      "Tally: the 1 and the 2 are fully accounted for in row 1 (R1C8 + intersection) → cross them out elsewhere in the row: R1C5 −{1, 2}. And the 5 and the 7 are accounted for in the box → R2C2 −{5}.",
-      "**R1C5** goes from {1, 2, 4} to {4} → **R1C5 = 4**."
+      "The pool is 1, 2, 5 and 7. At the crossing of row 1 and the box, **R1C1** hesitates between 1, 2 and 5, and **R1C2** between 2, 5 and 7. In the row, **R1C8** hesitates between 1 and 2; in the box, **R3C1** between 5 and 7.",
+      "R1C8 takes one digit among 1 and 2: the intersection, which sees it, keeps only the other. R3C1 takes one digit among 5 and 7: same thing. So R1C1 and R1C2 hold exactly one digit among 1 and 2, and one among 5 and 7.",
+      "Tally: the 1 and the 2 are settled in row 1, between R1C8 and the intersection. Cross out the 1 and the 2 in **R1C5**. The 5 and the 7 are settled in the box: cross out the 5 in **R2C2**.",
+      "In cell **R1C5**, only the **4** remains. So write **4** in **R1C5**."
     ]
   }
 };

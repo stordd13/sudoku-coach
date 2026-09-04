@@ -1096,7 +1096,7 @@ console.log("Fidélité fr ↔ en des leçons :");
   }
 }
 
-/* ---------- 5o. Lint de lisibilité (charte 3c — périmètre pilote) ---------- */
+/* ---------- 5o. Lint de lisibilité (charte 3c) ---------- */
 console.log("Lint de lisibilité (charte 3c) :");
 {
   // Une phrase ≤ 25 mots ; une étape ≤ 3 phrases ; jamais de « −{ » ni de « → ».
@@ -1117,9 +1117,9 @@ console.log("Lint de lisibilité (charte 3c) :");
     const errs = texts.flatMap((t) => lint(t, opts));
     ok(errs.length === 0, `${label}${errs.length ? ` — ${errs.join(" ; ")}` : ""}`);
   };
-  // Leçons réécrites (1, 4, 7) : étapes (≤ 3 phrases) + concept/question/indice.
-  for (const id of ["naked-single", "pointing-pair", "x-wing"]) {
-    const L = LESSONS.find((l) => l.id === id);
+  // Les 17 leçons (3d) : étapes (≤ 3 phrases) + concept/question/indice.
+  for (const L of LESSONS) {
+    const id = L.id;
     lintAll(`${id} : steps fr`, L.steps, { maxSentences: 3 });
     lintAll(`${id} : steps en`, L.en.steps, { maxSentences: 3 });
     lintAll(`${id} : concept/question/indice fr`, [L.concept, L.question, L.hint]);
