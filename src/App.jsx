@@ -6,7 +6,7 @@ import {
 } from "./engine.js";
 import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak, bestStreak } from "./daily.js";
 import { addSegment, formatClock, emptyStats, normalizeStats, levelKey, recordStart, recordWin, helpRate } from "./stats.js";
-import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "./exercises.js";
+import { getExercise, KIND_BY_LESSON, lessonToRevise } from "./exercises.js";
 import { techBreadcrumb, stepHint1 } from "./coachCopy.js";
 import { LESSONS, lessonText } from "./lessons.js";
 import { version as APP_VERSION } from "../package.json";
@@ -453,8 +453,10 @@ function LessonBoard({ lesson, revealed, stepView }) {
 }
 /* ----- Exercices : libellés (dérivés de techNames.js) et cache local ----- */
 const KIND_BY_LESSON_ID = Object.fromEntries(
-  Object.entries(TECH_NAMES).map(([kind, tech]) => [tech.lesson, kind])
+  Object.entries(TECH_NAMES).filter(([, tech]) => tech.lesson).map(([kind, tech]) => [tech.lesson, kind])
 );
+// Nombre de techniques du coach (panneaux « au-delà du coach »), dérivé.
+const TECH_COUNT = Object.keys(TECH_NAMES).length;
 const exoName = (lessonId) => withArticle(KIND_BY_LESSON_ID[lessonId], getLang());
 /* Le cache fige hint/explain dans la langue de génération : au changement de
    langue, il est invalidé via l'estampille __lang (les vieux caches sans
@@ -1126,7 +1128,9 @@ export default function App() {
       else flash(t("flash.hasDigit", { cell }));
       return;
     }
-    const p = buildPlan(grid, target, getLang());
+    // Grille verrouillée par solveGrid : multiSol faux ⟺ solution unique, et
+    // les techniques d'unicité (rectangle unique, BUG+1) ne valent que là.
+    const p = buildPlan(grid, target, getLang(), { allowUniqueness: !multiSol });
     if (p && (!solRef || multiSol || p.digit === solRef[target])) { setPlan(p); setLevel(0); setCoachStep(null); setHintsUsed((h) => h + 1); }
     else {
       const kind = stuckPlanFor(false);
@@ -1152,7 +1156,7 @@ export default function App() {
     if (!empties.length) { flash(t("flash.gridComplete"), "success"); return; }
     const plans = [];
     for (const i of empties) {
-      const p = buildPlan(grid, i, getLang());
+      const p = buildPlan(grid, i, getLang(), { allowUniqueness: !multiSol });
       // multiSol : solRef n'est qu'une solution possible — si le joueur en suit
       // une autre, un plan valide peut la contredire ; on ne filtre donc pas.
       if (p && (!solRef || multiSol || p.digit === solRef[i])) plans.push(p);
@@ -1172,7 +1176,7 @@ export default function App() {
   }
   // 📚 Revoir cette technique (👣) : bascule sur l'onglet Apprendre, leçon du keyKind.
   function openLesson(kind) {
-    const L = LESSON_BY_KIND[kind];
+    const L = lessonToRevise(kind);
     if (!L) return;
     const ix = LESSONS.findIndex((l) => l.id === L.id);
     if (ix >= 0) setLessonIx(ix);
@@ -1193,7 +1197,7 @@ export default function App() {
       kind: "ok", target, digit: d, chain: [], hint1: "", hint2: "",
       tech: t("reveal.tech"),
       paras: [
-        t("reveal.p1", { list: frTechList(getLang()), cell: cellName(target, getLang()) }),
+        t("reveal.p1", { n: TECH_COUNT, list: frTechList(getLang()), cell: cellName(target, getLang()) }),
         t("reveal.p2", { cell: cellName(target, getLang()), d }),
         t("reveal.p3"),
       ],
@@ -2169,7 +2173,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
               {plan.kind === "stuckAll" && (
                 <>
                   <p style={pStyle}>
-                    {t("coach.stuckAll.body", { list: frTechList(getLang()) })}
+                    {t("coach.stuckAll.body", { n: TECH_COUNT, list: frTechList(getLang()) })}
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Btn variant="primary" grow onClick={solveAll}>{t("btn.solveAllShort")}</Btn>

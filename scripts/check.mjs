@@ -10,7 +10,7 @@ import {
   makeRng, generateFullGrid, solveHumanly, generatePuzzle, isComplete,
   findTechniqueExercise, ELIM_FINDER_BY_KIND, completedUnits,
   randomTransform, transformPosition, buildConstructiveExercise, hasAnySingle,
-  packageExercise,
+  packageExercise, TECH_TIER, UNIQUENESS_KINDS, solveHumanlySteps,
 } from "../src/engine.js";
 import { LESSONS } from "../src/lessons.js";
 import {
@@ -23,7 +23,7 @@ import { TECH_NAMES, techName, frWithArticle, frTechList } from "../src/techName
 import { DICTS, t, setLang, getLang, detectLang } from "../src/i18n.js";
 import { cellAriaLabel } from "../src/a11y.js";
 import { readFileSync } from "node:fs";
-import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND } from "../src/exercises.js";
+import { getExercise, KIND_BY_LESSON, LESSON_BY_KIND, lessonToRevise } from "../src/exercises.js";
 import { techBreadcrumb, stepHint1, conceptSentence } from "../src/coachCopy.js";
 import { notationFor, NOTATION_PREFS } from "../src/notation.js";
 import { lessonStepScript, planStepScript, exerciseStepScript, stepReveal } from "../src/stepper.js";
@@ -149,8 +149,8 @@ console.log("Coach 👣 (leçon guidée) :");
     coloring: 16, sueDeCoq: 17,
   };
   const kinds = [...Object.keys(ELIM_FINDER_BY_KIND), "nakedSingle", "hiddenSingle"];
-  ok(kinds.length === 17 && kinds.every((k) => !!LESSON_BY_KIND[k]),
-    "mapping exhaustif : chaque kind du moteur a sa leçon");
+  ok(kinds.length === Object.keys(TECH_NAMES).length && kinds.every((k) => !!lessonToRevise(k)),
+    `mapping exhaustif : chacun des ${kinds.length} kinds du moteur a sa leçon (propre ou à revoir)`);
   ok(Object.entries(EXPECTED).every(([k, n]) => LESSON_BY_KIND[k] && LESSON_BY_KIND[k].num === n),
     "numéros de leçon conformes (nakedSingle 1 … sueDeCoq 17)");
 
@@ -672,7 +672,7 @@ console.log("Parties intégrales (chemin du joueur) :");
   const reproPlans = g.map((v, i) => (v === 0 ? buildPlan(g, i) : null)).filter(Boolean);
   ok(reproPlans.length > 0, "fixture repro : au moins une case produit un plan");
   // Cet état exige le palier 4 : la preuve par paliers doit l'atteindre.
-  const TIER4 = new Set(["xWing", "xyWing", "xyzWing", "wWing", "swordfish", "kite", "skyscraper", "emptyRectangle", "remotePair"]);
+  const TIER4 = new Set(Object.keys(TECH_TIER).filter((k) => TECH_TIER[k] === 4));
   ok(reproPlans.some((p) => p.rawChain.some((e) => TIER4.has(e.kind))),
     "fixture repro : au moins un plan mobilise une technique de palier 4");
   const r = playThrough(g, solution);
@@ -850,13 +850,20 @@ console.log("Thème :");
 console.log("Noms de techniques :");
 {
   const kinds = Object.keys(TECH_NAMES);
-  ok(kinds.length === 17, `17 techniques nommées (${kinds.length})`);
-  ok(kinds.every((k) => TECH_NAMES[k].fr && TECH_NAMES[k].en && TECH_NAMES[k].lesson),
-    "fr, en et leçon non vides partout");
+  const N_KINDS = Object.keys(ELIM_FINDER_BY_KIND).length + 2;
+  ok(kinds.length === N_KINDS, `${N_KINDS} techniques nommées (${kinds.length})`);
+  ok(kinds.every((k) => TECH_NAMES[k].fr && TECH_NAMES[k].en && (TECH_NAMES[k].lesson || TECH_NAMES[k].revise)),
+    "fr, en et leçon (propre ou à revoir) non vides partout");
+  ok(kinds.every((k) => !TECH_NAMES[k].revise || LESSONS.some((L) => L.id === TECH_NAMES[k].revise)),
+    "chaque `revise` pointe vers une leçon existante");
   ok([...Object.keys(ELIM_FINDER_BY_KIND), "nakedSingle", "hiddenSingle"].every((k) => !!TECH_NAMES[k]),
     "chaque kind du moteur a son entrée");
-  ok(Object.entries(KIND_BY_LESSON).every(([lessonId, kind]) => TECH_NAMES[kind].lesson === lessonId),
-    "mapping kind ↔ leçon cohérent avec exercises.js");
+  ok(Object.entries(KIND_BY_LESSON).every(([lessonId, kind]) => TECH_NAMES[kind].lesson === lessonId)
+    && kinds.filter((k) => TECH_NAMES[k].lesson).every((k) => KIND_BY_LESSON[TECH_NAMES[k].lesson] === k),
+    "mapping kind ↔ leçon cohérent avec exercises.js (bijection sur les kinds à leçon)");
+  ok(JSON.stringify(kinds.filter((k) => TECH_NAMES[k].lesson).map((k) => TECH_NAMES[k].lesson))
+    === JSON.stringify(LESSONS.map((L) => L.id)),
+    "les kinds à leçon suivent l'ordre des leçons");
   // Les titres des leçons restent la référence d'affichage : zéro dérive.
   ok(LESSONS.every((L) => TECH_NAMES[KIND_BY_LESSON[L.id]].fr === L.title),
     "chaque titre de leçon === TECH_NAMES.fr");
@@ -870,7 +877,7 @@ console.log("Noms de techniques :");
     "casse : le coloriage (commun) mais le X-Wing (propre)");
   const list = frTechList();
   ok(list.startsWith("candidat unique, single caché") && list.endsWith("coloriage, Sue de Coq")
-    && list.split(", ").length === 17, "frTechList : les 17, dans l'ordre des leçons");
+    && list.split(", ").length === N_KINDS, `frTechList : les ${N_KINDS}, dans l'ordre pédagogique`);
 }
 
 /* ---------- 5i. i18n : parité des dictionnaires, t(), replis ---------- */
@@ -1351,8 +1358,8 @@ for (const kind of ["xWing", "swordfish", "skyscraper", "kite", "remotePair"]) {
   console.log(`  ℹ ${kind} (constructif) : moyenne ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)} ms (n=3)`);
 }
 
-/* ---------- 9. Acceptation : un exercice garanti pour chacune des 17 techniques ---------- */
-console.log("Acceptation getExercise (17 techniques × 5 appels) :");
+/* ---------- 9. Acceptation : un exercice garanti pour chaque technique enseignée ---------- */
+console.log(`Acceptation getExercise (${LESSONS.length} techniques × 5 appels) :`);
 for (const kind of Object.values(KIND_BY_LESSON)) {
   const times = [], sources = {};
   let allOk = true;

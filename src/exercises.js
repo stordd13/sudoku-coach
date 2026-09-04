@@ -1,6 +1,6 @@
 /* ================================================================
    SUDOKU · COACH — routeur d'exercices : un exercice garanti pour
-   chacune des 17 techniques, à chaque fois, en moins de 4 s.
+   chaque technique enseignée (une leçon), à chaque fois, en moins de 4 s.
    Couche fine au-dessus du moteur (module séparé : lessons.js
    consomme engine.js au niveau module, engine ne peut donc pas
    importer les leçons sans cycle).
@@ -11,6 +11,7 @@ import {
   ELIM_FINDER_BY_KIND, buildPlan,
 } from "./engine.js";
 import { LESSONS } from "./lessons.js";
+import { TECH_NAMES } from "./techNames.js";
 
 export const KIND_BY_LESSON = {
   "naked-single": "nakedSingle", "hidden-single": "hiddenSingle",
@@ -23,6 +24,13 @@ export const KIND_BY_LESSON = {
 export const LESSON_BY_KIND = Object.fromEntries(
   LESSONS.map((L) => [KIND_BY_LESSON[L.id], L])
 );
+// Leçon à revoir pour un kind : la sienne, sinon celle de la technique mère
+// (TECH_NAMES[kind].revise — ex. triplet caché → leçon Triplets). null si rien.
+export function lessonToRevise(kind) {
+  if (LESSON_BY_KIND[kind]) return LESSON_BY_KIND[kind];
+  const rev = TECH_NAMES[kind] && TECH_NAMES[kind].revise;
+  return rev ? LESSONS.find((L) => L.id === rev) || null : null;
+}
 
 // Position d'entraînement : transformation aléatoire de la position curatée de
 // la leçon — le motif y est présent par construction et préservé par symétrie.

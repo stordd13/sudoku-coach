@@ -10,15 +10,16 @@
    du mot-à-mot — la grammaire genrée FR disparaît en EN).
    ================================================================ */
 import { cellName } from "./engine.js";
-import { LESSON_BY_KIND } from "./exercises.js";
+import { lessonToRevise } from "./exercises.js";
 import { TECH_NAMES, techName } from "./techNames.js";
 
 // Première phrase du champ `concept` de la leçon du kind — la définition de
 // référence de chaque technique, jamais dupliquée (découpe à la première
 // ponctuation forte ; le « : » n'en est pas une). En EN : le champ `en` de la
-// leçon quand il existe (T12), sinon repli FR.
+// leçon quand il existe (T12), sinon repli FR. Kind sans leçon propre
+// (triplet caché, jellyfish…) : concept de la leçon mère (TECH_NAMES.revise).
 export function conceptSentence(kind, lang = "fr") {
-  const L = LESSON_BY_KIND[kind];
+  const L = lessonToRevise(kind);
   if (!L) return "";
   const concept = lang === "en" && L.en && L.en.concept ? L.en.concept : L.concept;
   const m = concept.match(/^[^.!?…]*[.!?…]/);

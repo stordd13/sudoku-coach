@@ -2,29 +2,11 @@
    SUDOKU · COACH — moteur logique (pur JS, sans UI)
    ================================================================ */
 import { TECH_NAMES } from "./techNames.js";
+import { ROWS, COLS, BOXES, UNITS, PEERS, rowOf, colOf, boxOf, combos } from "./grid.js";
+import { PALIER_A_FINDERS } from "./finders.js";
 
-/* ---------- Constantes de grille ---------- */
-export const ROWS = Array.from({ length: 9 }, (_, r) =>
-  Array.from({ length: 9 }, (_, c) => r * 9 + c)
-);
-export const COLS = Array.from({ length: 9 }, (_, c) =>
-  Array.from({ length: 9 }, (_, r) => r * 9 + c)
-);
-export const BOXES = Array.from({ length: 9 }, (_, b) => {
-  const br = Math.floor(b / 3) * 3, bc = (b % 3) * 3, cs = [];
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) cs.push((br + r) * 9 + bc + c);
-  return cs;
-});
-const UNITS = [
-  ...ROWS.map((cells, i) => ({ type: "row", index: i, cells })),
-  ...COLS.map((cells, i) => ({ type: "col", index: i, cells })),
-  ...BOXES.map((cells, i) => ({ type: "box", index: i, cells })),
-];
-export const PEERS = Array.from({ length: 81 }, (_, i) => {
-  const s = new Set();
-  for (const u of UNITS) if (u.cells.includes(i)) u.cells.forEach((j) => { if (j !== i) s.add(j); });
-  return s;
-});
+/* ---------- Constantes de grille (géométrie dans grid.js) ---------- */
+export { ROWS, COLS, BOXES, PEERS, rowOf, colOf };
 const BOX_NAMES = {
   fr: [
     "haut-gauche", "haut-centre", "haut-droit",
@@ -38,9 +20,6 @@ const BOX_NAMES = {
   ],
 };
 
-export const rowOf = (i) => Math.floor(i / 9);
-export const colOf = (i) => i % 9;
-const boxOf = (i) => Math.floor(rowOf(i) / 3) * 3 + Math.floor(colOf(i) / 3);
 /* « L3C7 » en FR, « R3C7 » en EN (convention internationale). */
 export const cellName = (i, lang = "fr") =>
   `${lang === "en" ? "R" : "L"}${rowOf(i) + 1}C${colOf(i) + 1}`;
@@ -282,15 +261,6 @@ function findHiddenPairE(cands, prefer) {
   return null;
 }
 /* ---------- Techniques intermédiaires ---------- */
-function combos(arr, k) {
-  const res = [];
-  const rec = (start, acc) => {
-    if (acc.length === k) { res.push(acc.slice()); return; }
-    for (let i = start; i < arr.length; i++) { acc.push(arr[i]); rec(i + 1, acc); acc.pop(); }
-  };
-  rec(0, []);
-  return res;
-}
 
 // X-Wing (size 2) et Swordfish (size 3) : même « poisson », généralisé.
 function findFish(cands, size, prefer) {
@@ -768,26 +738,39 @@ export function findSueDeCoqE(cands, prefer) {
   return null;
 }
 
-// ⚠️ L'ordre est un contrat : ordre pédagogique de findElim, ET source de
-// l'ordre intra-palier de FINDERS_BY_TIER (gradation → déterminisme des seeds
-// de génération). Ne pas réordonner.
+// ⚠️ L'ordre est un contrat : ordre pédagogique de findElim (simple → complexe),
+// ET source de l'ordre intra-palier de FINDERS_BY_TIER (gradation →
+// déterminisme des seeds de génération). Ne pas réordonner. Les finders du
+// palier A (v2.3) vivent dans finders.js et s'insèrent ici par leur kind.
+const PA = PALIER_A_FINDERS;
 const ELIM_FINDERS = [
   [findNakedPairE, "nakedPair"], [findPointingE, "pointing"],
   [findClaimingE, "claiming"], [findHiddenPairE, "hiddenPair"],
-  [findXWingE, "xWing"], [findXYWingE, "xyWing"],
+  [PA.nakedTriple, "nakedTriple"], [PA.hiddenTriple, "hiddenTriple"],
+  [PA.nakedQuad, "nakedQuad"], [PA.hiddenQuad, "hiddenQuad"],
+  [findXWingE, "xWing"], [PA.finnedXWing, "finnedXWing"],
+  [findXYWingE, "xyWing"],
   [findXYZWingE, "xyzWing"], [findWWingE, "wWing"],
-  [findSwordfishE, "swordfish"], [findKiteE, "kite"],
+  [findSwordfishE, "swordfish"], [PA.jellyfish, "jellyfish"],
+  [findKiteE, "kite"],
   [findSkyscraperE, "skyscraper"], [findEmptyRectangleE, "emptyRectangle"],
-  [findRemotePairE, "remotePair"], [findColoringE, "coloring"],
+  [findRemotePairE, "remotePair"],
+  [PA.xChain, "xChain"], [PA.xyChain, "xyChain"],
+  [PA.uniqueRectangle, "uniqueRectangle"], [PA.bug1, "bug1"],
+  [findColoringE, "coloring"],
   [findSueDeCoqE, "sueDeCoq"],
-];
+].filter(([f]) => typeof f === "function");
 // Accès par kind (tests et UI) : les finders de base ne sont pas exportés un à un.
 export const ELIM_FINDER_BY_KIND = Object.fromEntries(
   ELIM_FINDERS.map(([f, kind]) => [kind, f])
 );
-const findElim = (cands, prefer, maxTier = 5) => {
+/* Techniques valides SEULEMENT si la grille a une solution unique (rectangle
+   unique, BUG+1) : jamais proposées sur une grille ambiguë (multiSol). */
+export const UNIQUENESS_KINDS = new Set(["uniqueRectangle", "bug1"]);
+const skipKind = (kind, opts) => !opts.allowUniqueness && UNIQUENESS_KINDS.has(kind);
+const findElim = (cands, prefer, maxTier = 5, opts = { allowUniqueness: true }) => {
   for (const [f, kind] of ELIM_FINDERS) {
-    if (TIER_OF_KIND[kind] > maxTier) continue;
+    if (TIER_OF_KIND[kind] > maxTier || skipKind(kind, opts)) continue;
     const e = f(cands, prefer);
     if (e) return e;
   }
@@ -1249,8 +1232,10 @@ function pruneChain(grid, chain, goal) {
 /* ---------- Difficulté : base (type de conclusion) + poids des étapes élaguées ---------- */
 const ELIM_WEIGHTS = {
   pointing: 2, claiming: 2, nakedPair: 3, hiddenPair: 4,
-  xWing: 5, skyscraper: 6, xyWing: 6, swordfish: 6,
+  nakedTriple: 4, hiddenTriple: 5, nakedQuad: 5, hiddenQuad: 5,
+  xWing: 5, finnedXWing: 6, skyscraper: 6, xyWing: 6, swordfish: 6,
   xyzWing: 6, wWing: 6, kite: 7, emptyRectangle: 7, remotePair: 7,
+  jellyfish: 7, xChain: 7, xyChain: 7, uniqueRectangle: 7, bug1: 7,
   coloring: 8, sueDeCoq: 8,
 };
 const planDifficulty = (base, kept) =>
@@ -1278,8 +1263,9 @@ function tagPlan(plan, techKind, kept, techZone) {
    recréeraient des grilles certifiées résolubles mais infinissables en partie. */
 const MAX_CHAIN = 8;
 
-export function buildPlan(grid, target, lang = "fr") {
+export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } = {}) {
   if (grid[target] !== 0) return null;
+  const opts = { allowUniqueness };
   const baseCands = candidatesFromGrid(grid, target);
   const prefer = new Set([...PEERS[target], target]);
   // Recherche par paliers : une preuve SIMPLE vaut mieux qu'une preuve COURTE.
@@ -1307,7 +1293,7 @@ export function buildPlan(grid, target, lang = "fr") {
         return tagPlan(plan, "hiddenSingle", kept, unitLabel(hs.unit, lang));
       }
       if (chain.length >= MAX_CHAIN) break; // palier suivant
-      const e = findElim(cands, prefer, maxTier) || findElim(cands, null, maxTier);
+      const e = findElim(cands, prefer, maxTier, opts) || findElim(cands, null, maxTier, opts);
       if (!e) break; // palier suivant
       applyElim(cands, e);
       chain.push(e); // objets bruts — describeElim n'est appelé qu'après élagage
@@ -1366,25 +1352,31 @@ export function generateFullGrid(rng = Math.random) {
 }
 
 /* Paliers de difficulté (gradation) :
-   1 = singles · 2 = alignements · 3 = paires · 4 = poissons/ailes · 5 = coloriage/Sue de Coq */
+   1 = singles · 2 = alignements · 3 = paires, triplets, quadruplets ·
+   4 = poissons (à nageoire, jellyfish), ailes, chaînes X/XY, unicité ·
+   5 = coloriage/Sue de Coq. Exporté sous le nom TECH_TIER (tests, banc). */
 const TIER_OF_KIND = {
   pointing: 2, claiming: 2, nakedPair: 3, hiddenPair: 3,
-  xWing: 4, xyWing: 4, xyzWing: 4, wWing: 4, swordfish: 4,
+  nakedTriple: 3, hiddenTriple: 3, nakedQuad: 3, hiddenQuad: 3,
+  xWing: 4, finnedXWing: 4, xyWing: 4, xyzWing: 4, wWing: 4, swordfish: 4, jellyfish: 4,
   kite: 4, skyscraper: 4, emptyRectangle: 4, remotePair: 4,
+  xChain: 4, xyChain: 4, uniqueRectangle: 4, bug1: 4,
   coloring: 5, sueDeCoq: 5,
 };
+export const TECH_TIER = TIER_OF_KIND;
 // Dérivé de ELIM_FINDERS : mêmes finders, groupés par palier (l'ordre
 // intra-palier suit l'ordre pédagogique — contrat de déterminisme, cf. supra).
 const FINDERS_BY_TIER = [2, 3, 4, 5].map((t) =>
-  ELIM_FINDERS.filter(([, kind]) => TIER_OF_KIND[kind] === t).map(([f]) => f)
+  ELIM_FINDERS.filter(([, kind]) => TIER_OF_KIND[kind] === t).map(([f, kind]) => [f, kind])
 );
 // Contrairement à findElim (ordre pédagogique), la gradation cherche tier par
 // tier ascendant : une grille « alignements » ne doit pas être gradée « paires »
 // juste parce qu'une paire nue se présentait en premier.
-function findElimTiered(cands, cap) {
+function findElimTiered(cands, cap, opts = { allowUniqueness: true }) {
   for (let t = 0; t < FINDERS_BY_TIER.length; t++) {
     if (t + 2 > cap) return null;
-    for (const f of FINDERS_BY_TIER[t]) {
+    for (const [f, kind] of FINDERS_BY_TIER[t]) {
+      if (skipKind(kind, opts)) continue;
       const e = f(cands, null);
       if (e) return e;
     }
@@ -1400,7 +1392,8 @@ function findElimTiered(cands, cap) {
 //     avant application (cands : 81 tableaux triés).
 // onStep qui retourne true interrompt la résolution (aborted: true).
 // Sans onStep : zéro copie, zéro allocation — comportement de solveHumanly.
-function solveHumanlySteps(grid, onStep, cap = 5) {
+export function solveHumanlySteps(grid, onStep, cap = 5, { allowUniqueness = true } = {}) {
+  const opts = { allowUniqueness };
   const g = grid.slice();
   const cands = allCands(g); // persistants : les éliminations s'y accumulent
   const counts = {};
@@ -1448,7 +1441,7 @@ function solveHumanlySteps(grid, onStep, cap = 5) {
     // entre deux placements, comme buildPlan : au-delà, la grille est déclarée
     // non résoluble « humainement » (le joueur ne pourrait pas la finir en jeu).
     if (elimRun >= MAX_CHAIN) return { solved: false, maxTier, counts };
-    const e = findElimTiered(cands, cap);
+    const e = findElimTiered(cands, cap, opts);
     if (!e) return { solved: false, maxTier, counts };
     if (onStep && onStep({
       type: "elim", e,
@@ -1462,7 +1455,7 @@ function solveHumanlySteps(grid, onStep, cap = 5) {
   }
   return { solved: false, maxTier, counts };
 }
-export const solveHumanly = (grid, cap = 5) => solveHumanlySteps(grid, null, cap);
+export const solveHumanly = (grid, cap = 5, opts) => solveHumanlySteps(grid, null, cap, opts);
 
 /* Niveaux 1-4 : Facile / Moyen / Difficile / Expert (5 : Diabolique).
    Grille pleine → creusage par paires symétriques (unicité obligatoire ; pour
