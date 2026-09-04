@@ -1168,6 +1168,34 @@ console.log("Lint de lisibilité (charte 3c) :");
       if (ex) lintAll(`exercice ${lang} ${label} : explain`, ex.explain, { maxSentences: 3 });
     }
   }
+  // 3d — échantillon complet : les 13 branches describeElim sur les positions
+  // des leçons (explain + indice) et tous les plans de SAMPLES[0] (hint1,
+  // hint2, paras, étapes de chaîne, indice 1 guidé), dans les deux langues.
+  for (const lang of ["fr", "en"]) {
+    for (const L of LESSONS) {
+      const kind = KIND_BY_LESSON[L.id];
+      if (kind === "nakedSingle" || kind === "hiddenSingle") continue;
+      const ex = exoFromLesson(L.id, kind, lang);
+      ok(!!ex, `exercice ${lang} ${kind} : construit`);
+      if (!ex) continue;
+      lintAll(`exercice ${lang} ${kind} : explain`, ex.explain, { maxSentences: 3 });
+      lintAll(`exercice ${lang} ${kind} : indice`, [ex.hint]);
+    }
+    const g0 = SAMPLES[0].split("").map(Number);
+    const errs = [];
+    let n = 0;
+    for (let i = 0; i < 81; i++) {
+      if (g0[i] !== 0) continue;
+      const p = buildPlan(g0, i, lang);
+      if (!p) continue;
+      n++;
+      const tag = (e) => `${cellName(i, lang)}: ${e}`;
+      for (const txt of [p.hint1, p.hint2, ...p.paras, stepHint1(p, lang)]) errs.push(...lint(txt).map(tag));
+      for (const st of p.chain) errs.push(...lint(st.text, { maxSentences: 3 }).map(tag));
+    }
+    ok(n > 0 && errs.length === 0,
+      `plans ${lang} de SAMPLES[0] (${n}) : hint1, hint2, paras, étapes et indice 1 conformes${errs.length ? ` — ${errs.slice(0, 5).join(" ; ")}` : ""}`);
+  }
 }
 
 /* ---------- 6. Exercices par technique (findTechniqueExercise) ---------- */
