@@ -126,6 +126,97 @@ export function findFinnedXWingE(cands, prefer) {
   return null;
 }
 
+/* ---------- A2. X-Chain ----------
+   Un seul chiffre. Lien fort = unité où il n'a que deux places (si l'une est
+   fausse, l'autre est vraie) ; lien faible = deux cases qui se voient (si
+   l'une est vraie, l'autre est fausse). Chaîne fort, faible, …, fort (nombre
+   de liens impair, ≤ MAX_LINKS) : « si le départ n'est pas d, l'arrivée l'est »,
+   donc l'une des deux extrémités porte d et toute case qui voit les deux le
+   perd. Parcours en largeur sur les états (case, allumée) → la chaîne la plus
+   courte d'abord ; longueurs 3, 5, 7 explorées dans cet ordre pour tout
+   départ, afin qu'une chaîne de 3 (skyscraper, kite…) prime toujours. */
+const MAX_LINKS = 7;
+export function findXChainE(cands, prefer) {
+  for (let d = 1; d <= 9; d++) {
+    const has = (i) => cands[i].has(d);
+    const strong = new Map();
+    const addStrong = (a, b, unit) => {
+      if (!strong.has(a)) strong.set(a, []);
+      strong.get(a).push({ to: b, unit });
+    };
+    for (const u of UNITS) {
+      const pos = u.cells.filter(has);
+      if (pos.length === 2) { addStrong(pos[0], pos[1], u); addStrong(pos[1], pos[0], u); }
+    }
+    if (!strong.size) continue;
+    const nodes = [...strong.keys()].sort(asc);
+    for (const n of nodes) strong.get(n).sort((x, y) => x.to - y.to);
+    // BFS depuis (start, éteinte) : état = case * 2 + (allumée ? 1 : 0).
+    const bfs = (start, maxLinks) => {
+      const dist = new Map(), parent = new Map();
+      const key = (cell, on) => cell * 2 + (on ? 1 : 0);
+      const queue = [[start, false]];
+      dist.set(key(start, false), 0);
+      while (queue.length) {
+        const [cell, on] = queue.shift();
+        const dk = dist.get(key(cell, on));
+        if (dk >= maxLinks) continue;
+        if (!on) {
+          for (const { to, unit } of strong.get(cell) || []) {
+            const k = key(to, true);
+            if (dist.has(k)) continue;
+            dist.set(k, dk + 1); parent.set(k, { cell, on, unit });
+            queue.push([to, true]);
+          }
+        } else {
+          for (const p of [...PEERS[cell]].sort(asc)) {
+            if (!has(p) || !strong.has(p)) continue;
+            const k = key(p, false);
+            if (dist.has(k)) continue;
+            dist.set(k, dk + 1); parent.set(k, { cell, on, unit: null });
+            queue.push([p, false]);
+          }
+        }
+      }
+      return { dist, parent, key };
+    };
+    const rebuild = (start, end, { parent, key }) => {
+      const chain = [end], links = [];
+      let cell = end, on = true;
+      while (cell !== start || on) {
+        const pr = parent.get(key(cell, on));
+        links.unshift({ from: pr.cell, to: cell, strong: on, unit: pr.unit });
+        cell = pr.cell; on = pr.on;
+        chain.unshift(cell);
+      }
+      return { chain, links };
+    };
+    for (let L = 3; L <= MAX_LINKS; L += 2) {
+      for (const start of nodes) {
+        const b = bfs(start, L);
+        for (const end of nodes) {
+          if (end === start || b.dist.get(b.key(end, true)) !== L) continue;
+          const { chain, links } = rebuild(start, end, b);
+          if (new Set(chain).size !== chain.length) continue; // chemin simple seulement
+          // Les maillons eux-mêmes ne sont jamais éliminés (le pas à pas les surligne).
+          const removals = [];
+          for (let z = 0; z < 81; z++) {
+            if (chain.includes(z) || !has(z)) continue;
+            if (sees(z, start) && sees(z, end)) removals.push({ cell: z, digits: [d] });
+          }
+          if (!accept(removals, prefer)) continue;
+          return {
+            kind: "xChain", digit: d, chain, links,
+            linkUnits: links.filter((l) => l.strong).map((l) => l.unit),
+            cells: chain, digits: [d], removals,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /* Rempli technique par technique (A1 → A6) ; un kind absent est ignoré par
    engine.js (filtre typeof === "function"). Jellyfish = findFish(4), dans
    engine.js avec X-Wing et Swordfish. */
@@ -133,6 +224,7 @@ export const PALIER_A_FINDERS = {
   nakedTriple: findNakedTripleE, hiddenTriple: findHiddenTripleE,
   nakedQuad: findNakedQuadE, hiddenQuad: findHiddenQuadE,
   finnedXWing: findFinnedXWingE,
+  xChain: findXChainE,
 };
 
 export { accept, sees };

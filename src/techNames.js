@@ -30,6 +30,7 @@ export const TECH_NAMES = {
   jellyfish: { fr: "Jellyfish", en: "Jellyfish", proper: true, lesson: null, revise: "swordfish" },
   skyscraper: { fr: "Skyscraper", en: "Skyscraper", proper: true, lesson: "skyscraper" },
   remotePair: { fr: "Remote Pairs", en: "Remote pairs", proper: true, plural: true, lesson: "remote-pairs" },
+  xChain: { fr: "X-Chain", en: "X-Chain", proper: true, fem: true, lesson: null, revise: "skyscraper" },
   xyzWing: { fr: "XYZ-Wing", en: "XYZ-Wing", proper: true, lesson: "xyz-wing" },
   wWing: { fr: "W-Wing", en: "W-Wing", proper: true, lesson: "w-wing" },
   kite: { fr: "2-String Kite", en: "2-String Kite", proper: true, lesson: "kite" },

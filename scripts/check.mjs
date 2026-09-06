@@ -594,7 +594,7 @@ console.log("Palier A (v2.3) :");
   };
   const F = ELIM_FINDER_BY_KIND;
   const NEW_KINDS = ["nakedTriple", "hiddenTriple", "nakedQuad", "hiddenQuad"];
-  const PALIER_A = [...NEW_KINDS, "finnedXWing", "jellyfish"];
+  const PALIER_A = [...NEW_KINDS, "finnedXWing", "jellyfish", "xChain"];
   ok(PALIER_A.every((k) => typeof F[k] === "function"), `finders du palier A branchés : ${PALIER_A.join(", ")}`);
 
   // Triplet nu : la leçon (ligne 5) et un cas presque valide (union de 4 chiffres).
@@ -679,6 +679,30 @@ console.log("Palier A (v2.3) :");
     ok(F.jellyfish(g, null) === null, "négatif : cinq colonnes ne font pas un Jellyfish");
   }
   ok(TECH_TIER.finnedXWing === 4 && TECH_TIER.jellyfish === 4, "X-Wing à nageoire et Jellyfish : palier 4");
+  // X-Chain : six 7 reliés par des liens forts (ligne 1, colonne 5, ligne 4,
+  // colonne 9, ligne 7, bloc haut-gauche) ; une chaîne de 5 liens élimine le
+  // 7 d'une case qui voit ses deux extrémités.
+  {
+    const g = empty();
+    g[idx(0, 0)] = S(1, 7); g[idx(0, 4)] = S(2, 7); g[idx(3, 4)] = S(3, 7); g[idx(3, 8)] = S(4, 7);
+    g[idx(6, 8)] = S(5, 7); g[idx(6, 2)] = S(6, 7); g[idx(1, 2)] = S(7, 9);
+    const e = F.xChain(g, null);
+    const alternates = (links) => links.every((l, i) => l.strong === (i % 2 === 0));
+    ok(e && e.kind === "xChain" && e.links.length === 5 && alternates(e.links)
+      && e.chain.length === 6 && new Set(e.chain).size === 6 && e.removals.length === 1
+      && hit(e, idx(0, 4), 7) && !e.chain.includes(idx(0, 4)),
+      "X-Chain de 5 liens (fort, faible, fort, faible, fort) : retire le 7 hors de la chaîne");
+    ok(e && e.linkUnits.length === 3 && e.linkUnits.every((u) => u && u.cells), "X-Chain : une unité par lien fort (prémisses de pruneChain)");
+    // Plus courte d'abord : avec un lien direct, une chaîne de 3 prime.
+    g[idx(1, 4)] = S(7, 8); g[idx(0, 4)] = S(2); // le 7 quitte L1C5 : bloc haut-centre = {L2C5}, colonne 5 = {L2C5, L4C5}
+    const e3 = F.xChain(g, null);
+    ok(!e3 || e3.links.length <= 5, "X-Chain : jamais plus longue que nécessaire");
+    // Négatif : boucle fermée de quatre 7 sans case extérieure → rien à éliminer.
+    const h = empty();
+    h[idx(0, 0)] = S(1, 7); h[idx(0, 4)] = S(2, 7); h[idx(3, 4)] = S(3, 7); h[idx(3, 0)] = S(4, 7);
+    ok(F.xChain(h, null) === null, "négatif : boucle fermée de quatre cases, aucune case extérieure → rien");
+  }
+  ok(TECH_TIER.xChain === 4, "X-Chain : palier 4");
   // Ordre pédagogique et paliers : triplets/quads au palier 3, entre paires et poissons.
   ok(NEW_KINDS.every((k) => TECH_TIER[k] === 3), "triplets et quadruplets : palier 3");
   {

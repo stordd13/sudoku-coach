@@ -2249,6 +2249,12 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                           <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.5 }}>
                             <Rich text={s.text} />
                           </div>
+                          {/* Chaînes (X-Chain, XY-Chain) : un maillon par ligne. */}
+                          {Array.isArray(s.links) && s.links.length > 0 && (
+                            <ol style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.45 }}>
+                              {s.links.map((l, k) => <li key={k}><Rich text={l.text} /></li>)}
+                            </ol>
+                          )}
                         </div>
                       ))}
                       {!coachDone && coachScript && (

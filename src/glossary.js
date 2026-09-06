@@ -77,6 +77,16 @@ export const GLOSSARY = [
     en: { term: "strong link", aliases: ["strong links"], def: "A digit with only two possible places in a zone: if one is false, the other is true." },
   },
   {
+    id: "chain",
+    fr: { term: "chaîne", aliases: ["chaînes"], def: "Une suite de cases reliées par des liens, où chaque case force la suivante." },
+    en: { term: "chain", aliases: ["chains"], def: "A series of cells joined by links, where each cell forces the next." },
+  },
+  {
+    id: "weak-link",
+    fr: { term: "lien faible", aliases: ["liens faibles"], def: "Deux cases qui se voient et portent le même candidat : si l’une est vraie, l’autre est fausse." },
+    en: { term: "weak link", aliases: ["weak links"], def: "Two cells that see each other and share a candidate: if one is true, the other is false." },
+  },
+  {
     id: "pivot",
     fr: { term: "pivot", aliases: [], def: "La case centrale d’un motif en Y, celle qui voit les deux pinces." },
     en: { term: "pivot", aliases: [], def: "The central cell of a Y-shaped pattern, the one that sees both pincers." },
@@ -181,6 +191,11 @@ export const GLOSSARY = [
     id: "jellyfish",
     fr: { term: "Jellyfish", aliases: [], def: "Le poisson à quatre lignes : un chiffre confiné aux quatre mêmes colonnes sur quatre lignes y est réservé." },
     en: { term: "Jellyfish", aliases: [], def: "The four-row fish: a digit confined to the same four columns on four rows is reserved for them." },
+  },
+  {
+    id: "x-chain",
+    fr: { term: "X-Chain", aliases: ["X-Chains"], def: "Une chaîne sur un seul chiffre, liens forts et faibles alternés : l’une des deux extrémités porte le chiffre." },
+    en: { term: "X-Chain", aliases: ["X-Chains"], def: "A chain on a single digit, alternating strong and weak links: one of the two ends holds the digit." },
   },
   {
     id: "sue-de-coq",

@@ -904,6 +904,19 @@ function describeElimFr(e) {
       text: `Suis le **${e.digit}** sur les ${base} ${nums(e.lines)} : presque un [[X-Wing]] dans les ${perp} ${nums(e.cross)}. Seule la [[nageoire]] **${fins}** dépasse, dans le bloc ${BOX_NAMES.fr[e.finBox]} : si elle porte le ${e.digit}, ses voisines le perdent, sinon le X-Wing joue. Dans les deux cas, ${rem}.`,
     };
   }
+  if (e.kind === "xChain") {
+    const s0 = cellName(e.chain[0]), s1 = cellName(e.chain[e.chain.length - 1]);
+    const links = e.links.map((l) => ({
+      cells: [l.from, l.to],
+      text: l.strong
+        ? `Si ${cellName(l.from)} n’est pas un ${e.digit}, alors ${cellName(l.to)} est un ${e.digit} : dans ${unitLabel(l.unit)}, le ${e.digit} n’a que ces deux places.`
+        : `Si ${cellName(l.from)} est un ${e.digit}, alors ${cellName(l.to)} n’en est pas un : elles se voient.`,
+    }));
+    return {
+      title: TECH_NAMES.xChain.fr, zone: `le ${e.digit}`, cells: involved, links,
+      text: `Suis le **${e.digit}** le long d’une [[chaîne]] de ${e.chain.length} cases, de **${s0}** à **${s1}** : [[liens forts]] et [[liens faibles]] alternent, c’est une [[X-Chain]]. Si ${s0} n’est pas un ${e.digit}, alors ${s1} en est un : l’une des deux extrémités porte le ${e.digit}. Toute case qui voit les deux extrémités perd le ${e.digit} : ${rem}.`,
+    };
+  }
   if (e.kind === "skyscraper") {
     return {
       title: TECH_NAMES.skyscraper.fr, zone: `le ${e.digit}`, cells: involved,
@@ -1052,6 +1065,19 @@ function describeElimEn(e) {
     return {
       title: TECH_NAMES.finnedXWing.en, zone: `the ${e.digit}`, cells: involved,
       text: `Follow the **${e.digit}** on ${base} ${nums(e.lines)}: almost an [[X-Wing]] in ${perp} ${nums(e.cross)}. Only the [[fin]] **${fins}** sticks out, in the ${BOX_NAMES.en[e.finBox]} box: if it holds the ${e.digit}, its neighbours lose it, otherwise the X-Wing applies. Either way, ${rem}.`,
+    };
+  }
+  if (e.kind === "xChain") {
+    const s0 = cn(e.chain[0]), s1 = cn(e.chain[e.chain.length - 1]);
+    const links = e.links.map((l) => ({
+      cells: [l.from, l.to],
+      text: l.strong
+        ? `If ${cn(l.from)} is not a ${e.digit}, then ${cn(l.to)} is a ${e.digit}: in ${uL(l.unit)}, the ${e.digit} has only those two places.`
+        : `If ${cn(l.from)} is a ${e.digit}, then ${cn(l.to)} is not: they see each other.`,
+    }));
+    return {
+      title: TECH_NAMES.xChain.en, zone: `the ${e.digit}`, cells: involved, links,
+      text: `Follow the **${e.digit}** along a [[chain]] of ${e.chain.length} cells, from **${s0}** to **${s1}**: [[strong links]] and [[weak links]] alternate, this is an [[X-Chain]]. If ${s0} is not a ${e.digit}, then ${s1} is one: one of the two ends holds the ${e.digit}. Any cell that sees both ends loses the ${e.digit}: ${rem}.`,
     };
   }
   if (e.kind === "skyscraper") {
@@ -1306,6 +1332,11 @@ function pruneChain(grid, chain, goal) {
     }
     else if (e.kind === "coloring") {
       e.linkUnits.forEach((u) => u.cells.forEach((c) => addNeed(c, e.digit)));
+    }
+    else if (e.kind === "xChain") {
+      // Liens forts : les unités lues ; liens faibles : les cases de la chaîne (elles portent d).
+      e.linkUnits.forEach((u) => u.cells.forEach((c) => addNeed(c, e.digit)));
+      e.chain.forEach((c) => addNeed(c, e.digit));
     }
     else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair/Triple/Quad, xyWing, xyzWing, sueDeCoq, remotePair…
   }
@@ -1638,8 +1669,8 @@ function elimHighlight(e) {
       unit = [...e.linkUnit.cells, ...e.cells]; break;
     case "sueDeCoq":
       unit = [...e.line.cells, ...BOXES[e.box]]; break;
-    case "coloring":
-      unit = e.linkUnits.flatMap((u) => u.cells); break;
+    case "coloring": case "xChain":
+      unit = [...e.linkUnits.flatMap((u) => u.cells), ...e.cells]; break;
     default: // skyscraper, xyWing, xyzWing, remotePair
       unit = [...e.cells, ...e.removals.map((r) => r.cell)];
   }
@@ -1674,9 +1705,13 @@ export function packageExercise(kind, e, values, candsArr, lang = "fr") {
   }
   const d = describeElim(e, lang);
   const { unit, focus } = elimHighlight(e);
+  // Chaînes : un maillon par étape après le résumé (stepper des exercices).
+  const links = d.links || [];
   const ex = {
     kind, given: values, notes, removals, unit, focus,
-    explain: [d.text], explainCells: [d.cells], hint: hintFromZone(e, d.zone, lang),
+    explain: [d.text, ...links.map((l) => l.text)],
+    explainCells: [d.cells, ...links.map((l) => l.cells)],
+    hint: hintFromZone(e, d.zone, lang),
   };
   // Bonus : une case qui passe à candidat unique après application (l'unicité
   // de la solution garantit que ce candidat est le bon chiffre).
