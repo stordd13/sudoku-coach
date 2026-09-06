@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment, createContext, useContext } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
-  candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, stuckPanelKind, SAMPLES,
+  candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, nextStep, stuckPanelKind, SAMPLES,
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
 import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak, bestStreak } from "./daily.js";
@@ -1154,22 +1154,18 @@ export default function App() {
     const empties = [];
     grid.forEach((v, i) => { if (!v) empties.push(i); });
     if (!empties.length) { flash(t("flash.gridComplete"), "success"); return; }
-    const plans = [];
-    for (const i of empties) {
-      const p = buildPlan(grid, i, getLang(), { allowUniqueness: !multiSol });
-      // multiSol : solRef n'est qu'une solution possible — si le joueur en suit
-      // une autre, un plan valide peut la contredire ; on ne filtre donc pas.
-      if (p && (!solRef || multiSol || p.digit === solRef[i])) plans.push(p);
-    }
-    if (!plans.length) {
+    // Une seule recherche globale par palier (nextStep) — plus une escalade
+    // par case vide. multiSol : solRef n'est qu'une solution possible — si le
+    // joueur en suit une autre, un plan valide peut la contredire ; on ne
+    // filtre donc pas.
+    const found = nextStep(grid, getLang(), { allowUniqueness: !multiSol });
+    const p = found && (!solRef || multiSol || found.digit === solRef[found.target]) ? found : null;
+    if (!p) {
       const kind = stuckPlanFor(false);
       setPlan({ kind: { "wrong-digit": "stuckError", "multi-sol": "stuckMulti", "beyond-coach": "stuckAll" }[kind] });
       setLevel(0); setCoachStep(null);
       return;
     }
-    const min = Math.min(...plans.map((p) => p.difficulty));
-    const easiest = plans.filter((p) => p.difficulty === min);
-    const p = easiest[Math.floor(Math.random() * easiest.length)];
     p.revealTech = true; // leçon guidée : la technique est annoncée dès l'indice 1
     setSel(p.target); setPlan(p); setLevel(0); setCoachStep(null);
     setHintsUsed((h) => h + 1);

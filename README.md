@@ -32,7 +32,9 @@ que le coach résout vraiment. Les techniques d'unicité (rectangle unique,
 BUG+1) ne sont jamais proposées sur une grille à plusieurs solutions.
 Attention : le moteur ayant changé, les **défis du jour à venir** ne sont plus
 les mêmes grilles qu'avec la version précédente (les défis passés, déjà
-mis en cache, ne bougent pas).
+mis en cache, ne bougent pas). Depuis 2.3.1, 👣 « Étape suivante » est une
+seule recherche globale par palier (`nextStep`) : réponse immédiate, même sur
+téléphone ; 🎯 garde l'explication d'une case choisie (`buildPlan`).
 
 ---
 
@@ -82,10 +84,10 @@ mis en cache, ne bougent pas).
 npm install
 npm run dev        # http://localhost:5173 (le scan nécessite Vercel ou `vercel dev`)
 npm run check      # tests : moteur, leçons, exercices, coach 👣, stockage, API (seedés)
-                   # run complet : 2 à 4 min selon la machine
+                   # run complet : 1 à 3 min selon la machine
 npm run bench      # banc de grilles dures (fixtures/hard-grids.json + 50 générées) :
-                   # % résolues sans mur, chemin joueur, temps d'indice ; BENCH_QUICK=1 pour
-                   # un tour rapide ; ≈ 5 min en entier
+                   # % résolues sans mur, chemin joueur 👣, temps 👣 et 🎯 ; BENCH_QUICK=1
+                   # pour un tour rapide ; ≈ 2 à 4 min en entier
 npm run build      # build de production
 ```
 

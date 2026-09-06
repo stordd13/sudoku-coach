@@ -1536,6 +1536,65 @@ export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } 
   return null;
 }
 
+/* ---------- 👣 nextStep : UNE recherche globale par appui ----------
+   Le premier single de la carte (candidat unique avant single caché, index
+   croissant) : palier 1 = balayage direct des candidats bruts, sans finder ;
+   sinon une seule carte partagée où l'on applique les éliminations du palier
+   ≤ cap (ordre du gradeur, findElimTiered) jusqu'à ce qu'un single apparaisse
+   quelque part, cap croissant 2 → 5. Le plan a exactement la forme de
+   buildPlan (chaîne élaguée par besoins pour la case trouvée) : UI inchangée.
+   Déterministe. buildPlan reste l'outil de 🎯 (une case choisie). */
+function singleOnMap(grid, cands) {
+  for (let i = 0; i < 81; i++) {
+    if (grid[i] === 0 && cands[i].size === 1) return { cell: i, digit: [...cands[i]][0], type: "naked" };
+  }
+  for (let i = 0; i < 81; i++) {
+    if (grid[i] !== 0) continue;
+    const hs = findHiddenSingleFor(grid, cands, i);
+    if (hs) return { cell: i, digit: hs.digit, type: "hidden", unit: hs.unit };
+  }
+  return null;
+}
+function planFromSingle(grid, s, chain, lang) {
+  if (s.type === "naked") {
+    const baseCands = candidatesFromGrid(grid, s.cell);
+    const kept = pruneChain(grid, chain, { type: "naked", target: s.cell, digit: s.digit, baseCands });
+    const plan = finalizeNaked(grid, s.cell, s.digit, kept.map((x) => describeElim(x, lang)), baseCands, lang);
+    plan.rawChain = kept;
+    plan.difficulty = planDifficulty(1, kept);
+    return tagPlan(plan, "nakedSingle", kept, null);
+  }
+  const kept = pruneChain(grid, chain, { type: "hidden", target: s.cell, digit: s.digit, unit: s.unit });
+  const plan = finalizeHidden(grid, s.cell, s.digit, s.unit, kept.map((x) => describeElim(x, lang)), lang);
+  plan.rawChain = kept;
+  plan.difficulty = planDifficulty(2, kept);
+  return tagPlan(plan, "hiddenSingle", kept, unitLabel(s.unit, lang));
+}
+export function nextStep(grid, lang = "fr", { allowUniqueness = true } = {}) {
+  const opts = { allowUniqueness };
+  // Palier 1 : singles sur les candidats bruts, une passe.
+  const raw = allCands(grid);
+  const direct = singleOnMap(grid, raw);
+  if (direct) return planFromSingle(grid, direct, [], lang);
+  // Paliers 2 → 5 : findElimTiered est déterministe et trié par palier, la
+  // séquence au cap suivant répète le préfixe ; on repart proprement pour
+  // garder « preuve simple avant preuve courte ».
+  for (const cap of [2, 3, 4, 5]) {
+    const cands = allCands(grid);
+    const chain = [];
+    for (let k = 0; k <= MAX_CHAIN_ALL; k++) {
+      const s = singleOnMap(grid, cands);
+      if (s) return planFromSingle(grid, s, chain, lang);
+      if (chainExhausted(chain)) break;
+      const e = findElimTiered(cands, cap, opts);
+      if (!e) break;
+      applyElim(cands, e);
+      chain.push(e);
+    }
+  }
+  return null;
+}
+
 /* ---------- Routage du panneau « bloqué » (👣/🎯) ----------
    Priorité : erreur prouvée > grille ambiguë > mur légitime.
    anyPlan=true → null : le coach a un plan, pas de panneau bloqué. */
@@ -1629,7 +1688,12 @@ function findElimTiered(cands, cap, opts = { allowUniqueness: true }) {
 export function solveHumanlySteps(grid, onStep, cap = 5, { allowUniqueness = true } = {}) {
   const opts = { allowUniqueness };
   const g = grid.slice();
-  const cands = allCands(g); // persistants : les éliminations s'y accumulent
+  // Carte de candidats recalculée à CHAQUE placement (B0) : le joueur, lui,
+  // repart des candidats bruts à chaque appui 👣 (nextStep) — sa grille ne se
+  // souvient pas des éliminations. Garder une carte persistante surestimait
+  // ce qu'il peut faire (faux murs mesurés au banc). Même ordre d'éliminations
+  // que nextStep (findElimTiered) : gradée résoluble ⟺ 👣 termine.
+  const cands = allCands(g);
   const counts = {};
   let maxTier = 0;
   let elimRun = 0; // éliminations « coûteuses » enchaînées depuis le dernier placement
@@ -1637,8 +1701,7 @@ export function solveHumanlySteps(grid, onStep, cap = 5, { allowUniqueness = tru
   const place = (i, d) => {
     elimRun = 0; elimRunAll = 0;
     g[i] = d;
-    cands[i] = new Set();
-    PEERS[i].forEach((p) => cands[p].delete(d));
+    for (let j = 0; j < 81; j++) cands[j] = new Set(candidatesFromGrid(g, j));
   };
   for (let iter = 0; iter < 2000; iter++) {
     // 1. Singles jusqu'au point fixe

@@ -1,19 +1,20 @@
 /* Banc de grilles dures — « mesuré, pas promis ».
-   Lancer : npm run bench            (≈ 2-3 min)
+   Lancer : npm run bench            (≈ 2-4 min)
             BENCH_QUICK=1 npm run bench   (tour rapide : grilles nommées,
                                            10 top95, 10 générées)
 
    Pour chaque grille : le gradeur (solveHumanly → résolue ? tier max ? mur ?)
-   et le VRAI chemin du joueur (buildPlan en boucle, coup le plus simple à
-   chaque fois → terminée ? bloquée à combien de cases ?), plus le temps de
-   chaque indice (p50/p95).
+   et le VRAI chemin du joueur (nextStep en boucle : une recherche globale par
+   appui 👣, comme dans l'app → terminée ? bloquée à combien de cases ?), plus
+   le temps de chaque appui 👣 (p50/p95) et un échantillon 🎯 (buildPlan sur
+   une case, tous les 10 coups).
 
    Assertions (échec = code 1) : aucune exception ; aucune élimination ne
    contredit la solution unique ; aucun chiffre posé par le chemin joueur ne
    contredit la solution. Les pourcentages sont des ℹ à cibles indicatives. */
 import { readFileSync } from "node:fs";
 import {
-  solveGrid, solveHumanlySteps, buildPlan, generatePuzzle, makeRng, isComplete,
+  solveGrid, solveHumanlySteps, buildPlan, nextStep, generatePuzzle, makeRng, isComplete,
 } from "../src/engine.js";
 
 const QUICK = !!process.env.BENCH_QUICK;
@@ -66,29 +67,27 @@ function measure(f) {
     }
     return false;
   }, 5);
-  // 2. Chemin joueur : à chaque coup, la case à la preuve la plus simple.
+  // 2. Chemin joueur : un appui 👣 (nextStep) par coup ; 🎯 échantillonné.
   const w = g.slice();
-  const hintMs = [];
+  const hintMs = [], aimMs = [];
   let mismatches = 0, moves = 0;
   for (let guard = 0; guard < 81; guard++) {
-    let best = null;
-    for (let i = 0; i < 81; i++) {
-      if (w[i] !== 0) continue;
-      const t0 = performance.now();
-      const p = buildPlan(w, i);
-      hintMs.push(performance.now() - t0);
-      if (!p) continue;
-      if (p.digit !== solution[i]) mismatches++;
-      if (!best || p.difficulty < best.difficulty) best = p;
+    if (moves % 10 === 0) {
+      const cell = w.findIndex((v) => v === 0);
+      if (cell >= 0) { const a0 = performance.now(); buildPlan(w, cell); aimMs.push(performance.now() - a0); }
     }
-    if (!best) break;
-    w[best.target] = best.digit;
+    const t0 = performance.now();
+    const p = nextStep(w);
+    hintMs.push(performance.now() - t0);
+    if (!p) break;
+    if (p.digit !== solution[p.target]) mismatches++;
+    w[p.target] = p.digit;
     moves++;
   }
   return {
     ...f, empties: g.filter((v) => !v).length,
     solved: r.solved, maxTier: r.maxTier, counts: r.counts, badElim,
-    done: isComplete(w), left: w.filter((v) => !v).length, moves, mismatches, hintMs,
+    done: isComplete(w), left: w.filter((v) => !v).length, moves, mismatches, hintMs, aimMs,
   };
 }
 
@@ -103,7 +102,7 @@ for (const f of entries) {
 
 /* ---------- Tableau par grille ---------- */
 const TIER_NAME = { 0: "—", 1: "singles", 2: "alignements", 3: "paires", 4: "poissons/ailes", 5: "coloriage" };
-console.log("\n| grille | SE | tier max | mur | joueur | restantes | coups | indice p95 |");
+console.log("\n| grille | SE | tier max | mur | joueur | restantes | coups | 👣 p95 |");
 console.log("|---|---|---|---|---|---|---|---|");
 for (const r of rows) {
   if (r.error) { console.log(`| ${r.id} | ${r.se ?? "—"} | ERREUR | | | | | ${r.error} |`); continue; }
@@ -137,7 +136,10 @@ if (rated.length) {
 }
 aggregate("non notées (hors générées)", valid.filter((r) => r.se === null && r.collection !== "gen5"));
 const allHint = valid.flatMap((r) => r.hintMs);
-console.log(`  ℹ temps d'indice (buildPlan) sur ${allHint.length} appels : p50 ${quantile(allHint, 0.5).toFixed(1)} ms · p95 ${quantile(allHint, 0.95).toFixed(1)} ms · max ${allHint.reduce((m, x) => (x > m ? x : m), 0).toFixed(1)} ms`);
+const allAim = valid.flatMap((r) => r.aimMs);
+const maxOf = (arr) => arr.reduce((m, x) => (x > m ? x : m), 0);
+console.log(`  ℹ 👣 nextStep sur ${allHint.length} appuis : p50 ${quantile(allHint, 0.5).toFixed(1)} ms · p95 ${quantile(allHint, 0.95).toFixed(1)} ms · max ${maxOf(allHint).toFixed(1)} ms`);
+console.log(`  ℹ 🎯 buildPlan (échantillon, ${allAim.length} appels) : p50 ${quantile(allAim, 0.5).toFixed(1)} ms · p95 ${quantile(allAim, 0.95).toFixed(1)} ms · max ${maxOf(allAim).toFixed(1)} ms`);
 const walls = valid.filter((r) => !r.solved);
 if (walls.length) {
   const at = {};
@@ -150,15 +152,14 @@ console.log("\nAssertions :");
 ok(rows.every((r) => !r.error), `aucune exception ni grille non unique${rows.some((r) => r.error) ? ` — ${rows.filter((r) => r.error).map((r) => `${r.id}: ${r.error}`).join(" ; ")}` : ""}`);
 ok(valid.every((r) => r.badElim === 0), `aucune élimination ne contredit la solution (${valid.reduce((n, r) => n + r.badElim, 0)} en défaut)`);
 ok(valid.every((r) => r.mismatches === 0), `aucun chiffre du chemin joueur ne contredit la solution (${valid.reduce((n, r) => n + r.mismatches, 0) } en défaut)`);
-// Écarts gradeur ↔ chemin joueur (MAX_CHAIN partagé, mais le joueur avance par
-// cible avec `prefer` et le gradeur globalement par palier) — mesurés, pas
-// asservis : « gradé résoluble mais bloquée en jeu » est le faux mur à
-// traquer ; l'inverse est une bonne surprise.
+// Gradeur et 👣 suivent la même procédure (B0 : mêmes éliminations, carte
+// recalculée à chaque placement) : gradée résoluble ⟺ terminée, par
+// construction. Toute divergence est un bug à traiter, pas une statistique.
 {
   const falseWall = valid.filter((r) => r.solved && !r.done).map((r) => r.id);
   const extra = valid.filter((r) => !r.solved && r.done).map((r) => r.id);
-  console.log(`  ℹ gradées résolubles mais bloquées en jeu (faux murs) : ${falseWall.length}${falseWall.length ? ` — ${falseWall.join(", ")}` : ""}`);
-  if (extra.length) console.log(`  ℹ terminées par le joueur malgré un mur du gradeur : ${extra.length} — ${extra.join(", ")}`);
+  ok(falseWall.length === 0, `aucun faux mur : gradée résoluble ⇒ terminée par 👣${falseWall.length ? ` — ${falseWall.join(", ")}` : ""}`);
+  ok(extra.length === 0, `aucune surprise : terminée par 👣 ⇒ gradée résoluble${extra.length ? ` — ${extra.join(", ")}` : ""}`);
 }
 
 console.log(`\n  ℹ temps total : ${((Date.now() - T0) / 1000).toFixed(1)} s`);

@@ -2,7 +2,7 @@
    Lancer : npm run check */
 import {
   PEERS, BOXES, COLS, ROWS, candidatesFromGrid, allCands, conflictSet,
-  findHiddenSingleFor, solveGrid, buildPlan, stuckPanelKind, SAMPLES, cellName, rowOf, colOf,
+  findHiddenSingleFor, solveGrid, buildPlan, nextStep, stuckPanelKind, SAMPLES, cellName, rowOf, colOf,
   findXWingE, findSwordfishE, findSkyscraperE, findXYWingE, findRemotePairE,
   findXYZWingE, findWWingE, findKiteE, findEmptyRectangleE,
   findColoringE, findSueDeCoqE,
@@ -235,6 +235,50 @@ console.log("Notation (bouton Noter) :");
   ok(notationFor(undefined) === "snyder" && notationFor("weird") === "snyder",
     "levelKey inattendu → Snyder (le choix prudent)");
   ok(NOTATION_PREFS.join(",") === "auto,snyder,complete", "NOTATION_PREFS expose les trois réglages");
+}
+
+/* ---------- 2f. nextStep (👣) : une recherche globale par appui ---------- */
+console.log("nextStep (👣) :");
+{
+  const PLAN_KEYS = ["kind", "target", "digit", "chain", "rawChain", "hint1", "hint2", "paras", "tech",
+    "unitCells", "difficulty", "techKind", "chainKinds", "keyKind", "techZone"];
+  const g0 = SAMPLES[0].split("").map(Number);
+  const sol0 = solveGrid(g0).solution;
+  for (const lang of ["fr", "en"]) {
+    const p = nextStep(g0, lang);
+    ok(!!p && PLAN_KEYS.every((k) => k in p), `${lang} : plan de la forme exacte de buildPlan (${PLAN_KEYS.length} clés)`);
+    const ref = buildPlan(g0, p.target, lang);
+    ok(ref && ref.digit === p.digit && ref.chain.length === 0 && p.chain.length === 0,
+      `${lang} : palier 1 sur l'exemple 1 (${cellName(p.target, lang)} = ${p.digit}, chaîne vide, difficulté ${p.difficulty})`);
+    ok(p.digit === sol0[p.target] && (p.difficulty === 1 || p.difficulty === 2), `${lang} : chiffre juste, difficulté 1 ou 2`);
+  }
+  const a = nextStep(g0), b = nextStep(g0);
+  ok(a.target === b.target && a.digit === b.digit && a.techKind === b.techKind, "déterministe : deux appuis identiques");
+  // Un état de milieu de partie : chaîne non vide, chiffre juste, keyKind d'un palier ≥ 2.
+  const gs = REPRO_STEPWISE.split("").map(Number);
+  const sols = solveGrid(gs).solution;
+  const ps = nextStep(gs);
+  ok(!!ps && ps.chain.length > 0 && ps.rawChain.length === ps.chain.length && ps.digit === sols[ps.target]
+    && ps.chainKinds.every((k) => TECH_TIER[k] >= 2),
+    `REPRO_STEPWISE : ${cellName(ps ? ps.target : 0)} = ${ps ? ps.digit : "?"} après ${ps ? ps.chain.length : 0} élimination(s) (${ps ? ps.chainKinds.join("+") : ""})`);
+  ok(!!ps && ps.chain.every((st, i) => st.title && st.text && Array.isArray(st.cells) && Array.isArray(ps.rawChain[i].removals)),
+    "REPRO_STEPWISE : chaque étape porte title/text/cells et ses removals bruts (stepper)");
+  // Précondition d'unicité, en jouant des parties entières sur 20 fixtures du banc.
+  const FIX = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+  let leaks = 0, games = 0;
+  for (const f of FIX.slice(0, 20)) {
+    const g = f.grid.split("").map((ch) => (ch === "." ? 0 : Number(ch)));
+    for (let guard = 0; guard < 81; guard++) {
+      const p = nextStep(g, "fr", { allowUniqueness: false });
+      if (!p) break;
+      if (p.chainKinds.some((k) => UNIQUENESS_KINDS.has(k))) leaks++;
+      g[p.target] = p.digit;
+    }
+    games++;
+  }
+  ok(leaks === 0, `allowUniqueness:false → jamais de rectangle unique / BUG+1 dans ${games} parties jouées par nextStep`);
+  // Grille pleine ou sans single ni élimination : null, sans exception.
+  ok(nextStep(sol0) === null, "grille pleine → null");
 }
 
 /* ---------- 3. Leçons : cohérence interne ---------- */
@@ -872,20 +916,19 @@ console.log("Parties intégrales (chemin du joueur) :");
   // difficulté minimale (premier ex æquo), placement — comme randomHint,
   // mais sans tirage au sort et sans écarter les désaccords : un plan dont le
   // chiffre contredit la solution est un bug de déduction, pas un blocage.
+  // Depuis B0, le joueur avance par nextStep (une recherche globale par appui,
+  // exactement ce que fait 👣) ; on chronomètre chaque appui.
+  const stepTimes = [];
   const playThrough = (grid, sol) => {
     const g = grid.slice();
     let mismatches = 0, moves = 0;
     for (let guard = 0; guard < 81; guard++) {
-      let best = null;
-      for (let i = 0; i < 81; i++) {
-        if (g[i] !== 0) continue;
-        const p = buildPlan(g, i);
-        if (!p) continue;
-        if (p.digit !== sol[i]) mismatches++;
-        if (!best || p.difficulty < best.difficulty) best = p;
-      }
-      if (!best) break; // blocage : plus aucune case déductible
-      g[best.target] = best.digit;
+      const t0 = performance.now();
+      const p = nextStep(g);
+      stepTimes.push(performance.now() - t0);
+      if (!p) break; // blocage : plus aucune case déductible
+      if (p.digit !== sol[p.target]) mismatches++;
+      g[p.target] = p.digit;
       moves++;
     }
     return { done: isComplete(g), mismatches, moves, left: g.filter((v) => !v).length };
@@ -893,16 +936,25 @@ console.log("Parties intégrales (chemin du joueur) :");
 
   // Seeds fixes (cf. section 5 : en changer si une évolution du moteur fait
   // tomber l'un d'eux en fallback de niveau).
+  const quantile = (arr, q) => { const s = arr.slice().sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 0; };
   for (const lvl of [1, 2, 3, 4]) {
     const t0 = Date.now();
+    const from = stepTimes.length;
     for (let s = 0; s < 3; s++) {
       const p = generatePuzzle(lvl, makeRng(lvl * 100000 + s * 137 + 11));
       ok(p.level === lvl, `niveau ${lvl} seed ${s} : niveau atteint (réel=${p.level})`);
-      const r = playThrough(p.grid.split("").map(Number), p.solution.split("").map(Number));
+      const grid = p.grid.split("").map(Number);
+      const r = playThrough(grid, p.solution.split("").map(Number));
       ok(r.done, `niveau ${lvl} seed ${s} : partie terminée (${r.moves} coups${r.done ? "" : `, ${r.left} cases restantes`})`);
       ok(r.mismatches === 0, `niveau ${lvl} seed ${s} : zéro chiffre contredisant la solution`);
+      // Accord gradeur ↔ joueur : gradée résoluble ⟺ terminée par nextStep.
+      ok(solveHumanly(grid, 5).solved === r.done, `niveau ${lvl} seed ${s} : gradeur et nextStep d'accord`);
     }
-    console.log(`  ℹ niveau ${lvl} : 3 parties jouées en ${Date.now() - t0} ms`);
+    const times = stepTimes.slice(from);
+    const p95 = quantile(times, 0.95);
+    console.log(`  ℹ niveau ${lvl} : 3 parties jouées en ${Date.now() - t0} ms — 👣 p50 ${quantile(times, 0.5).toFixed(1)} ms · p95 ${p95.toFixed(1)} ms (${times.length} appuis)`);
+    // Cible B0 : 👣 < 100 ms sur les niveaux 1-3 (une recherche par appui).
+    if (lvl <= 3) ok(p95 < 100, `niveau ${lvl} : 👣 p95 < 100 ms (${p95.toFixed(1)} ms)`);
   }
 
   // Fixture de régression : état réel autrefois bloqué (28 cases restantes,
