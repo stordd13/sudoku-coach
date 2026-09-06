@@ -919,6 +919,19 @@ console.log("Parties intégrales (chemin du joueur) :");
     "fixture repro : au moins un plan mobilise une technique de palier 4");
   const r = playThrough(g, solution);
   ok(r.done && r.mismatches === 0, `fixture repro : partie terminée depuis l'état bloqué (${r.moves} coups)`);
+  // Faux mur du banc (v2.3) : top95-83 est gradée résoluble, mais le joueur,
+  // en posant les cases dans un autre ordre, tombait sur huit alignements
+  // d'affilée qui épuisaient MAX_CHAIN. Les alignements ne comptent plus
+  // dans le budget (même règle dans les deux moteurs) : la partie se termine.
+  {
+    const FIX = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+    const f = FIX.find((x) => x.id === "top95-83");
+    const g83 = f.grid.split("").map((ch) => (ch === "." ? 0 : Number(ch)));
+    const sol83 = solveGrid(g83).solution;
+    ok(solveHumanly(g83, 5).solved, "top95-83 : gradée résoluble");
+    const r83 = playThrough(g83, sol83);
+    ok(r83.done && r83.mismatches === 0, `top95-83 : partie terminée par le chemin joueur (${r83.moves} coups) — plus de faux mur`);
+  }
 }
 
 /* ---------- 5c. Routage du panneau « bloqué » : table de vérité ---------- */

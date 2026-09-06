@@ -1487,6 +1487,15 @@ function tagPlan(plan, techKind, kept, techZone) {
    Invariant : gradé résoluble ⟺ finissable en jeu. Deux bornes différentes
    recréeraient des grilles certifiées résolubles mais infinissables en partie. */
 const MAX_CHAIN = 8;
+/* Les alignements (paire pointante, réduction bloc/ligne) sont des
+   observations de notation : un joueur les barre au fil de l'eau sans les
+   « compter ». Ils ne consomment pas le budget MAX_CHAIN (mesuré au banc :
+   huit alignements d'affilée faisaient un faux mur), mais un plafond global
+   MAX_CHAIN_ALL borne toujours la chaîne. Même règle dans les deux moteurs. */
+const CHAIN_FREE_KINDS = new Set(["pointing", "claiming"]);
+const MAX_CHAIN_ALL = 3 * MAX_CHAIN;
+const chainCost = (chain) => chain.reduce((n, e) => n + (CHAIN_FREE_KINDS.has(e.kind) ? 0 : 1), 0);
+const chainExhausted = (chain) => chain.length >= MAX_CHAIN_ALL || chainCost(chain) >= MAX_CHAIN;
 
 export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } = {}) {
   if (grid[target] !== 0) return null;
@@ -1499,8 +1508,8 @@ export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } 
   for (const maxTier of [2, 3, 4, 5]) {
     const cands = allCands(grid);
     const chain = [];
-    // MAX_CHAIN+1 itérations : la dernière teste le single créé par la 8e élim.
-    for (let k = 0; k <= MAX_CHAIN; k++) {
+    // MAX_CHAIN_ALL+1 itérations : la dernière teste le single créé par la dernière élim.
+    for (let k = 0; k <= MAX_CHAIN_ALL; k++) {
       const cs = [...cands[target]];
       if (cs.length === 1) {
         const kept = pruneChain(grid, chain, { type: "naked", target, digit: cs[0], baseCands });
@@ -1517,7 +1526,7 @@ export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } 
         plan.difficulty = planDifficulty(2, kept);
         return tagPlan(plan, "hiddenSingle", kept, unitLabel(hs.unit, lang));
       }
-      if (chain.length >= MAX_CHAIN) break; // palier suivant
+      if (chainExhausted(chain)) break; // palier suivant
       const e = findElim(cands, prefer, maxTier, opts) || findElim(cands, null, maxTier, opts);
       if (!e) break; // palier suivant
       applyElim(cands, e);
@@ -1623,9 +1632,10 @@ export function solveHumanlySteps(grid, onStep, cap = 5, { allowUniqueness = tru
   const cands = allCands(g); // persistants : les éliminations s'y accumulent
   const counts = {};
   let maxTier = 0;
-  let elimRun = 0; // éliminations enchaînées depuis le dernier placement
+  let elimRun = 0; // éliminations « coûteuses » enchaînées depuis le dernier placement
+  let elimRunAll = 0; // toutes éliminations confondues (plafond global)
   const place = (i, d) => {
-    elimRun = 0;
+    elimRun = 0; elimRunAll = 0;
     g[i] = d;
     cands[i] = new Set();
     PEERS[i].forEach((p) => cands[p].delete(d));
@@ -1665,7 +1675,7 @@ export function solveHumanlySteps(grid, onStep, cap = 5, { allowUniqueness = tru
     // 2. Une élimination du palier le plus bas possible — bornée par MAX_CHAIN
     // entre deux placements, comme buildPlan : au-delà, la grille est déclarée
     // non résoluble « humainement » (le joueur ne pourrait pas la finir en jeu).
-    if (elimRun >= MAX_CHAIN) return { solved: false, maxTier, counts };
+    if (elimRunAll >= MAX_CHAIN_ALL || elimRun >= MAX_CHAIN) return { solved: false, maxTier, counts };
     const e = findElimTiered(cands, cap, opts);
     if (!e) return { solved: false, maxTier, counts };
     if (onStep && onStep({
@@ -1674,7 +1684,8 @@ export function solveHumanlySteps(grid, onStep, cap = 5, { allowUniqueness = tru
       cands: cands.map((s) => [...s].sort((a, b) => a - b)),
     })) return { solved: false, aborted: true, maxTier, counts };
     applyElim(cands, e);
-    elimRun++;
+    elimRunAll++;
+    if (!CHAIN_FREE_KINDS.has(e.kind)) elimRun++;
     counts[e.kind] = (counts[e.kind] || 0) + 1;
     maxTier = Math.max(maxTier, TIER_OF_KIND[e.kind]);
   }
