@@ -18,8 +18,9 @@ export const KIND_BY_LESSON = {
   "naked-pair": "nakedPair", "pointing-pair": "pointing", "claiming": "claiming",
   "hidden-pair": "hiddenPair", "triples": "nakedTriple", "x-wing": "xWing", "xy-wing": "xyWing",
   "swordfish": "swordfish", "skyscraper": "skyscraper", "remote-pairs": "remotePair",
-  "xyz-wing": "xyzWing", "w-wing": "wWing", "kite": "kite",
-  "empty-rectangle": "emptyRectangle", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
+  "xyz-wing": "xyzWing", "w-wing": "wWing", "xy-chain": "xyChain", "kite": "kite",
+  "empty-rectangle": "emptyRectangle", "unique-rectangle": "uniqueRectangle",
+  "bug-plus-one": "bug1", "coloring": "coloring", "sue-de-coq": "sueDeCoq",
 };
 export const LESSON_BY_KIND = Object.fromEntries(
   LESSONS.map((L) => [KIND_BY_LESSON[L.id], L])
@@ -70,10 +71,11 @@ function transformExercise(kind, rng = Math.random, lang = "fr") {
    - recherche : la technique y apparaît en < 600 ms en moyenne ;
    - construction : quasi introuvable en recherche (Remote Pairs : 0/1000)
      mais constructible en ~0,2 ms autour d'une grille pleine ;
-   - transformation : coloring et Sue de Coq résistent aux deux voies. */
+   - transformation : coloring, Sue de Coq et BUG+1 résistent aux deux voies. */
 const SEARCH_KINDS = new Set([
   "nakedSingle", "hiddenSingle", "pointing", "claiming", "nakedPair",
-  "hiddenPair", "nakedTriple", "xyWing", "xyzWing", "wWing", "emptyRectangle",
+  "hiddenPair", "nakedTriple", "xyWing", "xyzWing", "wWing", "xyChain", "emptyRectangle",
+  "uniqueRectangle",
 ]);
 const CONSTRUCT_KINDS = new Set(["xWing", "swordfish", "skyscraper", "kite", "remotePair"]);
 

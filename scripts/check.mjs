@@ -145,8 +145,8 @@ console.log("Coach 👣 (leçon guidée) :");
   const EXPECTED = {
     nakedSingle: 1, hiddenSingle: 2, nakedPair: 3, pointing: 4, claiming: 5,
     hiddenPair: 6, nakedTriple: 7, xWing: 8, xyWing: 9, swordfish: 10, skyscraper: 11,
-    remotePair: 12, xyzWing: 13, wWing: 14, kite: 15, emptyRectangle: 16,
-    coloring: 17, sueDeCoq: 18,
+    remotePair: 12, xyzWing: 13, wWing: 14, xyChain: 15, kite: 16, emptyRectangle: 17,
+    uniqueRectangle: 18, bug1: 19, coloring: 20, sueDeCoq: 21,
   };
   const kinds = [...Object.keys(ELIM_FINDER_BY_KIND), "nakedSingle", "hiddenSingle"];
   ok(kinds.length === Object.keys(TECH_NAMES).length && kinds.every((k) => !!lessonToRevise(k)),
@@ -594,7 +594,7 @@ console.log("Palier A (v2.3) :");
   };
   const F = ELIM_FINDER_BY_KIND;
   const NEW_KINDS = ["nakedTriple", "hiddenTriple", "nakedQuad", "hiddenQuad"];
-  const PALIER_A = [...NEW_KINDS, "finnedXWing", "jellyfish", "xChain"];
+  const PALIER_A = [...NEW_KINDS, "finnedXWing", "jellyfish", "xChain", "xyChain", "uniqueRectangle", "bug1"];
   ok(PALIER_A.every((k) => typeof F[k] === "function"), `finders du palier A branchés : ${PALIER_A.join(", ")}`);
 
   // Triplet nu : la leçon (ligne 5) et un cas presque valide (union de 4 chiffres).
@@ -703,6 +703,75 @@ console.log("Palier A (v2.3) :");
     ok(F.xChain(h, null) === null, "négatif : boucle fermée de quatre cases, aucune case extérieure → rien");
   }
   ok(TECH_TIER.xChain === 4, "X-Chain : palier 4");
+  // XY-Chain : la leçon (4 bivalues de L1C1 à L4C9, z = 3) ; propriétés de la
+  // chaîne ; la plus courte d'abord ; négatif : l'extrémité ne rend pas z.
+  {
+    const L = lessonById("xy-chain");
+    const e = F.xyChain(fromNotes(L.notes), new Set([8, 27]));
+    ok(e && e.kind === "xyChain" && e.z === 3 && e.chain.length === 4 && hit(e, 8, 3) && hit(e, 27, 3)
+      && e.removals.length === 2, "XY-Chain de la leçon : retire le 3 de L1C9 et L4C1");
+    ok(e && e.carried[e.carried.length - 1] === e.z && e.carried[0] !== e.z
+      && e.chain.every((c, k) => k === 0 || PEERS[c].has(e.chain[k - 1])),
+      "XY-Chain : chaque case voit la précédente, le chiffre porté revient à z au bout");
+    ok(F.xyWing(fromNotes(L.notes), null) === null, "la leçon XY-Chain ne contient aucun XY-Wing (pas de sous-chaîne de 3)");
+    // Plus courte d'abord : un XY-Wing présent est rendu comme chaîne de 3.
+    const w = fromNotes(lessonById("xy-wing").notes);
+    const e3 = F.xyChain(w, null);
+    ok(e3 && e3.chain.length === 3, "XY-Chain : sur la position XY-Wing, une chaîne de 3 cases (jamais plus)");
+    const g = empty();
+    g[idx(0, 0)] = S(3, 5); g[idx(0, 4)] = S(5, 7); g[idx(3, 4)] = S(7, 9); g[idx(3, 0)] = S(3, 6);
+    ok(F.xyChain(g, null) === null, "négatif : chaîne dont l'extrémité ne rend pas z → rien");
+  }
+  ok(TECH_TIER.xyChain === 4, "XY-Chain : palier 4");
+  // Rectangle unique : type 1 (leçon), puis types 2, 4, 3 synthétiques ;
+  // négatifs : quatre blocs, coin résolu, toits en diagonale.
+  {
+    const L = lessonById("unique-rectangle");
+    const e1 = F.uniqueRectangle(fromNotes(L.notes), null);
+    ok(e1 && e1.type === 1 && hit(e1, 13, 3) && hit(e1, 13, 8) && e1.removals.length === 1,
+      "rectangle unique type 1 (leçon) : retire 3 et 8 de L2C5");
+    const g = empty();
+    g[idx(0, 0)] = S(3, 8); g[idx(0, 4)] = S(3, 8); g[idx(1, 0)] = S(3, 6, 8); g[idx(1, 4)] = S(3, 6, 8); g[idx(1, 2)] = S(6, 9);
+    const e2 = F.uniqueRectangle(g, null);
+    ok(e2 && e2.type === 2 && e2.extra === 6 && hit(e2, idx(1, 2), 6) && e2.removals.length === 1,
+      "type 2 : les toits partagent l'extra 6, L2C3 le perd");
+    const h = empty();
+    h[idx(0, 0)] = S(3, 8); h[idx(0, 4)] = S(3, 8); h[idx(1, 0)] = S(3, 6, 8); h[idx(1, 4)] = S(3, 8, 9); h[idx(1, 7)] = S(1, 8);
+    const e4 = F.uniqueRectangle(h, null);
+    ok(e4 && e4.type === 4 && e4.locked === 3 && hit(e4, idx(1, 0), 8) && hit(e4, idx(1, 4), 8),
+      "type 4 : le 3 de la ligne 2 est confiné aux toits, le 8 les quitte");
+    const k = empty();
+    k[idx(0, 0)] = S(3, 8); k[idx(0, 4)] = S(3, 8); k[idx(1, 0)] = S(3, 6, 8); k[idx(1, 4)] = S(3, 8, 9);
+    k[idx(1, 7)] = S(6, 9); k[idx(1, 2)] = S(1, 3, 6); k[idx(1, 6)] = S(2, 8, 9);
+    const e3 = F.uniqueRectangle(k, null);
+    ok(e3 && e3.type === 3 && e3.extras.join() === "6,9" && e3.partner === idx(1, 7) && hit(e3, idx(1, 2), 6) && hit(e3, idx(1, 6), 9),
+      "type 3 : toits {6,9} + bivalue L2C8 = paire nue virtuelle, la ligne 2 se nettoie");
+    const n = empty();
+    n[idx(0, 0)] = S(3, 8); n[idx(0, 4)] = S(3, 8); n[idx(3, 0)] = S(3, 8); n[idx(3, 4)] = S(3, 6, 8);
+    ok(F.uniqueRectangle(n, null) === null, "négatif : rectangle sur quatre blocs → rien");
+    const m = empty();
+    m[idx(0, 0)] = S(3, 8); m[idx(0, 4)] = S(3, 8); m[idx(1, 0)] = S(3); m[idx(1, 4)] = S(3, 6, 8);
+    ok(F.uniqueRectangle(m, null) === null, "négatif : un coin résolu → rien");
+    const d = empty();
+    d[idx(0, 0)] = S(3, 8); d[idx(0, 4)] = S(3, 6, 8); d[idx(1, 0)] = S(3, 6, 8); d[idx(1, 4)] = S(3, 8); d[idx(1, 2)] = S(6, 9);
+    ok(F.uniqueRectangle(d, null) === null, "négatif : toits en diagonale → pas de type 2");
+  }
+  ok(TECH_TIER.uniqueRectangle === 4 && UNIQUENESS_KINDS.has("uniqueRectangle"), "rectangle unique : palier 4, précondition d'unicité");
+  // BUG+1 : la leçon (fin de partie réelle, L2C7 = 7) ; négatifs : deux cases
+  // trivalues, un chiffre présent quatre fois dans une unité.
+  {
+    const L = lessonById("bug-plus-one");
+    const e = F.bug1(fromNotes(L.notes), null);
+    ok(e && e.kind === "bug1" && e.cell === 15 && e.digit === 7 && hit(e, 15, 1) && hit(e, 15, 3) && e.removals.length === 1,
+      "BUG+1 de la leçon : L2C7 porte le 7, le 1 et le 3 s'effacent");
+    const g = fromNotes(L.notes);
+    g[16] = S(1, 3, 9);
+    ok(F.bug1(g, null) === null, "négatif : deux cases à trois candidats → rien");
+    const h = fromNotes(L.notes);
+    h[9] = S(3, 9); // le 9 apparaît maintenant 3 fois en ligne 2 sans être dans la trivalue, le 7 n'y est plus que 2 fois
+    ok(F.bug1(h, null) === null, "négatif : un chiffre déséquilibré hors de la case trivalue → rien");
+  }
+  ok(TECH_TIER.bug1 === 4 && UNIQUENESS_KINDS.has("bug1"), "BUG+1 : palier 4, précondition d'unicité");
   // Ordre pédagogique et paliers : triplets/quads au palier 3, entre paires et poissons.
   ok(NEW_KINDS.every((k) => TECH_TIER[k] === 3), "triplets et quadruplets : palier 3");
   {
@@ -710,6 +779,33 @@ console.log("Palier A (v2.3) :");
     ok(order.indexOf("hiddenPair") < order.indexOf("nakedTriple") && order.indexOf("hiddenQuad") < order.indexOf("xWing"),
       "findElim : nakedTriple … hiddenQuad entre hiddenPair et xWing");
   }
+}
+
+/* ---------- 4c. Fixtures du banc et précondition d'unicité ---------- */
+console.log("Fixtures du banc :");
+{
+  const FIX = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+  const parse = (g) => g.split("").map((ch) => (ch === "." ? 0 : Number(ch)));
+  ok(FIX.length >= 30 && FIX.every((f) => f.id && f.name && /^[0-9.]{81}$/.test(f.grid) && "se" in f && f.source),
+    `${FIX.length} fixtures bien formées (id, name, grid 81, se, source)`);
+  ok(new Set(FIX.map((f) => f.id)).size === FIX.length, "identifiants de fixtures uniques");
+  ok(FIX.every((f) => solveGrid(parse(f.grid)).count === 1), "chaque fixture a une solution unique");
+  ok(FIX.some((f) => f.id === "reddit-2026") && FIX.some((f) => f.id === "ai-escargot"), "la grille Reddit et AI Escargot sont présentes");
+  // Précondition d'unicité : sans allowUniqueness, aucune technique d'unicité
+  // ne sort du gradeur ; avec, elles apparaissent sur au moins une fixture.
+  const kindsSeen = (grid, allowUniqueness) => {
+    const seen = new Set();
+    solveHumanlySteps(grid, (st) => { if (st.type === "elim") seen.add(st.e.kind); return false; }, 5, { allowUniqueness });
+    return seen;
+  };
+  let withU = 0, leak = 0;
+  for (const f of FIX.slice(0, 40)) {
+    const g = parse(f.grid);
+    if ([...kindsSeen(g, true)].some((k) => UNIQUENESS_KINDS.has(k))) withU++;
+    if ([...kindsSeen(g, false)].some((k) => UNIQUENESS_KINDS.has(k))) leak++;
+  }
+  ok(leak === 0, "allowUniqueness:false → jamais de rectangle unique / BUG+1 (40 fixtures)");
+  console.log(`  ℹ techniques d'unicité mobilisées avec allowUniqueness:true : ${withU}/40 fixtures`);
 }
 
 /* ---------- 5. Génération : grille pleine, gradation, puzzles ---------- */

@@ -193,9 +193,29 @@ export const GLOSSARY = [
     en: { term: "Jellyfish", aliases: [], def: "The four-row fish: a digit confined to the same four columns on four rows is reserved for them." },
   },
   {
+    id: "bivalue",
+    fr: { term: "bivalue", aliases: ["bivalues", "case bivalue", "cases bivalues"], def: "Une case qui n’a plus que deux candidats." },
+    en: { term: "bivalue", aliases: ["bivalue cell", "bivalue cells"], def: "A cell with only two candidates left." },
+  },
+  {
+    id: "xy-chain",
+    fr: { term: "XY-Chain", aliases: ["XY-Chains"], def: "Une chaîne de cases bivalues où chaque case force la suivante : l’une des deux extrémités porte le chiffre commun." },
+    en: { term: "XY-Chain", aliases: ["XY-Chains"], def: "A chain of bivalue cells where each cell forces the next: one of the two ends holds the shared digit." },
+  },
+  {
     id: "x-chain",
     fr: { term: "X-Chain", aliases: ["X-Chains"], def: "Une chaîne sur un seul chiffre, liens forts et faibles alternés : l’une des deux extrémités porte le chiffre." },
     en: { term: "X-Chain", aliases: ["X-Chains"], def: "A chain on a single digit, alternating strong and weak links: one of the two ends holds the digit." },
+  },
+  {
+    id: "unique-rectangle",
+    fr: { term: "rectangle unique", aliases: ["rectangles uniques"], def: "Quatre cases sur deux lignes, deux colonnes et deux blocs qui ne peuvent pas finir en deux paires identiques, sinon la grille aurait deux solutions." },
+    en: { term: "unique rectangle", aliases: ["unique rectangles"], def: "Four cells on two rows, two columns and two boxes that cannot end as two identical pairs, or the grid would have two solutions." },
+  },
+  {
+    id: "bug-plus-one",
+    fr: { term: "BUG+1", aliases: ["BUG"], def: "Toutes les cases vides sont bivalues sauf une à trois candidats : elle prend le chiffre présent trois fois dans ses zones, sinon la grille aurait deux solutions." },
+    en: { term: "BUG+1", aliases: ["BUG"], def: "Every empty cell is bivalue except one with three candidates: it takes the digit that appears three times in its zones, or the grid would have two solutions." },
   },
   {
     id: "sue-de-coq",

@@ -6,9 +6,10 @@ Solver de sudoku **pédagogique** : résous, comprends, progresse.
   coach d'expliquer la case de ton choix (🎯) ou de te guider vers la prochaine
   étape (👣, technique annoncée dès le premier indice) : 2 indices progressifs,
   puis la solution avec la technique détaillée pas à pas.
-- 📚 **Apprendre** — une leçon illustrée et interactive pour chacune des 17
-  techniques du coach, du candidat unique au Sue de Coq, avec des exercices
-  générés à volonté.
+- 📚 **Apprendre** — 21 leçons illustrées et interactives, du candidat unique
+  au Sue de Coq (triplets, XY-Chain, rectangle unique et BUG+1 compris), avec
+  des exercices générés à volonté. Le coach connaît 27 techniques en tout
+  (quadruplets, poissons à nageoire, Jellyfish et X-Chain s'expliquent en jeu).
 - 📷 **Scanner** — photographie une grille (magazine, journal…) : elle est lue par
   l'IA via une fonction serveur (`/api/ocr`) qui garde ta clé API privée.
 
@@ -19,6 +20,19 @@ sans compte ni serveur.
 ⏱ chrono et 📊 stats, 🌙 mode sombre Auto/Clair/Sombre, accessibilité (lecteur
 d'écran, clavier, contrastes AA vérifiés), et app **bilingue français/anglais**
 (interface, coach, leçons — réglage ⚙️ ou langue du navigateur).
+
+**v2.2** — bouton unique ✍️ Noter, révélation pas à pas des leçons et du coach,
+glossaire touchable, charte de lisibilité (phrases courtes, symboles en mots).
+
+**v2.3** — le coach franchit les verrous des grilles diaboliques avec dix
+techniques de plus, toutes humaines (triplets et quadruplets, X-Wing à
+nageoire, Jellyfish, X-Chain, XY-Chain, rectangle unique, BUG+1), quatre
+leçons nouvelles, et un banc de grilles dures (`npm run bench`) qui mesure ce
+que le coach résout vraiment. Les techniques d'unicité (rectangle unique,
+BUG+1) ne sont jamais proposées sur une grille à plusieurs solutions.
+Attention : le moteur ayant changé, les **défis du jour à venir** ne sont plus
+les mêmes grilles qu'avec la version précédente (les défis passés, déjà
+mis en cache, ne bougent pas).
 
 ---
 
@@ -68,7 +82,10 @@ d'écran, clavier, contrastes AA vérifiés), et app **bilingue français/anglai
 npm install
 npm run dev        # http://localhost:5173 (le scan nécessite Vercel ou `vercel dev`)
 npm run check      # tests : moteur, leçons, exercices, coach 👣, stockage, API (seedés)
-                   # run complet : 1 à 3 min selon la machine
+                   # run complet : 2 à 4 min selon la machine
+npm run bench      # banc de grilles dures (fixtures/hard-grids.json + 50 générées) :
+                   # % résolues sans mur, chemin joueur, temps d'indice ; BENCH_QUICK=1 pour
+                   # un tour rapide ; ≈ 5 min en entier
 npm run build      # build de production
 ```
 
@@ -125,8 +142,12 @@ arrière-plan et devient active à l'ouverture suivante.
 - **« Grille à plusieurs solutions » au verrouillage** : il manque presque toujours
   un chiffre de l'énoncé (scan incomplet ou oubli de saisie). Repasse en ✏️ édition
   et compare avec la grille d'origine.
-- **« T'es sur quelle version ? »** : le numéro (`v2.0.0`, …) est affiché en bas de
+- **« T'es sur quelle version ? »** : le numéro (`v2.3.0`, …) est affiché en bas de
   l'écran d'accueil.
+- **Le coach dit « au-delà du coach » sur une grille pourtant faisable** : lance
+  `npm run bench` (ou ajoute la grille à `fixtures/hard-grids.json`) pour voir où
+  il bute ; les monstres (AI Escargot et compagnie) restent hors de portée, c'est
+  voulu.
 
 ## Notes
 
@@ -139,3 +160,5 @@ arrière-plan et devient active à l'ouverture suivante.
   serveur ci-dessus.
 - **Vie privée** : les grilles et la progression sont sauvegardées uniquement dans
   le navigateur de chaque personne (localStorage). Rien n'est stocké côté serveur.
+  Le site web mesure son audience avec Vercel Web Analytics (anonyme, sans cookie ;
+  à activer dans le dashboard Vercel) — jamais dans l'app iPhone.

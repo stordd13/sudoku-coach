@@ -917,6 +917,57 @@ function describeElimFr(e) {
       text: `Suis le **${e.digit}** le long d’une [[chaîne]] de ${e.chain.length} cases, de **${s0}** à **${s1}** : [[liens forts]] et [[liens faibles]] alternent, c’est une [[X-Chain]]. Si ${s0} n’est pas un ${e.digit}, alors ${s1} en est un : l’une des deux extrémités porte le ${e.digit}. Toute case qui voit les deux extrémités perd le ${e.digit} : ${rem}.`,
     };
   }
+  if (e.kind === "xyChain") {
+    const c0 = cellName(e.chain[0]), cn = cellName(e.chain[e.chain.length - 1]);
+    const links = e.chain.map((c, k) => ({
+      cells: k === 0 ? [c] : [e.chain[k - 1], c],
+      text: k === 0
+        ? `Si ${cellName(c)} n’est pas un ${e.z}, alors elle vaut ${e.carried[0]}.`
+        : `${cellName(c)} voit ${cellName(e.chain[k - 1])} : elle perd le ${e.carried[k - 1]} et vaut ${e.carried[k]}.`,
+    }));
+    return {
+      title: TECH_NAMES.xyChain.fr, zone: `le ${e.z}`, cells: involved, links,
+      text: `Suis la [[chaîne]] de ${e.chain.length} cases à deux [[candidats]], de **${c0}** à **${cn}** : chaque case force la suivante, c’est une [[XY-Chain]]. Si ${c0} n’est pas un ${e.z}, la chaîne se referme et ${cn} vaut ${e.z} : l’une des deux extrémités porte le ${e.z}. Toute case qui voit les deux extrémités perd le ${e.z} : ${rem}.`,
+    };
+  }
+  if (e.kind === "uniqueRectangle") {
+    const { a, b } = e;
+    const zone = `le rectangle ${a}-${b}`;
+    const open = `${bold(e.corners)} pourraient toutes porter ${a} et ${b} : c’est un [[rectangle unique]] en germe.`;
+    if (e.type === 1) {
+      const t = e.roof[0];
+      return {
+        title: TECH_NAMES.uniqueRectangle.fr, zone, cells: involved,
+        text: `${open} Si ${cellName(t)} valait ${a} ou ${b}, ces quatre cases formeraient deux paires ${a}/${b} interchangeables et la grille aurait deux solutions. Comme elle n’en a qu’une, ${rem}.`,
+      };
+    }
+    const [x, y] = e.roof;
+    if (e.type === 2) {
+      return {
+        title: TECH_NAMES.uniqueRectangle.fr, zone, cells: involved,
+        text: `${open} ${e.floor.map(cellName).join(" et ")} n’ont que ${a} et ${b} ; ${cellName(x)} et ${cellName(y)} ont en plus le ${e.extra}. L’un de ces deux toits porte forcément le ${e.extra}, sinon deux solutions : ${rem}.`,
+      };
+    }
+    if (e.type === 4) {
+      const drop = e.locked === a ? b : a;
+      return {
+        title: TECH_NAMES.uniqueRectangle.fr, zone, cells: involved,
+        text: `${open} Dans ${unitLabel(e.unit)}, le ${e.locked} n’a que deux places, les toits ${cellName(x)} et ${cellName(y)} : si l’un est ${drop}, l’autre est ${e.locked}. On retomberait sur deux paires ${a}/${b} et deux solutions : ${rem}.`,
+      };
+    }
+    const [p, q] = e.extras;
+    return {
+      title: TECH_NAMES.uniqueRectangle.fr, zone, cells: involved,
+      text: `${bold(e.corners)} menacent un [[rectangle unique]] sur ${a} et ${b} : l’un des toits porte un extra, ${p} ou ${q}. Les toits valent ensemble une case [[bivalue]] ${p} ou ${q} ; avec ${cellName(e.partner)} (${p} ou ${q}), c’est une [[paire nue]] dans ${unitLabel(e.unit)}. Aucune autre case de la zone ne peut porter ${p} ou ${q} : ${rem}.`,
+    };
+  }
+  if (e.kind === "bug1") {
+    const name = cellName(e.cell), others = andList(e.removals[0].digits);
+    return {
+      title: TECH_NAMES.bug1.fr, zone: `la case ${name}`, cells: involved,
+      text: `Toutes les cases vides sont [[bivalues]], sauf **${name}** qui hésite entre ${andList([...e.removals[0].digits, e.digit])}. Si elle n’en avait que deux, chaque chiffre apparaîtrait deux fois par zone et la grille aurait deux solutions ([[BUG+1]]). Le ${e.digit} apparaît trois fois dans sa ligne, sa colonne et son bloc : c’est lui, ${rem}.`,
+    };
+  }
   if (e.kind === "skyscraper") {
     return {
       title: TECH_NAMES.skyscraper.fr, zone: `le ${e.digit}`, cells: involved,
@@ -1078,6 +1129,57 @@ function describeElimEn(e) {
     return {
       title: TECH_NAMES.xChain.en, zone: `the ${e.digit}`, cells: involved, links,
       text: `Follow the **${e.digit}** along a [[chain]] of ${e.chain.length} cells, from **${s0}** to **${s1}**: [[strong links]] and [[weak links]] alternate, this is an [[X-Chain]]. If ${s0} is not a ${e.digit}, then ${s1} is one: one of the two ends holds the ${e.digit}. Any cell that sees both ends loses the ${e.digit}: ${rem}.`,
+    };
+  }
+  if (e.kind === "xyChain") {
+    const c0 = cn(e.chain[0]), cEnd = cn(e.chain[e.chain.length - 1]);
+    const links = e.chain.map((c, k) => ({
+      cells: k === 0 ? [c] : [e.chain[k - 1], c],
+      text: k === 0
+        ? `If ${cn(c)} is not a ${e.z}, then it is a ${e.carried[0]}.`
+        : `${cn(c)} sees ${cn(e.chain[k - 1])}: it loses the ${e.carried[k - 1]} and becomes ${e.carried[k]}.`,
+    }));
+    return {
+      title: TECH_NAMES.xyChain.en, zone: `the ${e.z}`, cells: involved, links,
+      text: `Follow the [[chain]] of ${e.chain.length} two-[[candidate]] cells, from **${c0}** to **${cEnd}**: each cell forces the next, this is an [[XY-Chain]]. If ${c0} is not a ${e.z}, the chain closes and ${cEnd} becomes ${e.z}: one of the two ends holds the ${e.z}. Any cell that sees both ends loses the ${e.z}: ${rem}.`,
+    };
+  }
+  if (e.kind === "uniqueRectangle") {
+    const { a, b } = e;
+    const zone = `the ${a}-${b} rectangle`;
+    const open = `${bold(e.corners)} could all hold ${a} and ${b}: a [[unique rectangle]] in the making.`;
+    if (e.type === 1) {
+      const t = e.roof[0];
+      return {
+        title: TECH_NAMES.uniqueRectangle.en, zone, cells: involved,
+        text: `${open} If ${cn(t)} were ${a} or ${b}, those four cells would form two interchangeable ${a}/${b} pairs and the grid would have two solutions. Since it has only one, ${rem}.`,
+      };
+    }
+    const [x, y] = e.roof;
+    if (e.type === 2) {
+      return {
+        title: TECH_NAMES.uniqueRectangle.en, zone, cells: involved,
+        text: `${open} ${e.floor.map(cn).join(" and ")} hold only ${a} and ${b}; ${cn(x)} and ${cn(y)} also hold the ${e.extra}. One of those two roof cells must hold the ${e.extra}, otherwise two solutions: ${rem}.`,
+      };
+    }
+    if (e.type === 4) {
+      const drop = e.locked === a ? b : a;
+      return {
+        title: TECH_NAMES.uniqueRectangle.en, zone, cells: involved,
+        text: `${open} In ${uL(e.unit)}, the ${e.locked} has only two places, the roof cells ${cn(x)} and ${cn(y)}: if one is ${drop}, the other is ${e.locked}. That would bring back two ${a}/${b} pairs and two solutions: ${rem}.`,
+      };
+    }
+    const [p, q] = e.extras;
+    return {
+      title: TECH_NAMES.uniqueRectangle.en, zone, cells: involved,
+      text: `${bold(e.corners)} threaten a [[unique rectangle]] on ${a} and ${b}: one of the roof cells holds an extra, ${p} or ${q}. Together the roof cells count as one [[bivalue]] cell ${p} or ${q}; with ${cn(e.partner)} (${p} or ${q}), that is a [[naked pair]] in ${uL(e.unit)}. No other cell of the zone can hold ${p} or ${q}: ${rem}.`,
+    };
+  }
+  if (e.kind === "bug1") {
+    const name = cn(e.cell);
+    return {
+      title: TECH_NAMES.bug1.en, zone: `cell ${name}`, cells: involved,
+      text: `Every empty cell is [[bivalue]], except **${name}** which hesitates between ${andList([...e.removals[0].digits, e.digit], "en")}. If it had only two, every digit would appear twice per zone and the grid would have two solutions ([[BUG+1]]). The ${e.digit} appears three times in its row, column and box: it is the one, ${rem}.`,
     };
   }
   if (e.kind === "skyscraper") {
@@ -1338,7 +1440,16 @@ function pruneChain(grid, chain, goal) {
       e.linkUnits.forEach((u) => u.cells.forEach((c) => addNeed(c, e.digit)));
       e.chain.forEach((c) => addNeed(c, e.digit));
     }
-    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair/Triple/Quad, xyWing, xyzWing, sueDeCoq, remotePair…
+    else if (e.kind === "uniqueRectangle") {
+      // Les coins (et la bivalue partenaire) en entier ; types 3/4 : l'unité lue × chiffres lus.
+      e.cells.forEach((c) => addNeed(c, 0));
+      if (e.unit) (e.readDigits || []).forEach((d) => e.unit.cells.forEach((c) => addNeed(c, d)));
+    }
+    else if (e.kind === "bug1") {
+      // Prémisse globale : l'état bivalue de TOUTES les cases vides.
+      for (let c = 0; c < 81; c++) if (grid[c] === 0) addNeed(c, 0);
+    }
+    else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair/Triple/Quad, xyWing, xyzWing, xyChain, sueDeCoq, remotePair…
   }
   return kept;
 }
@@ -1671,6 +1782,10 @@ function elimHighlight(e) {
       unit = [...e.line.cells, ...BOXES[e.box]]; break;
     case "coloring": case "xChain":
       unit = [...e.linkUnits.flatMap((u) => u.cells), ...e.cells]; break;
+    case "uniqueRectangle":
+      unit = [...e.cells, ...(e.unit ? e.unit.cells : []), ...e.removals.map((r) => r.cell)]; break;
+    case "bug1":
+      unit = [...ROWS[rowOf(e.cell)], ...COLS[colOf(e.cell)], ...BOXES[boxOf(e.cell)]]; break;
     default: // skyscraper, xyWing, xyzWing, remotePair
       unit = [...e.cells, ...e.removals.map((r) => r.cell)];
   }

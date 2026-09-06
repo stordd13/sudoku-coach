@@ -1,5 +1,5 @@
 /* ================================================================
-   Traductions anglaises des 17 leçons — champs texte uniquement
+   Traductions anglaises des leçons — champs texte uniquement
    (title, concept, question, hint, steps). Les champs positionnels
    (given, notes, removals, unit, focus, target, answer) restent dans
    lessons.js, uniques aux deux langues. Générées puis vérifiées
@@ -165,7 +165,19 @@ export const LESSONS_EN = {
       "Either way, one of the two pairs is 4: this is a [[W-Wing]]. Any cell that sees both loses the 4. Cross out the 4 in **R6C2** and in **R2C8**.",
       "In cell **R6C2**, only the **8** remains. So write **8** in **R6C2**."
     ]
+  },  "xy-chain": {
+    "title": "XY-Chain",
+    "concept": "A series of [[bivalue]] cells, where each cell [[sees]] the next and shares a digit with it: this is an [[XY-Chain]]. Suppose the first one is not z: each cell forces the next, and the last one becomes z. So one of the two ends holds z. [[Cross out]] z wherever both ends are seen. The [[XY-Wing]] is a three-cell XY-Chain.",
+    "question": "Four bivalue cells chain from R1C1 to R4C9. Which digit goes in cell R1C9?",
+    "hint": "Suppose R1C1 is not a 3. Follow the chain cell by cell: which value does R4C9 take?",
+    "steps": [
+      "Look at four [[bivalue]] cells in a row: **R1C1** (3 or 5), **R1C5** (5 or 7), **R4C5** (7 or 9) and **R4C9** (9 or 3). Each one [[sees]] the next: this is an [[XY-Chain]].",
+      "Suppose **R1C1** is not a 3: it is a 5. Then **R1C5** loses its 5 and becomes 7, **R4C5** loses its 7 and becomes 9, and **R4C9** loses its 9 and becomes **3**.",
+      "So R1C1 is a 3, or else R4C9 is a 3. Any cell that sees both ends loses the 3: [[cross out]] the 3 in **R1C9** and in **R4C1**.",
+      "In cell **R1C9**, only the **8** remains. So write **8** in **R1C9**."
+    ]
   },
+
   "kite": {
     "title": "2-String Kite",
     "concept": "A digit has two places on a [[row]] and two on a [[column]], one of each in the same [[box]]: this is the [[2-String Kite]]. Those two places in the box cannot both be true. So one of the two free ends holds the digit: [[cross out]] that digit where they cross.",
@@ -189,7 +201,31 @@ export const LESSONS_EN = {
       "Suppose **R5C8** equals 6: row 5 and column 8 empty out, so R8C8 loses the 6 and **R8C4** is 6. Column 4 empties out too, and the center box has no place left for its 6. Contradiction: cross out the 6 in R5C8.",
       "In cell **R5C8**, only the **9** remains. So write **9** in **R5C8**."
     ]
+  },  "unique-rectangle": {
+    "title": "Unique rectangle",
+    "concept": "Four cells on two [[rows]], two [[columns]] and two [[boxes]], all limited to the same two digits, would give two solutions. You could simply swap the digits. A real grid has only one, so that rectangle cannot exist. When three of those cells hold only a and b, the fourth can be neither a nor b. This is the [[unique rectangle]], reserved for grids with a single solution.",
+    "question": "Three cells of the rectangle hold only 3 and 8. Which digit goes in cell R2C5?",
+    "hint": "Imagine R2C5 equal to 3 or 8. What could you do with the 3s and 8s of the rectangle?",
+    "steps": [
+      "Look at **R1C1**, **R1C5**, **R2C1** and **R2C5**: all can hold 3 and 8, on two rows, two columns and two [[boxes]]. Three of them hold only 3 and 8.",
+      "Suppose **R2C5** is 3 or 8. The four cells would form two interchangeable 3 and 8 pairs: you could swap them without breaking anything, and the grid would have two solutions.",
+      "But a sudoku grid has only one solution: this is a [[unique rectangle]]. [[Cross out]] the 3 and the 8 in **R2C5**.",
+      "In cell **R2C5**, only the **6** remains. So write **6** in **R2C5**."
+    ]
+  },  "bug-plus-one": {
+    "title": "BUG+1",
+    "concept": "Every empty cell is [[bivalue]] and every digit appears twice per [[zone]]: such a grid would have two solutions, this is the BUG. A real grid has only one. If a single cell has three candidates, it must break the pattern: it takes the digit that appears three times in its three zones. This is the [[BUG+1]], reserved for grids with a single solution.",
+    "question": "Every empty cell is bivalue, except one. Which digit goes in cell R2C7?",
+    "hint": "Count the 1s, the 3s and the 7s in row 2, column 7 and the top-right box. Which one appears three times?",
+    "steps": [
+      "Look at every empty cell: each has only two [[candidates]] left, except **R2C7** which has three: 1, 3 and 7. If R2C7 also had only two, every digit would appear twice in every zone.",
+      "Such a grid would have two solutions: you could swap all the digits two by two. This is the BUG, the trap of bivalue cells. A real grid has only one, so R2C7 must break that pattern.",
+      "Follow the **7** in row 2, column 7 and the top-right box: it appears three times there. The 1 and the 3 appear only twice: the 7 is the extra digit, R2C7 holds it. [[Cross out]] the 1 and the 3 in **R2C7**.",
+      "In cell **R2C7**, only the **7** remains. So write **7** in **R2C7**."
+    ]
   },
+
+
   "coloring": {
     "title": "Coloring",
     "concept": "Follow a single digit through its [[strong links]], coloring the cells in two alternating [[colors]]: this is [[Coloring]]. One color is true everywhere, the other false everywhere. If two cells of the same color end up in the same zone, that color is false everywhere, and the other is true everywhere.",

@@ -383,10 +383,35 @@ export const LESSONS = [
     ],
     stepCells: [[10, 52, 13, 49], [10, 52, 13, 49], [10, 46, 52], [46]],
     stepStrikes: [{}, {}, { 46: [4], 16: [4] }, {}],
+  },  {
+    id: "xy-chain",
+    num: 15,
+    level: "advanced",
+    title: "XY-Chain",
+    concept:
+      "Une suite de cases [[bivalues]], où chaque case [[voit]] la suivante et partage un chiffre avec elle : c’est une [[XY-Chain]]. Suppose que la première n’est pas z : chaque case force la suivante, et la dernière vaut z. L’une des deux extrémités porte donc z. [[Barre]] z partout où l’on voit les deux extrémités. Le [[XY-Wing]] est une XY-Chain de trois cases.",
+    question: "Quatre cases bivalues s’enchaînent de L1C1 à L4C9. Quel chiffre va dans la case L1C9 ?",
+    hint: "Suppose que L1C1 n’est pas un 3. Suis la chaîne case par case : quelle valeur prend L4C9 ?",
+    given: {},
+    notes: { 0: [3, 5], 4: [5, 7], 31: [7, 9], 35: [3, 9], 8: [3, 8], 27: [3, 6] },
+    removals: { 8: [3], 27: [3] },
+    unit: [0, 4, 31, 35, 8, 27],
+    focus: [0, 4, 31, 35],
+    target: 8,
+    answer: 8,
+    steps: [
+      "Regarde quatre cases [[bivalues]] qui se suivent : **L1C1** (3 ou 5), **L1C5** (5 ou 7), **L4C5** (7 ou 9) et **L4C9** (9 ou 3). Chacune [[voit]] la suivante : c’est une [[XY-Chain]].",
+      "Suppose que **L1C1** n’est pas un 3 : elle vaut 5. Alors **L1C5** perd son 5 et vaut 7, **L4C5** perd son 7 et vaut 9, et **L4C9** perd son 9 et vaut **3**.",
+      "Donc L1C1 est un 3, ou bien L4C9 est un 3. Toute case qui voit ces deux extrémités perd le 3 : [[barre]] le 3 de **L1C9** et de **L4C1**.",
+      "Dans la case **L1C9**, il ne reste plus que le **8**. Écris donc **8** dans **L1C9**.",
+    ],
+    stepCells: [[0, 4, 31, 35], [0, 4, 31, 35], [0, 35, 8, 27], [8]],
+    stepStrikes: [{}, {}, { 8: [3], 27: [3] }, {}],
   },
+
   {
     id: "kite",
-    num: 15,
+    num: 16,
     level: "advanced",
     title: "2-String Kite",
     concept:
@@ -411,7 +436,7 @@ export const LESSONS = [
   },
   {
     id: "empty-rectangle",
-    num: 16,
+    num: 17,
     level: "advanced",
     title: "Empty Rectangle",
     concept:
@@ -433,10 +458,65 @@ export const LESSONS = [
     ],
     stepCells: [[30, 39, 40, 41, 48], [66, 70], [43, 66, 70], [43]],
     stepStrikes: [{}, {}, { 43: [6] }, {}],
+  },  {
+    id: "unique-rectangle",
+    num: 18,
+    level: "advanced",
+    title: "Rectangle unique",
+    concept:
+      "Quatre cases sur deux [[lignes]], deux [[colonnes]] et deux [[blocs]], toutes limitées aux deux mêmes chiffres, donneraient deux solutions : on pourrait échanger les chiffres. Une vraie grille n’en a qu’une, ce rectangle ne peut donc pas exister. Quand trois de ces cases n’ont que a et b, la quatrième ne peut être ni a ni b. C’est le [[rectangle unique]], réservé aux grilles à solution unique.",
+    question: "Trois cases du rectangle n’ont que 3 et 8. Quel chiffre va dans la case L2C5 ?",
+    hint: "Imagine L2C5 égal à 3 ou 8. Que pourrait-on faire des 3 et des 8 du rectangle ?",
+    given: {},
+    notes: { 0: [3, 8], 4: [3, 8], 9: [3, 8], 13: [3, 6, 8] },
+    removals: { 13: [3, 8] },
+    unit: [0, 4, 9, 13],
+    focus: [0, 4, 9],
+    target: 13,
+    answer: 6,
+    steps: [
+      "Regarde **L1C1**, **L1C5**, **L2C1** et **L2C5** : toutes peuvent porter 3 et 8, sur deux lignes, deux colonnes et deux [[blocs]]. Trois d’entre elles n’ont que 3 et 8.",
+      "Suppose que **L2C5** vaut 3 ou 8. Les quatre cases formeraient deux paires 3 et 8 interchangeables : on pourrait les échanger sans rien casser, et la grille aurait deux solutions.",
+      "Or une grille de sudoku n’a qu’une seule solution : c’est un [[rectangle unique]]. [[Barre]] le 3 et le 8 de **L2C5**.",
+      "Dans la case **L2C5**, il ne reste plus que le **6**. Écris donc **6** dans **L2C5**.",
+    ],
+    stepCells: [[0, 4, 9, 13], [0, 4, 9, 13], [13], [13]],
+    stepStrikes: [{}, {}, { 13: [3, 8] }, {}],
+  },  {
+    id: "bug-plus-one",
+    num: 19,
+    level: "advanced",
+    title: "BUG+1",
+    concept:
+      "Toutes les cases vides sont [[bivalues]] et chaque chiffre apparaît deux fois par [[zone]] : cette grille aurait deux solutions, c’est le BUG. Une vraie grille n’en a qu’une. Si une seule case a trois candidats, elle doit casser le motif : elle prend le chiffre présent trois fois dans ses trois zones. C’est le [[BUG+1]], réservé aux grilles à solution unique.",
+    question: "Toutes les cases vides sont bivalues, sauf une. Quel chiffre va dans la case L2C7 ?",
+    hint: "Compte les 1, les 3 et les 7 dans la ligne 2, la colonne 7 et le bloc haut-droit. Lequel apparaît trois fois ?",
+    // Fin de partie réelle (grille générée, seed 859) : 14 cases vides.
+    given: { 0: 9, 1: 2, 3: 1, 4: 5, 5: 4, 7: 8, 8: 6, 10: 4, 11: 5, 12: 8, 13: 6, 14: 2, 18: 6, 19: 8, 20: 1, 21: 7, 22: 3, 23: 9, 24: 4, 25: 2, 26: 5, 27: 5, 28: 7, 29: 2, 30: 6, 31: 1, 32: 8, 33: 9, 34: 4, 35: 3, 36: 8, 37: 9, 38: 6, 39: 5, 40: 4, 41: 3, 42: 2, 43: 7, 44: 1, 47: 4, 48: 9, 49: 2, 50: 7, 51: 6, 52: 5, 53: 8, 54: 4, 57: 2, 58: 8, 59: 6, 60: 5, 63: 2, 64: 5, 65: 9, 66: 3, 67: 7, 68: 1, 69: 8, 70: 6, 71: 4, 73: 6, 74: 8, 75: 4, 76: 9, 77: 5, 79: 3, 80: 2 },
+    notes: {
+      2: [3, 7], 6: [3, 7], 9: [3, 7], 15: [1, 3, 7], 16: [1, 9], 17: [7, 9],
+      45: [1, 3], 46: [1, 3], 55: [1, 3], 56: [3, 7], 61: [1, 9], 62: [7, 9],
+      72: [1, 7], 78: [1, 7],
+    },
+    removals: { 15: [1, 3] },
+    unit: [...new Set([2, 6, 9, 15, 16, 17, 45, 46, 55, 56, 61, 62, 72, 78, ...ROWS[1], ...COLS[6], ...BOXES[2]])],
+    focus: [15],
+    target: 15,
+    answer: 7,
+    steps: [
+      "Regarde toutes les cases vides : chacune n’a plus que deux [[candidats]], sauf **L2C7** qui en a trois : 1, 3 et 7. Si L2C7 n’en avait aussi que deux, chaque chiffre apparaîtrait deux fois dans chaque zone.",
+      "Une telle grille aurait deux solutions : on pourrait échanger tous les chiffres deux à deux. C’est le BUG, le piège des cases bivalues. Une vraie grille n’en a qu’une, L2C7 doit donc casser ce motif.",
+      "Suis le **7** dans la ligne 2, la colonne 7 et le bloc haut-droit : il y apparaît trois fois. Le 1 et le 3 n’y apparaissent que deux fois : le 7 est le chiffre en trop, L2C7 le porte. [[Barre]] le 1 et le 3 de **L2C7**.",
+      "Dans la case **L2C7**, il ne reste plus que le **7**. Écris donc **7** dans **L2C7**.",
+    ],
+    stepCells: [[2, 6, 9, 15, 16, 17, 45, 46, 55, 56, 61, 62, 72, 78], [2, 6, 9, 15, 16, 17, 45, 46, 55, 56, 61, 62, 72, 78], [6, 9, 15, 16, 17, 78], [15]],
+    stepStrikes: [{}, {}, { 15: [1, 3] }, {}],
   },
+
+
   {
     id: "coloring",
-    num: 17,
+    num: 20,
     level: "advanced",
     title: "Coloriage",
     concept:
@@ -463,7 +543,7 @@ export const LESSONS = [
   },
   {
     id: "sue-de-coq",
-    num: 18,
+    num: 21,
     level: "advanced",
     title: "Sue de Coq",
     concept:

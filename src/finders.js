@@ -217,6 +217,189 @@ export function findXChainE(cands, prefer) {
   return null;
 }
 
+/* ---------- A3. XY-Chain ----------
+   Suite de cases à deux candidats où chaque case voit la suivante et lui
+   passe un chiffre : si c0 n'est pas z, c0 vaut a0, donc c1 (qui voit c0 et
+   contient a0) vaut a1, … jusqu'à cn qui vaut z. L'une des deux extrémités
+   porte donc z : toute case hors chaîne qui voit c0 et cn perd z. Longueur
+   3..MAX_CELLS cases (3 = XY-Wing, servi avant par son propre finder),
+   approfondissement itératif → la plus courte d'abord. */
+const MAX_CELLS = 8;
+export function findXYChainE(cands, prefer) {
+  const bi = [];
+  for (let i = 0; i < 81; i++) if (cands[i].size === 2) bi.push(i);
+  if (bi.length < 3) return null;
+  const nextOf = new Map();
+  for (const i of bi) nextOf.set(i, bi.filter((j) => j !== i && sees(i, j)));
+  const other = (i, d) => [...cands[i]].find((x) => x !== d);
+  let found = null;
+  const dfs = (path, carried, z, L) => {
+    const cur = path[path.length - 1];
+    if (path.length === L) {
+      if (carried !== z) return false;
+      const start = path[0];
+      const removals = [];
+      for (let w = 0; w < 81; w++) {
+        if (path.includes(w) || !cands[w].has(z)) continue;
+        if (sees(w, start) && sees(w, cur)) removals.push({ cell: w, digits: [z] });
+      }
+      if (!accept(removals, prefer)) return false;
+      const chainDigits = path.map((c, k) => (k === 0 ? other(c, z) : null));
+      found = { path: path.slice(), z, removals, chainDigits };
+      return true;
+    }
+    for (const nx of nextOf.get(cur)) {
+      if (path.includes(nx) || !cands[nx].has(carried)) continue;
+      path.push(nx);
+      if (dfs(path, other(nx, carried), z, L)) return true;
+      path.pop();
+    }
+    return false;
+  };
+  for (let L = 3; L <= MAX_CELLS; L++) {
+    for (const start of bi) {
+      for (const z of [...cands[start]].sort(asc)) {
+        if (dfs([start], other(start, z), z, L)) {
+          const { path, removals } = found;
+          // Chiffres portés : c0 = a0 (≠ z), puis chaque case perd le chiffre reçu.
+          const carried = [];
+          let d = other(path[0], z);
+          carried.push(d);
+          for (let k = 1; k < path.length; k++) { d = other(path[k], d); carried.push(d); }
+          return {
+            kind: "xyChain", z, chain: path, carried,
+            cells: path, digits: [z], removals,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/* ---------- A4. Rectangle unique (types 1 à 4) ----------
+   Quatre cases vides sur deux lignes, deux colonnes et EXACTEMENT deux blocs,
+   toutes candidates à a et b : si elles finissaient en deux paires a/b, on
+   pourrait les échanger et la grille aurait deux solutions. Une grille à
+   solution unique interdit ce « motif mortel » — précondition d'unicité
+   (UNIQUENESS_KINDS dans engine.js, jamais sur une grille ambiguë).
+   Type 1 : trois coins = {a,b} → le quatrième perd a et b.
+   Type 2 : deux sols {a,b}, deux toits {a,b,c} alignés → un toit porte c :
+            les cases voyant les deux toits perdent c.
+   Type 4 : dans une unité commune aux toits, a n'a que ces deux places →
+            aucun toit ne peut être b (sinon deux paires a/b) : b quitte les toits.
+   Type 3 : les toits portent en plus deux chiffres E, l'un des deux les porte
+            (case bivalue virtuelle) ; avec une vraie bivalue E de l'unité
+            commune, paire nue : E quitte le reste de l'unité.
+   Passe 1 : tous les types 1 ; passe 2 : types 2, 4, 3 (du plus lisible au
+   moins lisible). */
+export function findUniqueRectangleE(cands, prefer) {
+  const rects = [];
+  for (let r1 = 0; r1 < 9; r1++) for (let r2 = r1 + 1; r2 < 9; r2++) {
+    for (let c1 = 0; c1 < 9; c1++) for (let c2 = c1 + 1; c2 < 9; c2++) {
+      const corners = [r1 * 9 + c1, r1 * 9 + c2, r2 * 9 + c1, r2 * 9 + c2];
+      if (new Set(corners.map(boxOf)).size !== 2) continue;
+      if (corners.some((i) => cands[i].size < 2)) continue;
+      const common = [];
+      for (let d = 1; d <= 9; d++) if (corners.every((i) => cands[i].has(d))) common.push(d);
+      if (common.length >= 2) rects.push({ corners, common });
+    }
+  }
+  const extrasOf = (i, a, b) => [...cands[i]].filter((d) => d !== a && d !== b).sort(asc);
+  for (const pass of [1, 2]) {
+    for (const { corners, common } of rects) {
+      for (const [a, b] of combos(common, 2)) {
+        const floor = corners.filter((i) => cands[i].size === 2);
+        const roof = corners.filter((i) => cands[i].size !== 2);
+        const base = { kind: "uniqueRectangle", a, b, corners, floor, roof, digits: [a, b] };
+        if (pass === 1) {
+          if (floor.length !== 3) continue;
+          const t = roof[0];
+          const removals = [{ cell: t, digits: [a, b] }];
+          if (!accept(removals, prefer)) continue;
+          return { ...base, type: 1, cells: corners, removals };
+        }
+        if (floor.length !== 2) continue;
+        const [x, y] = roof;
+        if (rowOf(x) !== rowOf(y) && colOf(x) !== colOf(y)) continue; // toits en diagonale
+        const ex = extrasOf(x, a, b), ey = extrasOf(y, a, b);
+        // Type 2
+        if (ex.length === 1 && ey.length === 1 && ex[0] === ey[0]) {
+          const c = ex[0];
+          const removals = [];
+          for (let i = 0; i < 81; i++) {
+            if (corners.includes(i) || !cands[i].has(c)) continue;
+            if (sees(i, x) && sees(i, y)) removals.push({ cell: i, digits: [c] });
+          }
+          if (accept(removals, prefer)) return { ...base, type: 2, extra: c, cells: corners, removals };
+        }
+        const shared = UNITS.filter((u) => u.cells.includes(x) && u.cells.includes(y));
+        // Type 4
+        for (const u of shared) {
+          for (const [keep, drop] of [[a, b], [b, a]]) {
+            const pos = u.cells.filter((i) => cands[i].has(keep));
+            if (pos.length !== 2 || !pos.includes(x) || !pos.includes(y)) continue;
+            const removals = [{ cell: x, digits: [drop] }, { cell: y, digits: [drop] }];
+            if (!accept(removals, prefer)) continue;
+            return { ...base, type: 4, unit: u, locked: keep, readDigits: [keep], cells: corners, removals };
+          }
+        }
+        // Type 3 (restreint : deux extras + une vraie bivalue identique)
+        const E = [...new Set([...ex, ...ey])].sort(asc);
+        if (E.length === 2) {
+          for (const u of shared) {
+            const k = u.cells.find((i) => !corners.includes(i) && cands[i].size === 2 && E.every((d) => cands[i].has(d)));
+            if (k === undefined) continue;
+            const removals = [];
+            for (const i of u.cells) {
+              if (i === x || i === y || i === k) continue;
+              const rem = E.filter((d) => cands[i].has(d));
+              if (rem.length) removals.push({ cell: i, digits: rem });
+            }
+            if (!accept(removals, prefer)) continue;
+            return { ...base, type: 3, unit: u, extras: E, partner: k, readDigits: E, cells: [...corners, k], removals };
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/* ---------- A5. BUG+1 ----------
+   Une grille où toutes les cases vides sont bivalues et où chaque candidat
+   apparaît exactement deux fois dans chaque unité aurait deux solutions
+   (« BUG », bivalue universal grave). Si une seule case fait exception avec
+   trois candidats, le chiffre qui apparaît trois fois dans sa ligne, sa
+   colonne et son bloc est celui qui évite le BUG : la case le porte, ses deux
+   autres candidats s'effacent. Précondition d'unicité (UNIQUENESS_KINDS). */
+export function findBug1E(cands, prefer) {
+  let tri = -1;
+  for (let i = 0; i < 81; i++) {
+    const n = cands[i].size;
+    if (n === 0 || n === 2) continue;
+    if (n === 3 && tri === -1) { tri = i; continue; }
+    return null; // une 2e case non bivalue, ou une case à 4+ candidats
+  }
+  if (tri === -1) return null;
+  // Le chiffre en trop : celui qui apparaît 3 fois dans les trois unités de la
+  // case ; tous les autres chiffres apparaissent 0 ou 2 fois dans chaque unité.
+  let extra = null;
+  for (const u of UNITS) {
+    for (let d = 1; d <= 9; d++) {
+      const n = u.cells.filter((i) => cands[i].has(d)).length;
+      if (n === 0 || n === 2) continue;
+      if (n !== 3 || !u.cells.includes(tri) || !cands[tri].has(d)) return null;
+      if (extra !== null && extra !== d) return null;
+      extra = d;
+    }
+  }
+  if (extra === null) return null;
+  const removals = [{ cell: tri, digits: [...cands[tri]].filter((d) => d !== extra).sort(asc) }];
+  if (!accept(removals, prefer)) return null;
+  return { kind: "bug1", cell: tri, digit: extra, cells: [tri], digits: [extra], removals };
+}
+
 /* Rempli technique par technique (A1 → A6) ; un kind absent est ignoré par
    engine.js (filtre typeof === "function"). Jellyfish = findFish(4), dans
    engine.js avec X-Wing et Swordfish. */
@@ -224,7 +407,8 @@ export const PALIER_A_FINDERS = {
   nakedTriple: findNakedTripleE, hiddenTriple: findHiddenTripleE,
   nakedQuad: findNakedQuadE, hiddenQuad: findHiddenQuadE,
   finnedXWing: findFinnedXWingE,
-  xChain: findXChainE,
+  xChain: findXChainE, xyChain: findXYChainE,
+  uniqueRectangle: findUniqueRectangleE, bug1: findBug1E,
 };
 
 export { accept, sees };

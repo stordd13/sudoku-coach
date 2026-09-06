@@ -33,8 +33,11 @@ export const TECH_NAMES = {
   xChain: { fr: "X-Chain", en: "X-Chain", proper: true, fem: true, lesson: null, revise: "skyscraper" },
   xyzWing: { fr: "XYZ-Wing", en: "XYZ-Wing", proper: true, lesson: "xyz-wing" },
   wWing: { fr: "W-Wing", en: "W-Wing", proper: true, lesson: "w-wing" },
+  xyChain: { fr: "XY-Chain", en: "XY-Chain", proper: true, fem: true, lesson: "xy-chain" },
   kite: { fr: "2-String Kite", en: "2-String Kite", proper: true, lesson: "kite" },
   emptyRectangle: { fr: "Empty Rectangle", en: "Empty rectangle", proper: true, elide: true, lesson: "empty-rectangle" },
+  uniqueRectangle: { fr: "Rectangle unique", en: "Unique rectangle", lesson: "unique-rectangle" },
+  bug1: { fr: "BUG+1", en: "BUG+1", proper: true, lesson: "bug-plus-one" },
   coloring: { fr: "Coloriage", en: "Coloring", lesson: "coloring" },
   sueDeCoq: { fr: "Sue de Coq", en: "Sue de Coq", proper: true, lesson: "sue-de-coq" },
 };
