@@ -1773,6 +1773,98 @@ console.log("API /api/ocr (CORS) :");
   }
 }
 
+/* ---------- 12. Analytics : schéma fermé, jamais d'exception, aucun réseau ---------- */
+console.log("Analytics (événements d'usage) :");
+{
+  const {
+    EVENT_SCHEMA, MAX_EVENTS_PER_SESSION, configureAnalytics, resetAnalyticsForTests, trackEvent, validateEvent,
+    durationBucket, hintsBucket, streakBucket, wallKind,
+  } = await import("../src/analytics.js");
+  // Aucun appel réseau possible pendant la section : fetch jette.
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = () => { throw new Error("réseau interdit dans check"); };
+  const SPEC = {
+    game_started: ["level", "origin"], game_won: ["level", "duration", "hints", "assisted"],
+    daily_done: ["streak"], scan_used: ["result"], lesson_viewed: ["num"], exercise_started: ["kind"],
+    wall_hit: ["level", "kind"], paywall_shown: [],
+  };
+  ok(Object.keys(EVENT_SCHEMA).sort().join() === Object.keys(SPEC).sort().join(), "les 8 événements de la spec, aucun autre");
+  ok(Object.entries(SPEC).every(([n, keys]) => Object.keys(EVENT_SCHEMA[n]).sort().join() === keys.slice().sort().join()),
+    "chaque événement porte exactement les clés de la spec");
+  const closed = (rule) => (rule instanceof RegExp) || (Array.isArray(rule) && rule.length > 0 && rule.every((v) => typeof v === "string"));
+  ok(Object.values(EVENT_SCHEMA).every((s) => Object.values(s).every(closed)), "chaque clé a une liste fermée de chaînes (ou un motif strict) : aucun texte libre");
+  const FORBIDDEN = /grid|text|email|name|id$|user|ip|photo|image/i;
+  ok(Object.values(EVENT_SCHEMA).every((s) => Object.keys(s).every((k) => !FORBIDDEN.test(k))), "aucune clé de type grille / texte / identité");
+  ok(EVENT_SCHEMA.exercise_started.kind.includes("xyChain") && EVENT_SCHEMA.exercise_started.kind.length === Object.keys(TECH_NAMES).length,
+    "exercise_started.kind = les kinds de TECH_NAMES");
+  ok(EVENT_SCHEMA.game_started.level.join() === "1,2,3,4,5,custom", "level : 1..5 ou custom");
+  ok(validateEvent("lesson_viewed", { num: "21" }) === null && validateEvent("lesson_viewed", { num: "0" }) && validateEvent("lesson_viewed", { num: "abc" }),
+    "lesson_viewed.num : un numéro de leçon, rien d'autre");
+
+  // Envoi valide → send appelé une fois avec le nom et les props exacts.
+  const sentLog = [], warnLog = [];
+  const spy = (name, props) => sentLog.push([name, { ...props }]);
+  resetAnalyticsForTests();
+  configureAnalytics({ enabled: true, send: spy, warn: (m) => warnLog.push(String(m)) });
+  ok(trackEvent("game_won", { level: "2", duration: "5to15", hints: "1to3", assisted: "0" }) === true
+    && sentLog.length === 1 && sentLog[0][0] === "game_won" && JSON.stringify(sentLog[0][1]) === JSON.stringify({ level: "2", duration: "5to15", hints: "1to3", assisted: "0" }),
+    "événement conforme → envoyé une fois, props exactes");
+  ok(trackEvent("paywall_shown") === true && sentLog.length === 2, "événement sans props → envoyé (props par défaut {})");
+  // Hors schéma → ignoré + warn, jamais d'exception.
+  const before = sentLog.length, wBefore = warnLog.length;
+  ok(trackEvent("grid_seen", { level: "1" }) === false && trackEvent("game_won", { level: "2", duration: "5to15", hints: "1to3", assisted: "0", grid: "1234" }) === false
+    && trackEvent("scan_used", { result: "maybe" }) === false && trackEvent("game_started", { level: "1" }) === false
+    && trackEvent("game_started", { level: 1, origin: "daily" }) === false,
+    "nom inconnu, clé inconnue, valeur hors liste, clé manquante, valeur non textuelle → ignorés");
+  ok(sentLog.length === before && warnLog.length === wBefore + 5 && warnLog.slice(-5).every((m) => m.includes("[analytics] ignoré")),
+    "… rien d'envoyé, un warn par refus");
+  // Dédoublonnage par session (lesson_viewed / exercise_started / wall_hit).
+  const b2 = sentLog.length;
+  ok(trackEvent("lesson_viewed", { num: "3" }) === true && trackEvent("lesson_viewed", { num: "3" }) === false
+    && trackEvent("lesson_viewed", { num: "4" }) === true && sentLog.length === b2 + 2, "lesson_viewed dédoublonné par session (mêmes props)");
+  ok(trackEvent("wall_hit", { level: "5", kind: "beyond" }) === true && trackEvent("wall_hit", { level: "5", kind: "beyond" }) === false, "wall_hit dédoublonné");
+  ok(trackEvent("game_started", { level: "1", origin: "generated" }) === true && trackEvent("game_started", { level: "1", origin: "generated" }) === true,
+    "game_started jamais dédoublonné (une partie = un événement)");
+  // Plafond par session.
+  resetAnalyticsForTests();
+  configureAnalytics({ enabled: true, send: spy, warn: () => {} });
+  sentLog.length = 0;
+  for (let i = 0; i < MAX_EVENTS_PER_SESSION + 5; i++) trackEvent("game_started", { level: "1", origin: "generated" });
+  ok(sentLog.length === MAX_EVENTS_PER_SESSION && MAX_EVENTS_PER_SESSION <= 20, `plafond ${MAX_EVENTS_PER_SESSION} événements par session (sobriété)`);
+  // Désactivé → validé mais jamais envoyé ; send qui jette → false sans propager.
+  resetAnalyticsForTests();
+  sentLog.length = 0; warnLog.length = 0;
+  configureAnalytics({ enabled: false, send: spy, warn: (m) => warnLog.push(String(m)) });
+  ok(trackEvent("daily_done", { streak: "7plus" }) === true && sentLog.length === 0, "désactivé (natif, dev) → no-op, rien d'envoyé");
+  ok(trackEvent("daily_done", { streak: "8" }) === false && warnLog.length === 1, "désactivé → le schéma est quand même validé (warn en dev)");
+  resetAnalyticsForTests();
+  configureAnalytics({ enabled: true, send: () => { throw new Error("boom"); }, warn: () => {} });
+  let threw = false;
+  try { ok(trackEvent("scan_used", { result: "ok" }) === false, "send qui jette → false"); } catch { threw = true; }
+  ok(!threw, "… et jamais d'exception vers l'app");
+  resetAnalyticsForTests();
+  configureAnalytics({ enabled: true, send: "pas une fonction" });
+  ok(trackEvent("scan_used", { result: "ok" }) === true, "paquet indisponible (send absent) → no-op");
+  // Seaux.
+  ok(durationBucket(60) === "lt5" && durationBucket(299) === "lt5" && durationBucket(300) === "5to15" && durationBucket(15 * 60) === "15to30"
+    && durationBucket(31 * 60) === "gt30", "durationBucket : bornes 5 / 15 / 30 min");
+  ok(hintsBucket(0) === "0" && hintsBucket(3) === "1to3" && hintsBucket(4) === "4plus", "hintsBucket : 0 / 1-3 / 4+");
+  ok(streakBucket(1) === "1" && streakBucket(6) === "2to6" && streakBucket(7) === "7plus", "streakBucket : 1 / 2-6 / 7+");
+  ok(wallKind("wrong-digit") === "wrong" && wallKind("multi-sol") === "multi" && wallKind("beyond-coach") === "beyond" && wallKind(null) === null,
+    "wallKind : panneaux bloqués → kinds du schéma");
+  ok([durationBucket(1), hintsBucket(1), streakBucket(2)].every((v, i) => EVENT_SCHEMA[["game_won", "game_won", "daily_done"][i]][["duration", "hints", "streak"][i]].includes(v)),
+    "les seaux produisent des valeurs du schéma");
+  const src = readFileSync(new URL("../src/analytics.js", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  ok(!src.includes("@vercel/analytics") && !src.includes("import.meta.env"), "analytics.js n'importe pas le paquet et ne lit pas import.meta.env (hors commentaires)");
+  const main = readFileSync(new URL("../src/main.jsx", import.meta.url), "utf8");
+  ok(main.includes('<Analytics mode="production" />') && main.includes("configureAnalytics({ enabled: !!import.meta.env.PROD && !isNative()"),
+    "main.jsx : mode=\"production\" explicite, envoi seulement en prod hors natif");
+  const priv = readFileSync(new URL("../public/confidentialite/index.html", import.meta.url), "utf8");
+  ok(priv.includes("événements d’usage anonymes") && priv.includes("anonymous usage events"), "/confidentialite mentionne les événements d'usage (fr + en)");
+  globalThis.fetch = savedFetch;
+  resetAnalyticsForTests();
+}
+
 console.log(`\n  ℹ temps total : ${((Date.now() - T0) / 1000).toFixed(1)} s`);
 console.log(failures === 0 ? "\nTOUT EST OK ✓" : `\n${failures} ÉCHEC(S) ✗`);
 process.exit(failures === 0 ? 0 : 1);

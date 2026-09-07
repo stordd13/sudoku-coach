@@ -2,7 +2,15 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import { Analytics } from "@vercel/analytics/react";
+import { track } from "@vercel/analytics";
 import { isNative } from "./native.js";
+import { configureAnalytics } from "./analytics.js";
+
+/* Événements d'usage (src/analytics.js, schéma fermé) : envoyés seulement en
+   production ET hors natif ; ailleurs le module est un no-op validant. Seul
+   endroit avec App.jsx/purchases.js à lire import.meta.env (jamais importé
+   par check.mjs). */
+configureAnalytics({ enabled: !!import.meta.env.PROD && !isNative(), send: track });
 
 /* Filet anti-écran-blanc : si l'app crashe au rendu, une carte propre
    remplace la page vide (les données restent en localStorage). */
@@ -51,10 +59,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <App />
       {/* Statistiques d'audience anonymes (Vercel Web Analytics), web
           uniquement : dans le WebView Capacitor l'endpoint n'existe pas,
-          l'usage natif se lit dans App Store Connect. Si aucune donnée
-          n'arrive après déploiement, forcer mode="production" (Vite
-          n'expose pas toujours NODE_ENV au paquet). */}
-      {!isNative() && <Analytics />}
+          l'usage natif se lit dans App Store Connect. mode="production"
+          explicite : le paquet ne trace rien s'il se croit en développement
+          et la détection automatique n'est pas garantie sous Vite. */}
+      {!isNative() && <Analytics mode="production" />}
     </ErrorBoundary>
   </React.StrictMode>
 );

@@ -162,5 +162,7 @@ arrière-plan et devient active à l'ouverture suivante.
   serveur ci-dessus.
 - **Vie privée** : les grilles et la progression sont sauvegardées uniquement dans
   le navigateur de chaque personne (localStorage). Rien n'est stocké côté serveur.
-  Le site web mesure son audience avec Vercel Web Analytics (anonyme, sans cookie ;
-  à activer dans le dashboard Vercel) — jamais dans l'app iPhone.
+  Le site web mesure son audience avec Vercel Web Analytics (anonyme, sans cookie)
+  et envoie des événements d'usage anonymes au schéma fermé de `src/analytics.js`
+  (type de partie, niveau, durée arrondie — jamais de contenu de grille ni de
+  donnée personnelle ; ≤ 20 par session) — jamais dans l'app iPhone.
