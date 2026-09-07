@@ -116,6 +116,10 @@ npm run check      # tests : moteur, leçons, exercices, coach 👣, stockage, a
 npm run bench      # banc de grilles dures (fixtures/hard-grids.json + 50 générées) :
                    # % résolues sans mur, chemin joueur 👣, temps 👣 et 🎯, palier 5 ;
                    # BENCH_QUICK=1 pour un tour rapide ; ≈ 1 min en entier
+npm run smoke      # fumée : l'app buildée dans un Chromium headless (Playwright) —
+                   # partie Facile gagnée via 👣, Stats après rechargements, scan
+                   # hors-ligne, thème sombre sans flash ; une fois :
+                   # npx playwright install chromium
 npm run build      # build de production
 ```
 
