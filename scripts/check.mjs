@@ -917,11 +917,34 @@ console.log("Palier A (v2.3) :");
     ok(!e2 || !e2.chain.some((x) => x.cell === null && x.cells.join() === "43,44"),
       "négatif : un 4 de plus en L4C7 éclate le groupe {L5C8, L5C9} du bloc (trois lignes) → plus de lien groupé");
   }
+  // ALS-XZ : A = {L1C1, L1C2, L1C3} (ligne 1, {1,2,4,7}), B = {L2C1, L2C5}
+  // (ligne 2, {2,4,8}), 2 commun restreint (L2C1 voit L1C2 et L1C3), z = 4 :
+  // L2C3 voit L1C1, L1C3, L2C1 et L2C5 → perd le 4. Négatif : la case à 2 de
+  // B part en L2C7, elle ne voit plus L1C2 : 2 n'est plus restreint.
+  {
+    const g = empty();
+    g[idx(0, 0)] = S(1, 4, 7); g[idx(0, 1)] = S(1, 2, 7); g[idx(0, 2)] = S(2, 4, 7); g[idx(0, 4)] = S(2, 5, 9); g[idx(0, 6)] = S(4, 5);
+    g[idx(1, 0)] = S(2, 4, 8); g[idx(1, 4)] = S(4, 8); g[idx(1, 2)] = S(4, 9); g[idx(6, 0)] = S(4, 6); g[idx(7, 2)] = S(4, 6);
+    const e = F.alsXz(g, null);
+    ok(e && e.kind === "alsXz" && e.a.cells.join() === "0,1,2" && e.b.cells.join() === "9,13" && e.x === 2 && e.z === 4
+      && e.removals.length === 1 && hit(e, idx(1, 2), 4),
+      "ALS-XZ : {L1C1,L1C2,L1C3} et {L2C1,L2C5}, 2 commun restreint, L2C3 perd le 4");
+    ok(e && e.a.unit.type === "row" && e.a.unit.index === 0 && e.b.unit.index === 1 && e.a.digits.join() === "1,2,4,7" && e.b.digits.join() === "2,4,8"
+      && e.xCells.join() === "1,2,9" && e.cells.length === 5,
+      "ALS-XZ : unités, chiffres et cases x portées pour l'explication");
+    ok(F.xyWing(g, null) === null && F.xyzWing(g, null) === null && F.nakedQuad(g, null) === null && F.aic(g, null) === null && F.pointing(g, null) === null,
+      "rien de plus simple (ni AIC) ne s'applique");
+    const n = g.map((x) => new Set(x)); n[idx(1, 0)] = S(); n[idx(1, 6)] = S(2, 4, 8);
+    ok(F.alsXz(n, null) === null, "négatif : commun non restreint → rien");
+    // Un ALS d'une seule case (bivalue) est admis : deux bivalues = paire nue → servie avant.
+    const p = empty(); p[idx(0, 0)] = S(3, 8); p[idx(0, 4)] = S(3, 8); p[idx(0, 7)] = S(3, 9);
+    ok(F.nakedPair(p, null) !== null, "deux bivalues à la même paire : c'est la paire nue qui parle en premier");
+  }
   ok(TECH_TIER.aic === 5 && TECH_TIER.alsXz === 5, "AIC et ALS-XZ : palier 5");
   {
     const order = Object.keys(F);
-    ok(order.indexOf("coloring") < order.indexOf("aic") && order.indexOf("aic") < order.indexOf("sueDeCoq"),
-      "findElim : coloring < aic < sueDeCoq (ordre de la spec v2.4)");
+    ok(order.indexOf("coloring") < order.indexOf("aic") && order.indexOf("aic") < order.indexOf("alsXz") && order.indexOf("alsXz") < order.indexOf("sueDeCoq"),
+      "findElim : coloring < aic < alsXz < sueDeCoq (ordre de la spec v2.4)");
   }
   // Sûreté sur fuzz : 60 états réels (éliminations de palier ≥ 4 et murs des
   // fixtures) — aucune élimination des finders du palier B ne contredit la solution.
@@ -1358,7 +1381,7 @@ console.log("Noms de techniques :");
   ok(frWithArticle("coloring") === "le coloriage" && frWithArticle("xWing") === "le X-Wing",
     "casse : le coloriage (commun) mais le X-Wing (propre)");
   const list = frTechList();
-  ok(list.startsWith("candidat unique, single caché") && list.endsWith("coloriage, chaîne AIC, Sue de Coq")
+  ok(list.startsWith("candidat unique, single caché") && list.endsWith("coloriage, chaîne AIC, ALS-XZ, Sue de Coq")
     && list.split(", ").length === N_KINDS, `frTechList : les ${N_KINDS}, dans l'ordre pédagogique`);
 }
 
@@ -1648,7 +1671,10 @@ console.log("Lint de lisibilité (charte 3c) :");
       if (st.type === "elim" && st.e.kind === "aic" && st.e.chain.some((n) => n.cell === null)) grouped = st.cands.map((a) => new Set(a));
       return !!grouped;
     }, 5);
-    const STATES = [["aic type 1", "aic", g], ["aic type 2", "aic", g2], ["aic groupée", "aic", grouped]];
+    const h = emptyC();
+    h[ix(0, 0)] = S(1, 4, 7); h[ix(0, 1)] = S(1, 2, 7); h[ix(0, 2)] = S(2, 4, 7); h[ix(0, 4)] = S(2, 5, 9); h[ix(0, 6)] = S(4, 5);
+    h[ix(1, 0)] = S(2, 4, 8); h[ix(1, 4)] = S(4, 8); h[ix(1, 2)] = S(4, 9); h[ix(6, 0)] = S(4, 6); h[ix(7, 2)] = S(4, 6);
+    const STATES = [["aic type 1", "aic", g], ["aic type 2", "aic", g2], ["aic groupée", "aic", grouped], ["alsXz", "alsXz", h]];
     for (const [label, kind, cands] of STATES) {
       if (typeof ELIM_FINDER_BY_KIND[kind] !== "function") continue;
       const e = ELIM_FINDER_BY_KIND[kind](cands, null);

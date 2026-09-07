@@ -40,6 +40,7 @@ export const TECH_NAMES = {
   bug1: { fr: "BUG+1", en: "BUG+1", proper: true, lesson: "bug-plus-one" },
   coloring: { fr: "Coloriage", en: "Coloring", lesson: "coloring" },
   aic: { fr: "Chaîne AIC", en: "AIC", fem: true, lesson: null, revise: "xy-chain" },
+  alsXz: { fr: "ALS-XZ", en: "ALS-XZ", proper: true, elide: true, lesson: null, revise: "xy-wing" },
   sueDeCoq: { fr: "Sue de Coq", en: "Sue de Coq", proper: true, lesson: "sue-de-coq" },
 };
 

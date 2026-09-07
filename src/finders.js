@@ -556,6 +556,71 @@ export function findAicE(cands, prefer) {
   return null;
 }
 
+/* ---------- A8. ALS-XZ (palier B, v2.4) ----------
+   ALS (ensemble presque verrouillé) = n cases d'une même unité (n ≤ MAX_ALS,
+   cases à ≥ 2 candidats) qui portent ensemble exactement n+1 chiffres :
+   retire-leur un chiffre et les n autres se placent tous. Deux ALS A et B
+   disjoints, un chiffre x commun RESTREINT (toute case de A portant x voit
+   toute case de B portant x : x n'ira que dans un seul des deux) → pour tout
+   z ≠ x commun, l'ensemble privé de x place son z : toute case hors A∪B
+   portant z et voyant tous les z de A et de B perd z.
+   Déterministe : ALS énumérés par unité (ordre UNITS) puis combos
+   lexicographiques, dédoublonnés par ensemble de cases (une bivalue vit dans
+   trois unités) ; paires a < b. Hors périmètre : ALS doublement liés.
+   Deux bivalues à la même paire = paire nue, une bivalue + deux cases = XY-Wing :
+   servis avant par leurs finders. */
+const MAX_ALS = 4;
+const popcount = (m) => { let n = 0; while (m) { m &= m - 1; n++; } return n; };
+const bitsAsc = (m) => { const out = []; for (let d = 1; d <= 9; d++) if (m & (1 << d)) out.push(d); return out; };
+export function findAlsXzE(cands, prefer) {
+  const byKey = new Map();
+  for (const u of UNITS) {
+    const pool = u.cells.filter((i) => cands[i].size >= 2);
+    for (let n = 1; n <= MAX_ALS && n <= pool.length; n++) {
+      for (const cells of combos(pool, n)) {
+        let mask = 0;
+        for (const i of cells) for (const d of cands[i]) mask |= 1 << d;
+        if (popcount(mask) !== n + 1) continue;
+        const key = cells.join(",");
+        if (!byKey.has(key)) byKey.set(key, { cells, mask, digits: bitsAsc(mask), unit: u });
+      }
+    }
+  }
+  const als = [...byKey.values()];
+  const dcells = (A, d) => A.cells.filter((i) => cands[i].has(d));
+  for (let a = 0; a < als.length; a++) {
+    const A = als[a];
+    for (let b = a + 1; b < als.length; b++) {
+      const B = als[b];
+      if (A.cells.some((c) => B.cells.includes(c))) continue;
+      const common = A.mask & B.mask;
+      if (popcount(common) < 2) continue;
+      for (const x of bitsAsc(common)) {
+        const ax = dcells(A, x), bx = dcells(B, x);
+        if (!ax.every((p) => bx.every((q) => sees(p, q)))) continue;
+        for (const z of bitsAsc(common)) {
+          if (z === x) continue;
+          const zc = [...dcells(A, z), ...dcells(B, z)];
+          const removals = [];
+          for (let w = 0; w < 81; w++) {
+            if (A.cells.includes(w) || B.cells.includes(w) || !cands[w].has(z)) continue;
+            if (zc.every((c) => sees(w, c))) removals.push({ cell: w, digits: [z] });
+          }
+          if (!accept(removals, prefer)) continue;
+          return {
+            kind: "alsXz",
+            a: { cells: A.cells.slice(), digits: A.digits, unit: A.unit },
+            b: { cells: B.cells.slice(), digits: B.digits, unit: B.unit },
+            x, z, xCells: [...ax, ...bx], zCells: zc,
+            cells: [...A.cells, ...B.cells], digits: [x, z].sort(asc), removals,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /* Rempli technique par technique (A1 → A6) ; un kind absent est ignoré par
    engine.js (filtre typeof === "function"). Jellyfish = findFish(4), dans
    engine.js avec X-Wing et Swordfish. */
@@ -565,7 +630,7 @@ export const PALIER_A_FINDERS = {
   finnedXWing: findFinnedXWingE,
   xChain: findXChainE, xyChain: findXYChainE,
   uniqueRectangle: findUniqueRectangleE, bug1: findBug1E,
-  aic: findAicE,
+  aic: findAicE, alsXz: findAlsXzE,
 };
 
 export { accept, sees };

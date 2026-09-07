@@ -962,6 +962,18 @@ function describeElimFr(e) {
       text: `${intro} Si ${s0} n’est pas un ${e.x}, alors ${s1} est un ${e.y} : ${s0} vaut ${e.x} ou ${s1} vaut ${e.y}. Comme elles se voient, aucune ne peut prendre le chiffre de l’autre : ${rem}.`,
     };
   }
+  if (e.kind === "alsXz") {
+    const NUM = ["", "une", "deux", "trois", "quatre", "cinq"];
+    const setText = (A) => `Dans ${unitLabel(A.unit)}, ${bold(A.cells)} ${A.cells.length === 1 ? "n’accepte" : "n’acceptent"} que ${andList(A.digits)} : ${NUM[A.cells.length]} case${A.cells.length > 1 ? "s" : ""}, ${NUM[A.cells.length + 1]} candidats.`;
+    const links = [
+      { cells: e.cells, text: `${setText(e.a)} ${setText(e.b)} Retire un chiffre à un ensemble et les autres s’y placent tous.` },
+      { cells: [...e.xCells, ...e.zCells], text: `Le ${e.x} est dans les deux ensembles et ses cases se voient toutes : il n’ira que dans un seul. L’autre ensemble perd le ${e.x} et place tous ses autres chiffres, dont le ${e.z}. Toute case qui voit tous les ${e.z} des deux ensembles perd le ${e.z}.` },
+    ];
+    return {
+      title: TECH_NAMES.alsXz.fr, zone: `le ${e.z}`, cells: involved, links,
+      text: `Regarde ${bold(e.a.cells)} dans ${unitLabel(e.a.unit)} : ${NUM[e.a.cells.length]} case${e.a.cells.length > 1 ? "s" : ""} pour ${NUM[e.a.cells.length + 1]} candidats, c’est un [[ALS]]. ${bold(e.b.cells)} dans ${unitLabel(e.b.unit)} en ${e.b.cells.length > 1 ? "forment" : "forme"} un second, et le ${e.x} leur est commun. Ses cases se voient toutes, donc un seul ensemble le reçoit et l’autre place son ${e.z} : ${rem}.`,
+    };
+  }
   if (e.kind === "uniqueRectangle") {
     const { a, b } = e;
     const zone = `le rectangle ${a}-${b}`;
@@ -1203,6 +1215,18 @@ function describeElimEn(e) {
     return {
       title: TECH_NAMES.aic.en, zone: `the ${e.x} and ${e.y}`, cells: involved, links,
       text: `${intro} If ${s0} is not a ${e.x}, then ${s1} is a ${e.y}: ${s0} is ${e.x} or ${s1} is ${e.y}. Since they see each other, neither can take the other’s digit: ${rem}.`,
+    };
+  }
+  if (e.kind === "alsXz") {
+    const NUM = ["", "one", "two", "three", "four", "five"];
+    const setText = (A) => `In ${uL(A.unit)}, ${bold(A.cells)} accept${A.cells.length === 1 ? "s" : ""} only ${andList(A.digits, "en")}: ${NUM[A.cells.length]} cell${A.cells.length > 1 ? "s" : ""}, ${NUM[A.cells.length + 1]} candidates.`;
+    const links = [
+      { cells: e.cells, text: `${setText(e.a)} ${setText(e.b)} Take one digit away from a set and all the others get placed.` },
+      { cells: [...e.xCells, ...e.zCells], text: `The ${e.x} sits in both sets and all its cells see each other: it goes in only one of them. The other set loses the ${e.x} and places all its other digits, including the ${e.z}. Any cell that sees every ${e.z} of both sets loses the ${e.z}.` },
+    ];
+    return {
+      title: TECH_NAMES.alsXz.en, zone: `the ${e.z}`, cells: involved, links,
+      text: `Look at ${bold(e.a.cells)} in ${uL(e.a.unit)}: ${NUM[e.a.cells.length]} cell${e.a.cells.length > 1 ? "s" : ""} for ${NUM[e.a.cells.length + 1]} candidates, an [[ALS]]. ${bold(e.b.cells)} in ${uL(e.b.unit)} form${e.b.cells.length > 1 ? "" : "s"} a second one, and the ${e.x} is common to both. Its cells all see each other, so only one set gets it and the other places its ${e.z}: ${rem}.`,
     };
   }
   if (e.kind === "uniqueRectangle") {
