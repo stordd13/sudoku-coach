@@ -152,6 +152,52 @@ L'identifiant de l'app (`com.stordeur.sudokucoach`), son nom et le `webDir`
 sont dans `capacitor.config.json`. La version web/PWA reste déployée sur Vercel
 exactement comme avant — la coquille iOS n'y change rien.
 
+## Release (App Store)
+
+Checklist de soumission, dans l'ordre — tout ce qui précède Xcode est
+automatisable, le reste se fait dans les outils Apple :
+
+1. **Vert partout** : `npm run check` (tests), `npm run bench` (banc, aucun
+   faux mur), `npm run smoke` (fumée sur l'app buildée) ; version bumpée dans
+   `package.json` (affichée en bas de l'accueil) et tag git `vX.Y.Z` poussé.
+2. **Build natif** : `npm run build:ios && npx cap sync ios`, puis
+   `npx cap open ios`. Dans Xcode, aligner `MARKETING_VERSION` sur
+   `package.json` et incrémenter le build number ; signature (équipe Apple) ;
+   **Product → Archive**.
+3. **TestFlight** : distribuer l'archive, ajouter les testeurs, installer sur
+   au moins un iPhone : partie, 👣 sur une grille Diabolique (« Le coach
+   réfléchit… » si > 300 ms), scan photo, thèmes clair et sombre.
+4. **Achat sandbox** : compte testeur sandbox, quota de scans épuisé
+   (`sudoku-coach-scansUsed` = 50) → le paywall n'apparaît que si l'offre
+   RevenueCat charge (sinon « en attendant, continue », scan possible) ;
+   acheter, puis **« Restaurer »** sur une réinstallation → scan illimité.
+5. **Fiche Store** : captures fr et en (accueil, partie avec coach, leçon,
+   scan, stats), description, mots-clés, URL de support et de
+   confidentialité (`/confidentialite`).
+6. **App Privacy** (questionnaire) cohérent avec `/confidentialite` : aucune
+   donnée collectée liée à l'utilisateur ; la photo du scan est envoyée à une
+   API d'OCR et **non conservée** ; aucun compte ; pas de tracking. Les
+   statistiques d'audience et événements d'usage anonymes ne concernent que
+   le site web, jamais l'app iPhone.
+7. **Soumission** avec la note de review ci-dessous ; après acceptation,
+   vérifier sur le dashboard Vercel que les premiers événements d'usage du
+   site web arrivent (aucun n'est attendu depuis l'app).
+
+Note pour la review (à coller dans App Store Connect) :
+
+> FR — L'application fonctionne entièrement hors ligne et ne demande aucun
+> compte. La seule fonction réseau est le scan photo d'une grille : l'image
+> est envoyée à notre fonction serveur, transmise à une API de lecture (OCR)
+> pour en extraire les chiffres, et n'est pas conservée. L'achat intégré
+> « Scan illimité » est unique (non consommable) et restaurable via le
+> bouton « Restaurer ».
+>
+> EN — The app works fully offline and requires no account. Its only network
+> feature is the photo scan of a grid: the image is sent to our server
+> function, forwarded to an OCR API to extract the digits, and is not
+> stored. The in-app purchase "Unlimited scanning" is a one-time
+> (non-consumable) purchase, restorable with the "Restore" button.
+
 ## Hors-ligne (PWA)
 
 L'appli embarque un service worker qui précache tout au premier chargement :
