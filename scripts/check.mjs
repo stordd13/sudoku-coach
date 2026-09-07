@@ -861,6 +861,77 @@ console.log("Palier A (v2.3) :");
     ok(F.bug1(h, null) === null, "négatif : un chiffre déséquilibré hors de la case trivalue → rien");
   }
   ok(TECH_TIER.bug1 === 4 && UNIQUENESS_KINDS.has("bug1"), "BUG+1 : palier 4, précondition d'unicité");
+  // ---- Palier B (v2.4) : AIC — type 1 (6 nœuds), négatif (lien faible manquant), type 2.
+  // Note : une AIC de 4 nœuds non réductible à une pointante/réduction n'existe
+  // pas (une paire bilocale vue de l'extérieur est alignée dans un bloc) ;
+  // le plus petit cas réel est à 6 nœuds.
+  {
+    const g = empty();
+    g[idx(0, 0)] = S(2, 6, 9); g[idx(1, 1)] = S(4, 6, 7); g[idx(1, 7)] = S(4, 8, 9); g[idx(6, 7)] = S(4, 6); g[idx(6, 0)] = S(5, 6);
+    const e = F.aic(g, null);
+    const isUnit = (v, type, index) => !!v && v.type === type && v.index === index;
+    ok(e && e.kind === "aic" && e.type === 1 && e.z === 6 && e.chain.length === 6 && e.links.length === 5
+      && e.cells.join() === [0, 10, 16, 61].join() && e.removals.length === 1 && hit(e, idx(6, 0), 6),
+      "AIC type 1 : 6 nœuds L1C1→L2C2→L2C8→L7C8, retire le 6 de L7C1");
+    ok(e && e.links.every((l, i) => l.strong === (i % 2 === 0)) && isUnit(e.links[0].via, "box", 0) && e.links[1].via === "cell"
+      && isUnit(e.links[2].via, "row", 1) && e.links[3].via === "peer" && e.links[4].via === "cell",
+      "AIC : liens fort/faible alternés — bloc, même case, ligne, voisines, bivalue");
+    ok(e && e.linkUnits.length === 2 && e.linkUnits.every((u) => u && u.cells) && e.ends.join() === "0,61",
+      "AIC : unités des liens forts bilocaux (prémisses de pruneChain), extrémités");
+    ok(F.xChain(g, null) === null && F.xyChain(g, null) === null && F.coloring(g, null) === null && F.pointing(g, null) === null,
+      "rien de plus simple ne s'applique (X-Chain, XY-Chain, coloriage, pointante)");
+    const n = g.map((x) => new Set(x)); n[idx(6, 7)] = S(6, 8);
+    ok(F.aic(n, null) === null, "négatif : lien faible manquant (L7C8 sans 4) → chaîne rompue, rien");
+    const g2 = g.map((x) => new Set(x)); g2[idx(1, 4)] = S(1, 4);
+    const e2 = F.aic(g2, null);
+    ok(e2 && e2.type === 2 && e2.x === 6 && e2.y === 4 && e2.cells.join() === [10, 0, 54, 61, 16].join()
+      && e2.removals.length === 1 && hit(e2, idx(1, 1), 4),
+      "AIC type 2 : extrémités L2C2 (6) et L2C8 (4) se voient, L2C2 perd le 4");
+    ok(F.aic(g, null) && JSON.stringify(F.aic(g, null)) === JSON.stringify(e), "AIC : déterministe (deux appels identiques)");
+  }
+  ok(TECH_TIER.aic === 5 && TECH_TIER.alsXz === 5, "AIC et ALS-XZ : palier 5");
+  {
+    const order = Object.keys(F);
+    ok(order.indexOf("coloring") < order.indexOf("aic") && order.indexOf("aic") < order.indexOf("sueDeCoq"),
+      "findElim : coloring < aic < sueDeCoq (ordre de la spec v2.4)");
+  }
+  // Sûreté sur fuzz : 60 états réels (éliminations de palier ≥ 4 et murs des
+  // fixtures) — aucune élimination des finders du palier B ne contredit la solution.
+  {
+    const FIX = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+    const parse = (g) => g.split("").map((ch) => (ch === "." ? 0 : Number(ch)));
+    const states = [];
+    for (const f of FIX) {
+      if (states.length >= 60) break;
+      const grid = parse(f.grid);
+      const { solution } = solveGrid(grid);
+      let last = null, taken = 0;
+      const r = solveHumanlySteps(grid, (st) => {
+        if (st.type === "elim") {
+          last = st.cands.map((a) => new Set(a));
+          // Un état de palier ≥ 4 par fixture (étalement), plus l'état de mur.
+          if (TECH_TIER[st.e.kind] >= 4 && taken === 0) { taken++; states.push({ id: f.id, cands: st.cands.map((a) => new Set(a)), solution }); }
+        }
+        return false;
+      }, 5);
+      if (!r.solved && last) states.push({ id: `${f.id} (mur)`, cands: last, solution });
+    }
+    const valid = states.every((st) => st.cands.every((c, i) => c.size === 0 || c.has(st.solution[i])));
+    ok(states.length >= 60 && valid, `${states.length} états prélevés, tous compatibles avec la solution`);
+    const PALIER_B = ["aic", "alsXz"].filter((k) => typeof F[k] === "function");
+    let bad = 0, found = {};
+    for (const st of states) {
+      for (const k of PALIER_B) {
+        const e = F[k](st.cands, null);
+        if (!e) continue;
+        found[k] = (found[k] || 0) + 1;
+        for (const rm of e.removals) if (rm.digits.includes(st.solution[rm.cell])) bad++;
+        if (e.removals.some((rm) => e.cells.includes(rm.cell) && e.kind === "aic" && e.type === 1)) bad++;
+      }
+    }
+    ok(bad === 0, `fuzz palier B (${PALIER_B.join(", ")}) : aucune élimination ne contredit la solution (${bad} en défaut)`);
+    console.log(`  ℹ palier B sur ${states.length} états : ${PALIER_B.map((k) => `${k} ${found[k] || 0}`).join(", ")}`);
+  }
   // Ordre pédagogique et paliers : triplets/quads au palier 3, entre paires et poissons.
   ok(NEW_KINDS.every((k) => TECH_TIER[k] === 3), "triplets et quadruplets : palier 3");
   {
@@ -880,6 +951,27 @@ console.log("Fixtures du banc :");
   ok(new Set(FIX.map((f) => f.id)).size === FIX.length, "identifiants de fixtures uniques");
   ok(FIX.every((f) => solveGrid(parse(f.grid)).count === 1), "chaque fixture a une solution unique");
   ok(FIX.some((f) => f.id === "reddit-2026") && FIX.some((f) => f.id === "ai-escargot"), "la grille Reddit et AI Escargot sont présentes");
+  // Cible v2.4 : la grille Reddit (point fixe des 27 techniques de v2.3) se
+  // termine par 👣 sans contredire la solution, et le gradeur la résout.
+  {
+    const f = FIX.find((x) => x.id === "reddit-2026");
+    const g = parse(f.grid);
+    const { solution } = solveGrid(g);
+    const w = g.slice();
+    let mismatches = 0, kinds = new Set();
+    for (let guard = 0; guard < 81; guard++) {
+      const p = nextStep(w);
+      if (!p) break;
+      if (p.digit !== solution[p.target]) mismatches++;
+      p.chainKinds.forEach((k) => kinds.add(k));
+      w[p.target] = p.digit;
+    }
+    ok(isComplete(w) && mismatches === 0 && kinds.has("aic"), `grille Reddit terminée par 👣 grâce à l'AIC (techniques : ${[...kinds].join(", ")})`);
+    ok(solveHumanly(g, 5).solved, "grille Reddit : gradée résoluble (palier 5)");
+    let solved = 0;
+    for (const x of FIX) if (solveHumanly(parse(x.grid), 5).solved) solved++;
+    console.log(`  ℹ fixtures gradées résolubles : ${solved}/${FIX.length}`);
+  }
   // Précondition d'unicité : sans allowUniqueness, aucune technique d'unicité
   // ne sort du gradeur ; avec, elles apparaissent sur au moins une fixture.
   const kindsSeen = (grid, allowUniqueness) => {
@@ -1238,7 +1330,7 @@ console.log("Noms de techniques :");
   ok(frWithArticle("coloring") === "le coloriage" && frWithArticle("xWing") === "le X-Wing",
     "casse : le coloriage (commun) mais le X-Wing (propre)");
   const list = frTechList();
-  ok(list.startsWith("candidat unique, single caché") && list.endsWith("coloriage, Sue de Coq")
+  ok(list.startsWith("candidat unique, single caché") && list.endsWith("coloriage, chaîne AIC, Sue de Coq")
     && list.split(", ").length === N_KINDS, `frTechList : les ${N_KINDS}, dans l'ordre pédagogique`);
 }
 
@@ -1510,6 +1602,26 @@ console.log("Lint de lisibilité (charte 3c) :");
       lintAll(`plan ${lang} ${cellName(cell, lang)} : étapes de chaîne`, p.chain.map((st) => st.text), { maxSentences: 3 });
       if (p.techKind === "hiddenSingle") {
         lintAll(`plan ${lang} ${cellName(cell, lang)} : indice 1 (gabarit single caché)`, [stepHint1(p, lang)]);
+      }
+    }
+  }
+  // Palier B (sans leçon) : textes AIC (type 1 et 2) et ALS-XZ, résumé +
+  // maillons + indice, dans les deux langues, sur les états de test de 4b.
+  {
+    const S = (...d) => new Set(d);
+    const emptyC = () => Array.from({ length: 81 }, () => new Set());
+    const ix = (r, c) => r * 9 + c;
+    const g = emptyC();
+    g[ix(0, 0)] = S(2, 6, 9); g[ix(1, 1)] = S(4, 6, 7); g[ix(1, 7)] = S(4, 8, 9); g[ix(6, 7)] = S(4, 6); g[ix(6, 0)] = S(5, 6);
+    const g2 = g.map((x) => new Set(x)); g2[ix(1, 4)] = S(1, 4);
+    const STATES = [["aic type 1", "aic", g], ["aic type 2", "aic", g2]];
+    for (const [label, kind, cands] of STATES) {
+      if (typeof ELIM_FINDER_BY_KIND[kind] !== "function") continue;
+      const e = ELIM_FINDER_BY_KIND[kind](cands, null);
+      for (const lang of ["fr", "en"]) {
+        const ex = packageExercise(kind, e, Array(81).fill(0), cands.map((x) => [...x]), lang);
+        lintAll(`palier B ${lang} ${label} : explain (résumé + maillons)`, ex.explain, { maxSentences: 3 });
+        lintAll(`palier B ${lang} ${label} : indice`, [ex.hint]);
       }
     }
   }

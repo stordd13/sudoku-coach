@@ -400,6 +400,122 @@ export function findBug1E(cands, prefer) {
   return { kind: "bug1", cell: tri, digit: extra, cells: [tri], digits: [extra], removals };
 }
 
+/* ---------- A7. AIC — chaîne d'inférence alternée (palier B, v2.4) ----------
+   Nœud = (case, chiffre). Lien FORT (« si l'un est faux, l'autre est vrai ») :
+   bivalue (case ≠ x ⇒ case = y, via "cell") ou chiffre bilocalisé dans une
+   unité (A ≠ d ⇒ B = d, via = l'unité). Lien FAIBLE (« si l'un est vrai,
+   l'autre est faux ») : même case (case = x ⇒ case ≠ y, via "cell") ou deux
+   voisines portant d (A = d ⇒ B ≠ d, via "peer"). Chaîne fort, faible, …,
+   fort (liens impairs, ≤ MAX_AIC_LINKS, ≤ 10 nœuds) : « si le départ est
+   faux, l'arrivée est vraie », l'une des deux extrémités est donc vraie.
+   Type 1 : même chiffre z aux deux bouts → toute case hors chaîne voyant les
+   deux extrémités perd z. Type 2 : chiffres x ≠ y, extrémités qui se voient →
+   le départ perd y, l'arrivée perd x.
+   Recherche : DFS à approfondissement itératif (3, 5, 7, 9 liens) → la plus
+   courte d'abord ; départs par nœud croissant ; chemins simples (jamais deux
+   fois la même case, sauf deux nœuds contigus d'une même case) ; un nœud
+   éteint doit repartir par un lien fort (filtre exact sur les faibles).
+   Budget AIC_BUDGET en expansions (déterministe, jamais l'horloge) → null.
+   Les X-Chain (un chiffre) et XY-Chain (bivalues) sont des AIC particulières
+   servies avant par leurs finders : ce finder n'est appelé qu'après leur
+   échec sur la même carte, aucun filtrage n'est nécessaire. */
+const MAX_AIC_LINKS = 9;
+const AIC_BUDGET = 200000;
+const nid = (cell, d) => cell * 10 + d;
+export function findAicE(cands, prefer) {
+  const strong = new Map();
+  const addStrong = (a, da, b, db, via) => {
+    const k = nid(a, da);
+    if (!strong.has(k)) strong.set(k, []);
+    const list = strong.get(k);
+    if (list.some((t) => t.cell === b && t.digit === db)) return; // paire bilocale en ligne ET bloc : première unité
+    list.push({ cell: b, digit: db, via });
+  };
+  for (let i = 0; i < 81; i++) {
+    if (cands[i].size !== 2) continue;
+    const [x, y] = [...cands[i]].sort(asc);
+    addStrong(i, x, i, y, "cell"); addStrong(i, y, i, x, "cell");
+  }
+  for (const u of UNITS) {
+    for (let d = 1; d <= 9; d++) {
+      const pos = u.cells.filter((i) => cands[i].has(d));
+      if (pos.length === 2) { addStrong(pos[0], d, pos[1], d, u); addStrong(pos[1], d, pos[0], d, u); }
+    }
+  }
+  if (!strong.size) return null;
+  const nodes = [...strong.keys()].sort(asc);
+  for (const k of nodes) strong.get(k).sort((p, q) => nid(p.cell, p.digit) - nid(q.cell, q.digit));
+  const weakMemo = new Map();
+  const weak = (cell, d) => {
+    const k = nid(cell, d);
+    if (weakMemo.has(k)) return weakMemo.get(k);
+    const out = [];
+    for (const x of [...cands[cell]].sort(asc)) if (x !== d && strong.has(nid(cell, x))) out.push({ cell, digit: x, via: "cell" });
+    for (const p of [...PEERS[cell]].sort(asc)) if (cands[p].has(d) && strong.has(nid(p, d))) out.push({ cell: p, digit: d, via: "peer" });
+    weakMemo.set(k, out);
+    return out;
+  };
+  let exp = 0, found = null;
+  const path = [], links = [], used = new Set();
+  const leaf = () => {
+    const s = path[0], e = path[path.length - 1];
+    const chainCells = [];
+    for (const n of path) if (!chainCells.includes(n.cell)) chainCells.push(n.cell);
+    let removals = [], type;
+    if (s.digit === e.digit) {
+      type = 1;
+      for (let z = 0; z < 81; z++) {
+        if (chainCells.includes(z) || !cands[z].has(s.digit)) continue;
+        if (sees(z, s.cell) && sees(z, e.cell)) removals.push({ cell: z, digits: [s.digit] });
+      }
+    } else if (sees(s.cell, e.cell)) {
+      type = 2;
+      if (cands[s.cell].has(e.digit)) removals.push({ cell: s.cell, digits: [e.digit] });
+      if (cands[e.cell].has(s.digit)) removals.push({ cell: e.cell, digits: [s.digit] });
+    } else return false;
+    if (!accept(removals, prefer)) return false;
+    const linkUnits = [];
+    for (const l of links) if (l.strong && l.via !== "cell" && !linkUnits.includes(l.via)) linkUnits.push(l.via);
+    found = {
+      kind: "aic", type, chain: path.map((n) => ({ ...n })), links: links.map((l) => ({ ...l })), linkUnits,
+      ends: [s.cell, e.cell], cells: chainCells,
+      digits: type === 1 ? [s.digit] : [s.digit, e.digit].sort(asc), removals,
+    };
+    if (type === 1) found.z = s.digit; else { found.x = s.digit; found.y = e.digit; }
+    return true;
+  };
+  const dfs = (on, L) => {
+    if (++exp > AIC_BUDGET) throw AIC_BUDGET;
+    const cur = path[path.length - 1];
+    if (path.length - 1 === L) return leaf();
+    const nbrs = on ? weak(cur.cell, cur.digit) : strong.get(nid(cur.cell, cur.digit));
+    for (const nb of nbrs) {
+      const moved = nb.cell !== cur.cell;
+      if (moved && used.has(nb.cell)) continue;
+      if (!moved && path.length >= 2 && path[path.length - 2].cell === nb.cell) continue; // 3e nœud dans la case
+      if (moved) used.add(cur.cell);
+      path.push({ cell: nb.cell, digit: nb.digit });
+      links.push({ from: cur, to: { cell: nb.cell, digit: nb.digit }, strong: !on, via: nb.via });
+      if (dfs(!on, L)) return true;
+      links.pop(); path.pop();
+      if (moved) used.delete(cur.cell);
+    }
+    return false;
+  };
+  try {
+    for (let L = 3; L <= MAX_AIC_LINKS; L += 2) {
+      for (const k of nodes) {
+        path.length = 0; links.length = 0; used.clear();
+        path.push({ cell: Math.floor(k / 10), digit: k % 10 });
+        if (dfs(false, L)) return found;
+      }
+    }
+  } catch (err) {
+    if (err !== AIC_BUDGET) throw err;
+  }
+  return null;
+}
+
 /* Rempli technique par technique (A1 → A6) ; un kind absent est ignoré par
    engine.js (filtre typeof === "function"). Jellyfish = findFish(4), dans
    engine.js avec X-Wing et Swordfish. */
@@ -409,6 +525,7 @@ export const PALIER_A_FINDERS = {
   finnedXWing: findFinnedXWingE,
   xChain: findXChainE, xyChain: findXYChainE,
   uniqueRectangle: findUniqueRectangleE, bug1: findBug1E,
+  aic: findAicE,
 };
 
 export { accept, sees };

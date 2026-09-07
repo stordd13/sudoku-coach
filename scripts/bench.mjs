@@ -101,7 +101,7 @@ for (const f of entries) {
 }
 
 /* ---------- Tableau par grille ---------- */
-const TIER_NAME = { 0: "—", 1: "singles", 2: "alignements", 3: "paires", 4: "poissons/ailes", 5: "coloriage" };
+const TIER_NAME = { 0: "—", 1: "singles", 2: "alignements", 3: "paires", 4: "poissons/ailes", 5: "coloriage/AIC/ALS" };
 console.log("\n| grille | SE | tier max | mur | joueur | restantes | coups | 👣 p95 |");
 console.log("|---|---|---|---|---|---|---|---|");
 for (const r of rows) {

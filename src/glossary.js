@@ -218,6 +218,16 @@ export const GLOSSARY = [
     en: { term: "BUG+1", aliases: ["BUG"], def: "Every empty cell is bivalue except one with three candidates: it takes the digit that appears three times in its zones, or the grid would have two solutions." },
   },
   {
+    id: "aic",
+    fr: { term: "AIC", aliases: ["chaîne AIC", "chaînes AIC", "chaîne d’inférence", "chaîne d’inférence alternée"], def: "Une chaîne sur plusieurs chiffres, liens forts et faibles alternés : l’une des deux extrémités est vraie." },
+    en: { term: "AIC", aliases: ["AICs", "AIC chain", "alternating inference chain"], def: "A chain over several digits, alternating strong and weak links: one of the two ends is true." },
+  },
+  {
+    id: "als",
+    fr: { term: "ensemble presque verrouillé", aliases: ["ALS", "ALS-XZ", "ensembles presque verrouillés"], def: "Des cases d’une même zone qui ont ensemble un candidat de plus que de cases : retire-leur un chiffre et tous les autres se placent." },
+    en: { term: "almost locked set", aliases: ["ALS", "ALS-XZ", "almost locked sets"], def: "Cells of one zone that together hold one more candidate than there are cells: take one digit away and all the others get placed." },
+  },
+  {
     id: "sue-de-coq",
     fr: { term: "Sue de Coq", aliases: [], def: "Deux cases à cheval entre une ligne et un bloc qui puisent dans quatre chiffres, partagés avec une case de la ligne et une du bloc : chaque chiffre a sa place, on nettoie autour." },
     en: { term: "Sue de Coq", aliases: [], def: "Two cells straddling a row and a box that draw from four digits, split with one cell of the row and one of the box: every digit has its place, so clean up around them." },

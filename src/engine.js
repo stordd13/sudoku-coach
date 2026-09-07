@@ -760,6 +760,7 @@ const ELIM_FINDERS = [
   [PA.xChain, "xChain"], [PA.xyChain, "xyChain"],
   [PA.uniqueRectangle, "uniqueRectangle"], [PA.bug1, "bug1"],
   [findColoringE, "coloring"],
+  [PA.aic, "aic"], [PA.alsXz, "alsXz"],
   [findSueDeCoqE, "sueDeCoq"],
 ].filter(([f]) => typeof f === "function");
 // Accès par kind (tests et UI) : les finders de base ne sont pas exportés un à un.
@@ -928,6 +929,30 @@ function describeElimFr(e) {
     return {
       title: TECH_NAMES.xyChain.fr, zone: `le ${e.z}`, cells: involved, links,
       text: `Suis la [[chaîne]] de ${e.chain.length} cases à deux [[candidats]], de **${c0}** à **${cn}** : chaque case force la suivante, c’est une [[XY-Chain]]. Si ${c0} n’est pas un ${e.z}, la chaîne se referme et ${cn} vaut ${e.z} : l’une des deux extrémités porte le ${e.z}. Toute case qui voit les deux extrémités perd le ${e.z} : ${rem}.`,
+    };
+  }
+  if (e.kind === "aic") {
+    const s0 = cellName(e.ends[0]), s1 = cellName(e.ends[1]);
+    const links = e.links.map((l) => ({
+      cells: l.from.cell === l.to.cell ? [l.from.cell] : [l.from.cell, l.to.cell],
+      text: l.strong
+        ? (l.via === "cell"
+          ? `Si ${cellName(l.from.cell)} n’est pas un ${l.from.digit}, alors elle vaut ${l.to.digit} : elle n’a que ces deux candidats.`
+          : `Si ${cellName(l.from.cell)} n’est pas un ${l.from.digit}, alors ${cellName(l.to.cell)} est un ${l.to.digit} : dans ${unitLabel(l.via)}, le ${l.to.digit} n’a que ces deux places.`)
+        : (l.via === "cell"
+          ? `Si ${cellName(l.from.cell)} est un ${l.from.digit}, alors elle n’est pas un ${l.to.digit}.`
+          : `Si ${cellName(l.from.cell)} est un ${l.from.digit}, alors ${cellName(l.to.cell)} n’en est pas un : elles se voient.`),
+    }));
+    const intro = `Suis une [[chaîne]] de ${e.cells.length} cases, de **${s0}** à **${s1}** : [[liens forts]] et [[liens faibles]] alternent sur plusieurs chiffres, c’est une [[AIC]].`;
+    if (e.type === 1) {
+      return {
+        title: TECH_NAMES.aic.fr, zone: `le ${e.z}`, cells: involved, links,
+        text: `${intro} Si ${s0} n’est pas un ${e.z}, alors ${s1} en est un : l’une des deux porte le ${e.z}. Toute case qui voit les deux perd le ${e.z} : ${rem}.`,
+      };
+    }
+    return {
+      title: TECH_NAMES.aic.fr, zone: `les ${e.x} et ${e.y}`, cells: involved, links,
+      text: `${intro} Si ${s0} n’est pas un ${e.x}, alors ${s1} est un ${e.y} : ${s0} vaut ${e.x} ou ${s1} vaut ${e.y}. Comme elles se voient, aucune ne peut prendre le chiffre de l’autre : ${rem}.`,
     };
   }
   if (e.kind === "uniqueRectangle") {
@@ -1142,6 +1167,30 @@ function describeElimEn(e) {
     return {
       title: TECH_NAMES.xyChain.en, zone: `the ${e.z}`, cells: involved, links,
       text: `Follow the [[chain]] of ${e.chain.length} two-[[candidate]] cells, from **${c0}** to **${cEnd}**: each cell forces the next, this is an [[XY-Chain]]. If ${c0} is not a ${e.z}, the chain closes and ${cEnd} becomes ${e.z}: one of the two ends holds the ${e.z}. Any cell that sees both ends loses the ${e.z}: ${rem}.`,
+    };
+  }
+  if (e.kind === "aic") {
+    const s0 = cn(e.ends[0]), s1 = cn(e.ends[1]);
+    const links = e.links.map((l) => ({
+      cells: l.from.cell === l.to.cell ? [l.from.cell] : [l.from.cell, l.to.cell],
+      text: l.strong
+        ? (l.via === "cell"
+          ? `If ${cn(l.from.cell)} is not a ${l.from.digit}, then it is a ${l.to.digit}: it has only those two candidates.`
+          : `If ${cn(l.from.cell)} is not a ${l.from.digit}, then ${cn(l.to.cell)} is a ${l.to.digit}: in ${uL(l.via)}, the ${l.to.digit} has only those two places.`)
+        : (l.via === "cell"
+          ? `If ${cn(l.from.cell)} is a ${l.from.digit}, then it is not a ${l.to.digit}.`
+          : `If ${cn(l.from.cell)} is a ${l.from.digit}, then ${cn(l.to.cell)} is not: they see each other.`),
+    }));
+    const intro = `Follow a [[chain]] of ${e.cells.length} cells, from **${s0}** to **${s1}**: [[strong links]] and [[weak links]] alternate over several digits, this is an [[AIC]].`;
+    if (e.type === 1) {
+      return {
+        title: TECH_NAMES.aic.en, zone: `the ${e.z}`, cells: involved, links,
+        text: `${intro} If ${s0} is not a ${e.z}, then ${s1} is one: one of the two ends holds the ${e.z}. Any cell that sees both ends loses the ${e.z}: ${rem}.`,
+      };
+    }
+    return {
+      title: TECH_NAMES.aic.en, zone: `the ${e.x} and ${e.y}`, cells: involved, links,
+      text: `${intro} If ${s0} is not a ${e.x}, then ${s1} is a ${e.y}: ${s0} is ${e.x} or ${s1} is ${e.y}. Since they see each other, neither can take the other’s digit: ${rem}.`,
     };
   }
   if (e.kind === "uniqueRectangle") {
@@ -1449,6 +1498,22 @@ function pruneChain(grid, chain, goal) {
       // Prémisse globale : l'état bivalue de TOUTES les cases vides.
       for (let c = 0; c < 81; c++) if (grid[c] === 0) addNeed(c, 0);
     }
+    else if (e.kind === "aic") {
+      // Seuls les liens FORTS lisent la carte : bivalue → toute la case ;
+      // bilocal → l'unité lue × ce chiffre. Les liens faibles (même case,
+      // voisines) sont de la géométrie pure : une élimination antérieure ne
+      // peut que les casser, jamais les créer — aucune prémisse.
+      for (const l of e.links) {
+        if (!l.strong) continue;
+        if (l.via === "cell") addNeed(l.from.cell, 0);
+        else l.via.cells.forEach((c) => addNeed(c, l.from.digit));
+      }
+    }
+    else if (e.kind === "alsXz") {
+      // Les deux ensembles en entier (n cases, n+1 chiffres : chaque
+      // élimination sur ces cases compte) ; le reste est géométrique.
+      e.cells.forEach((c) => addNeed(c, 0));
+    }
     else (e.cells || []).forEach((c) => addNeed(c, 0)); // nakedPair/Triple/Quad, xyWing, xyzWing, xyChain, sueDeCoq, remotePair…
   }
   return kept;
@@ -1461,7 +1526,7 @@ const ELIM_WEIGHTS = {
   xWing: 5, finnedXWing: 6, skyscraper: 6, xyWing: 6, swordfish: 6,
   xyzWing: 6, wWing: 6, kite: 7, emptyRectangle: 7, remotePair: 7,
   jellyfish: 7, xChain: 7, xyChain: 7, uniqueRectangle: 7, bug1: 7,
-  coloring: 8, sueDeCoq: 8,
+  coloring: 8, sueDeCoq: 8, aic: 9, alsXz: 9,
 };
 const planDifficulty = (base, kept) =>
   base + kept.reduce((s, e) => s + (ELIM_WEIGHTS[e.kind] || 5), 0);
@@ -1647,14 +1712,15 @@ export function generateFullGrid(rng = Math.random) {
 /* Paliers de difficulté (gradation) :
    1 = singles · 2 = alignements · 3 = paires, triplets, quadruplets ·
    4 = poissons (à nageoire, jellyfish), ailes, chaînes X/XY, unicité ·
-   5 = coloriage/Sue de Coq. Exporté sous le nom TECH_TIER (tests, banc). */
+   5 = coloriage, AIC, ALS-XZ, Sue de Coq (palier B, v2.4). Exporté sous le
+   nom TECH_TIER (tests, banc). */
 const TIER_OF_KIND = {
   pointing: 2, claiming: 2, nakedPair: 3, hiddenPair: 3,
   nakedTriple: 3, hiddenTriple: 3, nakedQuad: 3, hiddenQuad: 3,
   xWing: 4, finnedXWing: 4, xyWing: 4, xyzWing: 4, wWing: 4, swordfish: 4, jellyfish: 4,
   kite: 4, skyscraper: 4, emptyRectangle: 4, remotePair: 4,
   xChain: 4, xyChain: 4, uniqueRectangle: 4, bug1: 4,
-  coloring: 5, sueDeCoq: 5,
+  coloring: 5, aic: 5, alsXz: 5, sueDeCoq: 5,
 };
 export const TECH_TIER = TIER_OF_KIND;
 // Dérivé de ELIM_FINDERS : mêmes finders, groupés par palier (l'ordre
@@ -1854,8 +1920,10 @@ function elimHighlight(e) {
       unit = [...e.linkUnit.cells, ...e.cells]; break;
     case "sueDeCoq":
       unit = [...e.line.cells, ...BOXES[e.box]]; break;
-    case "coloring": case "xChain":
+    case "coloring": case "xChain": case "aic":
       unit = [...e.linkUnits.flatMap((u) => u.cells), ...e.cells]; break;
+    case "alsXz":
+      unit = [...e.a.unit.cells, ...e.b.unit.cells, ...e.removals.map((r) => r.cell)]; break;
     case "uniqueRectangle":
       unit = [...e.cells, ...(e.unit ? e.unit.cells : []), ...e.removals.map((r) => r.cell)]; break;
     case "bug1":
