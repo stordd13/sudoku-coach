@@ -185,9 +185,13 @@ arrière-plan et devient active à l'ouverture suivante.
   Si les variables Upstash sont configurées (voir plus haut), chaque IP est limitée à
   **30 scans par jour** — le filet de sécurité ultime reste un **plafond de dépense
   mensuel** sur ta clé, à définir dans la console Anthropic.
-- **Quota côté app** : 5 scans gratuits par appareil (compteur local) ; sur iOS,
+- **Quota côté app** : 50 scans gratuits par appareil (compteur local) ; sur iOS,
   l'achat intégré « scans illimités » lève la limite. Indépendant de la limite
-  serveur ci-dessus.
+  serveur ci-dessus. **Jamais d'impasse payante** (`src/scanGate.js`) : le quota
+  épuisé ne ferme le scan que si l'offre d'achat est réellement chargée ; sans
+  achat possible (clé RevenueCat absente, offering vide, hors-ligne, ou sur le
+  web) le scan reste ouvert avec le message « en attendant, continue » — le
+  serveur garde ses limites.
 - **Vie privée** : les grilles et la progression sont sauvegardées uniquement dans
   le navigateur de chaque personne (localStorage). Rien n'est stocké côté serveur.
   Le site web mesure son audience avec Vercel Web Analytics (anonyme, sans cookie)

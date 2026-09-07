@@ -2135,6 +2135,23 @@ console.log("Analytics (événements d'usage) :");
   resetAnalyticsForTests();
 }
 
+/* ---------- 13. Porte du scan : jamais d'impasse payante (R1) ---------- */
+console.log("Porte du scan (scanGate) :");
+{
+  const { scanGate, LOW_SCANS } = await import("../src/scanGate.js");
+  const T = (left, purchasesReady, unlimited) => scanGate({ left, purchasesReady, unlimited });
+  ok(T(0, true, true).allowed && T(0, true, true).panel === null && T(0, false, true).allowed, "illimité → ouvert, aucun panneau, quelle que soit l'offre");
+  ok(T(5, false, false).allowed && T(5, false, false).panel === null && T(5, true, false).panel === null, "5 restants → ouvert, aucun panneau");
+  ok(T(2, false, false).allowed && T(2, false, false).panel === "low" && T(1, true, false).panel === "low", `moins de ${LOW_SCANS} restants → ouvert, panneau « il reste »`);
+  ok(!T(0, true, false).allowed && T(0, true, false).panel === "paywall", "quota épuisé + offre chargée → paywall, scan fermé");
+  ok(T(0, false, false).allowed && T(0, false, false).panel === "grace", "quota épuisé SANS offre (clé absente, offering vide, erreur, web) → scan ouvert, « en attendant, continue »");
+  ok(T(-3, false, false).panel === "grace" && scanGate({}).panel === "grace" && scanGate({ left: Infinity }).allowed, "valeurs dégénérées : négatif ou absent = épuisé ; Infinity = ouvert");
+  const all = [[0, true, false], [0, false, false], [2, false, false], [5, true, false], [0, false, true]].map(([a, b, c]) => T(a, b, c));
+  ok(all.every((g) => g.allowed || g.panel === "paywall"), "le scan n'est fermé QUE derrière un paywall réel (jamais d'impasse)");
+  ok(DICTS.fr["scan.grace"] && DICTS.en["scan.grace"] && !("scan.out.web" in DICTS.fr) && !("flash.scansOutWeb" in DICTS.fr),
+    "i18n : message « en attendant, continue » fr+en, anciens messages « bientôt » retirés");
+}
+
 console.log(`\n  ℹ temps total : ${((Date.now() - T0) / 1000).toFixed(1)} s`);
 console.log(failures === 0 ? "\nTOUT EST OK ✓" : `\n${failures} ÉCHEC(S) ✗`);
 process.exit(failures === 0 ? 0 : 1);

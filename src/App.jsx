@@ -22,6 +22,7 @@ import { lookupTerm, glossaryList } from "./glossary.js";
 import { cellAriaLabel } from "./a11y.js";
 import { trackEvent, durationBucket, hintsBucket, streakBucket, wallKind } from "./analytics.js";
 import { askCoach } from "./coachClient.js";
+import { scanGate } from "./scanGate.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
    Les hex vivent dans theme.js (C_LIGHT/C_DARK) ; ici chaque clé devient une
@@ -301,19 +302,22 @@ function ToggleRow({ label, hint, value, onChange }) {
     </div>
   );
 }
-function ScanQuotaNote({ left, onUnlocked }) {
-  if (left <= 0) {
-    if (isNative()) return <PaywallCard onUnlocked={onUnlocked} />;
+/* Sous le bouton scan : selon scanGate — « paywall » (natif, offre chargée :
+   PaywallCard), « grace » (quota épuisé mais aucun achat possible : jamais
+   d'impasse, le scan reste ouvert), « low » (il reste 1-2 scans). */
+function ScanQuotaNote({ gate, left, offer, onUnlocked }) {
+  if (gate.panel === "paywall") return <PaywallCard offer={offer} onUnlocked={onUnlocked} />;
+  if (gate.panel === "grace") {
     return (
       <div style={{
         width: "100%", fontSize: 12.5, color: C.textSoft, background: C.glass,
         border: `1px dashed ${C.dashed}`, borderRadius: 10, padding: "10px 12px", textAlign: "center",
       }}>
-        {t("scan.out.web")}
+        {t("scan.grace")}
       </div>
     );
   }
-  if (left < 3) {
+  if (gate.panel === "low") {
     return (
       <div style={{ width: "100%", fontSize: 11.5, color: C.faint, textAlign: "center" }}>
         {tn("scan.left", left)}
@@ -322,19 +326,13 @@ function ScanQuotaNote({ left, onUnlocked }) {
   }
   return null;
 }
-/* Paywall natif (RevenueCat) : remplace le panneau d'attente quand les scans
-   gratuits sont épuisés. Si l'offre est indisponible (clé absente, produit pas
-   prêt, hors-ligne), on retombe sur le même panneau « bientôt » que le web. */
-function PaywallCard({ onUnlocked }) {
-  const [offer, setOffer] = useState(null); // null = chargement | false = indisponible | { price, pkg }
+/* Paywall natif (RevenueCat) : affiché seulement quand l'offre est chargée
+   (scanGate → "paywall") ; l'offre est portée par App, qui la recharge tant
+   qu'elle manque. */
+function PaywallCard({ offer, onUnlocked }) {
   const [busy, setBusy] = useState(null); // null | "buy" | "restore"
   const [note, setNote] = useState(null);
   useEffect(() => { trackEvent("paywall_shown"); }, []); // web : jamais envoyé (natif = no-op), stub du schéma
-  useEffect(() => {
-    let alive = true;
-    getOffer().then((o) => { if (alive) setOffer(o || false); });
-    return () => { alive = false; };
-  }, []);
   async function onBuy() {
     setBusy("buy"); setNote(null);
     try {
@@ -357,12 +355,7 @@ function PaywallCard({ onUnlocked }) {
     borderRadius: 10, padding: "12px", textAlign: "center",
     display: "flex", flexDirection: "column", gap: 8,
   };
-  if (offer === null) {
-    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>{t("paywall.loading")}</div></div>;
-  }
-  if (offer === false) {
-    return <div style={box}><div style={{ fontSize: 12.5, color: C.textSoft }}>{t("scan.out.web")}</div></div>;
-  }
+  if (!offer) return null; // scanGate ne monte cette carte qu'avec une offre chargée
   return (
     <div style={box}>
       <div style={{ fontSize: 12.5, color: C.textSoft }}>{t("paywall.used", { n: FREE_SCANS })}</div>
@@ -801,6 +794,18 @@ export default function App() {
   const [scansUsed, setScansUsed] = useState(0); // chargé au boot via loadAll()
   const [unlimited, setUnlimited] = useState(false); // entitlement RevenueCat (natif)
   const scansLeft = unlimited ? Infinity : Math.max(0, FREE_SCANS - scansUsed);
+  // Offre d'achat (natif) : null tant qu'elle n'est pas chargée → scanGate
+  // n'affiche le paywall qu'avec une offre réelle (R1 : jamais d'impasse).
+  const [offer, setOffer] = useState(null);
+  const offerTriedAt = useRef(0);
+  const gate = scanGate({ left: scansLeft, purchasesReady: !!offer, unlimited });
+  function refreshOffer() {
+    if (!isNative() || unlimited || offer) return;
+    const now = Date.now();
+    if (now - offerTriedAt.current < 30000) return; // une tentative par demi-minute
+    offerTriedAt.current = now;
+    getOffer().then((o) => { if (o) setOffer(o); }).catch(() => {});
+  }
   const [solRef, setSolRef] = useState(null);
   /* Grille à plusieurs solutions (scan/saisie) : solRef n'est qu'UNE solution
      parmi d'autres — on ne s'en sert plus pour juger les chiffres du joueur
@@ -1362,9 +1367,9 @@ export default function App() {
     flash(t("flash.unlocked"), "success");
   }
   function openScan() {
-    if (scansLeft <= 0) {
+    if (!gate.allowed) {
       trackEvent("scan_used", { result: "quota" });
-      flash(isNative() ? t("flash.scansOutNative") : t("flash.scansOutWeb"), "info");
+      flash(t("flash.scansOutNative"), "info");
       return;
     }
     if (isNative()) { scanNative(); return; }
@@ -1510,9 +1515,13 @@ export default function App() {
     // Natif : RevenueCat au boot. setUnlimited(true) seulement — un échec
     // ponctuel (hors-ligne) ne doit pas rétrograder un achat déjà connu.
     initPurchases((active) => { if (active) setUnlimited(true); })
-      .then((active) => { if (active) setUnlimited(true); })
+      .then((active) => { if (active) setUnlimited(true); else refreshOffer(); })
       .catch(() => { /* SDK indisponible : freemium inchangé */ });
   }, []);
+  // Quota épuisé sans offre chargée : on retente le chargement à chaque
+  // affichage du panneau « en attendant » — dès que l'offering arrive, le
+  // paywall reprend.
+  useEffect(() => { if (gate.panel === "grace") refreshOffer(); }, [gate.panel]);
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
@@ -1794,11 +1803,11 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
             )}
             <Card emoji="🎲" title={t("home.play")} sub={t("home.play.sub")}
               onClick={() => setScreen("levels")} />
-            {scansLeft > 0 && (
+            {gate.allowed && (
               <Card emoji="📷" title={t("home.scan")} sub={t("home.scan.sub")}
                 onClick={openScan} />
             )}
-            <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
+            <ScanQuotaNote gate={gate} left={scansLeft} offer={offer} onUnlocked={unlockScans} />
             <Card emoji="📚" title={t("home.learn")} sub={t("home.learn.sub", { n: LESSONS.length })}
               onClick={() => setTab("learn")} />
             <Card emoji="📊" title={t("home.stats")} sub={t("home.stats.sub")}
@@ -2063,9 +2072,9 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
             <div style={{ width: W, display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn variant="primary" grow onClick={startPlay}>{t("btn.start")}</Btn>
-                <Btn variant="accent" grow onClick={openScan} disabled={scanning || !scansLeft}>{t("btn.scan")}</Btn>
+                <Btn variant="accent" grow onClick={openScan} disabled={scanning || !gate.allowed}>{t("btn.scan")}</Btn>
               </div>
-              <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
+              <ScanQuotaNote gate={gate} left={scansLeft} offer={offer} onUnlocked={unlockScans} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
                 <LinkBtn onClick={() => setScreen("home")}>{t("common.home")}</LinkBtn>
                 <LinkBtn onClick={loadSample}>{t("link.loadSample")}</LinkBtn>
@@ -2095,10 +2104,10 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                 <Btn onClick={undo} title={t("btn.undo")} ariaLabel={t("btn.undo")}>↩︎</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn grow onClick={openScan} disabled={scanning || !scansLeft}>{t("btn.scan")}</Btn>
+                <Btn grow onClick={openScan} disabled={scanning || !gate.allowed}>{t("btn.scan")}</Btn>
                 <Btn grow onClick={solveAll}>{t("btn.solveAll")}</Btn>
               </div>
-              <ScanQuotaNote left={scansLeft} onUnlocked={unlockScans} />
+              <ScanQuotaNote gate={gate} left={scansLeft} offer={offer} onUnlocked={unlockScans} />
               <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
                 <LinkBtn onClick={() => setScreen("home")}>{t("common.home")}</LinkBtn>
                 <LinkBtn onClick={backToEdit}>{t("link.modify")}</LinkBtn>
