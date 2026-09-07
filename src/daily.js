@@ -3,9 +3,13 @@
    Module pur (importé par check.mjs sous Node) : la seed vient de la date
    "YYYY-MM-DD", la génération est bornée en tentatives (jamais en temps).
    Le déterminisme ne vaut qu'à version identique du moteur : une évolution
-   des finders change les grilles futures — accepté, rien à figer côté
-   serveur. Seul contact avec l'horloge : le paramètre par défaut de
-   localDateStr, injectable en test.
+   des finders de palier ≤ 4, de MAX_CHAIN/MAX_CHAIN_ALL ou de CHAIN_FREE_KINDS
+   change les grilles futures — accepté, rien à figer côté serveur. Les
+   finders de palier 5 (v2.4 : AIC, ALS-XZ) n'y touchent pas : ils ne courent
+   qu'après l'échec des paliers ≤ 4, et DAILY_LEVELS ne vise jamais le
+   niveau 5 (verrou : check.mjs 5d, défis 2026-09-09 et 2026-09-12). Seul
+   contact avec l'horloge : le paramètre par défaut de localDateStr,
+   injectable en test.
    ================================================================ */
 
 import { generatePuzzle, makeRng } from "./engine.js";

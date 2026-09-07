@@ -14,7 +14,7 @@
    contredit la solution. Les pourcentages sont des ℹ à cibles indicatives. */
 import { readFileSync } from "node:fs";
 import {
-  solveGrid, solveHumanlySteps, buildPlan, nextStep, generatePuzzle, makeRng, isComplete,
+  solveGrid, solveHumanlySteps, buildPlan, nextStep, generatePuzzle, makeRng, isComplete, TECH_TIER,
 } from "../src/engine.js";
 
 const QUICK = !!process.env.BENCH_QUICK;
@@ -69,7 +69,8 @@ function measure(f) {
   }, 5);
   // 2. Chemin joueur : un appui 👣 (nextStep) par coup ; 🎯 échantillonné.
   const w = g.slice();
-  const hintMs = [], aimMs = [];
+  const hintMs = [], aimMs = [], tier5Ms = [];
+  const bKinds = { aic: 0, alsXz: 0 };
   let mismatches = 0, moves = 0;
   for (let guard = 0; guard < 81; guard++) {
     if (moves % 10 === 0) {
@@ -78,8 +79,12 @@ function measure(f) {
     }
     const t0 = performance.now();
     const p = nextStep(w);
-    hintMs.push(performance.now() - t0);
+    const ms = performance.now() - t0;
+    hintMs.push(ms);
     if (!p) break;
+    // Appuis de palier 5 : le plan mobilise une technique de tier 5 (cible v2.4 : p95 < 800 ms).
+    if (p.chainKinds.some((k) => TECH_TIER[k] === 5)) tier5Ms.push(ms);
+    for (const k of p.chainKinds) if (k in bKinds) bKinds[k]++;
     if (p.digit !== solution[p.target]) mismatches++;
     w[p.target] = p.digit;
     moves++;
@@ -87,7 +92,7 @@ function measure(f) {
   return {
     ...f, empties: g.filter((v) => !v).length,
     solved: r.solved, maxTier: r.maxTier, counts: r.counts, badElim,
-    done: isComplete(w), left: w.filter((v) => !v).length, moves, mismatches, hintMs, aimMs,
+    done: isComplete(w), left: w.filter((v) => !v).length, moves, mismatches, hintMs, aimMs, tier5Ms, bKinds,
   };
 }
 
@@ -140,6 +145,12 @@ const allAim = valid.flatMap((r) => r.aimMs);
 const maxOf = (arr) => arr.reduce((m, x) => (x > m ? x : m), 0);
 console.log(`  ℹ 👣 nextStep sur ${allHint.length} appuis : p50 ${quantile(allHint, 0.5).toFixed(1)} ms · p95 ${quantile(allHint, 0.95).toFixed(1)} ms · max ${maxOf(allHint).toFixed(1)} ms`);
 console.log(`  ℹ 🎯 buildPlan (échantillon, ${allAim.length} appels) : p50 ${quantile(allAim, 0.5).toFixed(1)} ms · p95 ${quantile(allAim, 0.95).toFixed(1)} ms · max ${maxOf(allAim).toFixed(1)} ms`);
+{
+  const t5 = valid.flatMap((r) => r.tier5Ms);
+  const aic = valid.reduce((n, r) => n + r.bKinds.aic, 0), als = valid.reduce((n, r) => n + r.bKinds.alsXz, 0);
+  console.log(`  ℹ 👣 sur les appuis de palier 5 (${t5.length}) : p50 ${quantile(t5, 0.5).toFixed(1)} ms · p95 ${quantile(t5, 0.95).toFixed(1)} ms · max ${maxOf(t5).toFixed(1)} ms (cible indicative p95 < 800 ms)`);
+  console.log(`  ℹ palier B mobilisé par le chemin joueur : AIC ${aic} fois, ALS-XZ ${als} fois`);
+}
 const walls = valid.filter((r) => !r.solved);
 if (walls.length) {
   const at = {};

@@ -8,8 +8,9 @@ Solver de sudoku **pédagogique** : résous, comprends, progresse.
   puis la solution avec la technique détaillée pas à pas.
 - 📚 **Apprendre** — 21 leçons illustrées et interactives, du candidat unique
   au Sue de Coq (triplets, XY-Chain, rectangle unique et BUG+1 compris), avec
-  des exercices générés à volonté. Le coach connaît 27 techniques en tout
-  (quadruplets, poissons à nageoire, Jellyfish et X-Chain s'expliquent en jeu).
+  des exercices générés à volonté. Le coach connaît 29 techniques en tout
+  (quadruplets, poissons à nageoire, Jellyfish, X-Chain, chaînes AIC et ALS-XZ
+  s'expliquent en jeu, pas à pas).
 - 📷 **Scanner** — photographie une grille (magazine, journal…) : elle est lue par
   l'IA via une fonction serveur (`/api/ocr`) qui garde ta clé API privée.
 
@@ -35,6 +36,33 @@ les mêmes grilles qu'avec la version précédente (les défis passés, déjà
 mis en cache, ne bougent pas). Depuis 2.3.1, 👣 « Étape suivante » est une
 seule recherche globale par palier (`nextStep`) : réponse immédiate, même sur
 téléphone ; 🎯 garde l'explication d'une case choisie (`buildPlan`).
+
+**v2.4** — le **palier B** : chaînes **AIC** (liens forts et faibles alternés
+sur plusieurs chiffres, liens groupés compris) et **ALS-XZ** (deux ensembles
+presque verrouillés), toutes deux au niveau Diabolique et expliquées **un
+maillon par étape** dans le coach (comme X-Chain et XY-Chain désormais) ; les
+réflexions de palier 5 tournent dans un **Web Worker** (« Le coach
+réfléchit… » au-delà de 300 ms, résultat identique) ; événements d'usage
+anonymes sur le site web ; garde-fous de sortie (jamais d'impasse payante,
+script de fumée `npm run smoke`, checklist Release). Gradation : Expert =
+palier 4, Diabolique = palier 5 ou mur. Les défis du jour (niveaux 2 à 4)
+**ne changent pas** avec v2.4 : les techniques de palier 5 ne s'essaient
+qu'après l'échec des paliers inférieurs (verrou dans `npm run check`).
+
+Banc (`npm run bench`, 157 grilles, « sans mur » = le coach termine seul) :
+
+| collection | 2.3.1 | 2.4.0 |
+|---|---|---|
+| toutes (157) | 33 % | **59 %** |
+| top95 (95) | 48 % | **64 %** |
+| hardest (11) | 36 % | **45 %** |
+| générées niveau 5 (50) | 4 % | **52 %** |
+| grille Reddit (cible v2.4) | mur | **résolue** (2 AIC) |
+
+Les liens groupés d'AIC ont été gardés sur mesure (+4 points : 55 → 59 %),
+et la « chaîne de forçage » (option C) n'a pas été implémentée : le banc ne
+laissait plus de mur sur la grille Reddit après le palier B. Les monstres
+(AI Escargot et compagnie) restent hors de portée, c'est voulu.
 
 ---
 
@@ -83,11 +111,11 @@ téléphone ; 🎯 garde l'explication d'une case choisie (`buildPlan`).
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (le scan nécessite Vercel ou `vercel dev`)
-npm run check      # tests : moteur, leçons, exercices, coach 👣, stockage, API (seedés)
-                   # run complet : 1 à 3 min selon la machine
+npm run check      # tests : moteur, leçons, exercices, coach 👣, stockage, analytics, API (seedés)
+                   # run complet : 1,5 à 3 min selon la machine
 npm run bench      # banc de grilles dures (fixtures/hard-grids.json + 50 générées) :
-                   # % résolues sans mur, chemin joueur 👣, temps 👣 et 🎯 ; BENCH_QUICK=1
-                   # pour un tour rapide ; ≈ 2 à 4 min en entier
+                   # % résolues sans mur, chemin joueur 👣, temps 👣 et 🎯, palier 5 ;
+                   # BENCH_QUICK=1 pour un tour rapide ; ≈ 1 min en entier
 npm run build      # build de production
 ```
 
@@ -144,7 +172,7 @@ arrière-plan et devient active à l'ouverture suivante.
 - **« Grille à plusieurs solutions » au verrouillage** : il manque presque toujours
   un chiffre de l'énoncé (scan incomplet ou oubli de saisie). Repasse en ✏️ édition
   et compare avec la grille d'origine.
-- **« T'es sur quelle version ? »** : le numéro (`v2.3.0`, …) est affiché en bas de
+- **« T'es sur quelle version ? »** : le numéro (`v2.4.0`, …) est affiché en bas de
   l'écran d'accueil.
 - **Le coach dit « au-delà du coach » sur une grille pourtant faisable** : lance
   `npm run bench` (ou ajoute la grille à `fixtures/hard-grids.json`) pour voir où
