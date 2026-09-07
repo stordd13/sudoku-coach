@@ -452,15 +452,60 @@ console.log("Stepper — dérivation pure :");
   const gRS = REPRO_STEPWISE.split("").map(Number);
   const plan = buildPlan(gRS, 24);
   const sP = planStepScript(plan);
-  ok(sP && sP.length === plan.chain.length + 1 && sP[sP.length - 1].conclusion,
-    `plan R3C7 : ${plan.chain.length} maillons + 1 conclusion`);
+  const nLinks = (pl) => pl.chain.reduce((n, st) => n + (Array.isArray(st.links) ? st.links.length : 0), 0);
+  ok(sP && sP.length === plan.chain.length + nLinks(plan) + 1 && sP[sP.length - 1].conclusion,
+    `plan R3C7 : ${plan.chain.length} maillons (+ ${nLinks(plan)} liens) + 1 conclusion`);
   const rawNorm = (i) => {
     const out = {};
     for (const r of plan.rawChain[i].removals) out[r.cell] = [...new Set([...(out[r.cell] || []), ...r.digits])].sort((a, b) => a - b);
     return out;
   };
-  ok(sP.slice(0, -1).every((s, i) => JSON.stringify(s.strikes) === JSON.stringify(rawNorm(i))),
-    "strikes de l'étape i == removals de rawChain[i]");
+  ok(sP.slice(0, -1).every((s) => s.linkIx !== null || JSON.stringify(s.strikes) === JSON.stringify(rawNorm(s.chainIx))),
+    "strikes de l'étape d'un maillon == removals de rawChain[chainIx]");
+  // Un lien par étape : plan synthétique à 2 maillons, 2 liens sur le premier.
+  {
+    const syn = {
+      kind: "ok", unitCells: [0, 1, 2],
+      chain: [{ cells: [1, 2], links: [{ cells: [1], text: "a" }, { cells: [1, 2], text: "b" }] }, { cells: [3] }],
+      rawChain: [{ removals: [{ cell: 5, digits: [6] }] }, { removals: [{ cell: 7, digits: [1] }] }],
+    };
+    const sc = planStepScript(syn);
+    ok(sc && sc.length === 5 && JSON.stringify(sc.map((x) => [x.chainIx, x.linkIx])) === JSON.stringify([[0, 0], [0, 1], [0, null], [1, null], [null, null]]),
+      "un lien par étape : [0,0] [0,1] [0,∅] [1,∅] puis conclusion");
+    ok(sc[0].cells.join() === "1" && sc[1].cells.join() === "1,2" && Object.keys(sc[0].strikes).length === 0 && Object.keys(sc[1].strikes).length === 0,
+      "étapes de lien : cases du lien, aucun strike");
+    ok(JSON.stringify(sc[2].strikes) === JSON.stringify({ 5: [6] }) && JSON.stringify(sc[3].strikes) === JSON.stringify({ 7: [1] }) && sc[4].conclusion && !sc[3].conclusion,
+      "étapes de maillon : removals normalisés ; la conclusion en dernier");
+    ok(stepReveal(sc, 1).cells.has(2) && !stepReveal(sc, 1).cells.has(3) && sameStrikes(stepReveal(sc, 3).struckPast, { 5: new Set([6]) }),
+      "stepReveal : le lien courant surligne ses cases, les strikes des maillons passés s'accumulent");
+  }
+  // Invariant sur de vrais plans : longueur = maillons + liens + 1, chainIx croissant,
+  // et au moins une chaîne à liens (X-Chain / XY-Chain) rencontrée sur les fixtures.
+  {
+    const FIXS = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+    const plans = [];
+    const g0 = SAMPLES[0].split("").map(Number);
+    g0.forEach((v, i) => { if (!v) { const pl = buildPlan(g0, i); if (pl) plans.push(pl); } });
+    let withLinks = 0;
+    for (const f of FIXS) {
+      if (withLinks >= 2) break;
+      const w = f.grid.split("").map((ch) => (ch === "." ? 0 : Number(ch)));
+      for (let guard = 0; guard < 81 && withLinks < 2; guard++) {
+        const pl = nextStep(w);
+        if (!pl) break;
+        if (nLinks(pl)) { plans.push(pl); withLinks++; }
+        w[pl.target] = pl.digit;
+      }
+    }
+    const good = plans.every((pl) => {
+      const sc = planStepScript(pl);
+      if (!pl.chain.length) return sc === null;
+      const mono = sc.every((x, i) => i === 0 || x.chainIx === null || x.chainIx >= sc[i - 1].chainIx);
+      const linkCells = sc.every((x) => x.linkIx === null || JSON.stringify(x.cells) === JSON.stringify(pl.chain[x.chainIx].links[x.linkIx].cells));
+      return sc.length === pl.chain.length + nLinks(pl) + 1 && mono && linkCells;
+    });
+    ok(good && withLinks >= 1, `invariant du script sur ${plans.length} plans réels (dont ${withLinks} chaînes à liens) : maillons + liens + 1, chainIx croissant, cases du lien`);
+  }
   ok(sP[sP.length - 1].cells.length && sP[sP.length - 1].cells.every((c) => plan.unitCells.includes(c)),
     "la conclusion surligne la zone du single");
   ok(planStepScript({ kind: "ok", chain: [] }) === null && planStepScript(null) === null,
@@ -1017,6 +1062,14 @@ console.log("Défi du jour :");
   ok(solveGrid(A.grid.split("").map(Number)).count === 1, "grille du jour : solution unique");
   const C = dailyPuzzle("2026-09-02");
   ok(C.grid !== A.grid, "dates différentes → grilles différentes");
+  // Grilles figées depuis 2.3.1 (relevées avant le palier B) : les finders de
+  // palier 5 ne courent qu'après l'échec des paliers ≤ 4, donc un grade ≤ 4
+  // reste ≤ 4 et les défis (niveaux 2-4) ne bougent pas. Toute modification
+  // de l'ordre des tiers ≤ 4, de MAX_CHAIN/MAX_CHAIN_ALL ou de CHAIN_FREE_KINDS
+  // casse ce verrou — et change les défis futurs : à assumer explicitement.
+  ok(dailyPuzzle("2026-09-09").grid === "010003046400060003009000120100030000000216000000070005057000200300080009290300050"
+    && dailyPuzzle("2026-09-12").grid === "190000000050000200400902508070010300080409020003070080304701002009000030000000046",
+    "défis 2026-09-09 (niveau 3) et 2026-09-12 (niveau 4) identiques à 2.3.1");
 
   // Niveau par jour de semaine [2,2,3,3,3,4,4] (lun→dim), calculé en UTC :
   // relire "YYYY-MM-DD" via getDay() local décalerait d'un jour selon le fuseau.

@@ -26,18 +26,27 @@ function normalizeRemovals(removals) {
   return out;
 }
 
-/* Plan du coach (kind "ok") → une étape par maillon de la chaîne (cells du
-   describeElim + removals du rawChain), puis une étape conclusion sur la zone
-   du single. null si la chaîne est vide : la conclusion s'affiche directement. */
+/* Plan du coach (kind "ok") → pour chaque maillon de la chaîne : une étape
+   par lien (`links[k]` : cases du lien, aucun strike — X-Chain, XY-Chain,
+   AIC, les deux temps d'ALS-XZ…), puis l'étape du descripteur (cells du
+   describeElim + removals du rawChain), enfin une étape conclusion sur la
+   zone du single. chainIx/linkIx disent à l'UI quel texte révéler
+   (linkIx null = le texte de synthèse du maillon). null si la chaîne est
+   vide : la conclusion s'affiche directement. */
 export function planStepScript(plan) {
   if (!plan || plan.kind !== "ok" || !Array.isArray(plan.chain) || !plan.chain.length) return null;
   const raw = plan.rawChain || [];
-  const steps = plan.chain.map((s, i) => ({
-    cells: s.cells || [],
-    strikes: normalizeRemovals(raw[i] && raw[i].removals),
-    conclusion: false,
-  }));
-  steps.push({ cells: plan.unitCells || [], strikes: {}, conclusion: true });
+  const steps = [];
+  plan.chain.forEach((s, i) => {
+    (Array.isArray(s.links) ? s.links : []).forEach((l, k) => {
+      steps.push({ chainIx: i, linkIx: k, cells: l.cells || [], strikes: {}, conclusion: false });
+    });
+    steps.push({
+      chainIx: i, linkIx: null, cells: s.cells || [],
+      strikes: normalizeRemovals(raw[i] && raw[i].removals), conclusion: false,
+    });
+  });
+  steps.push({ chainIx: null, linkIx: null, cells: plan.unitCells || [], strikes: {}, conclusion: true });
   return steps;
 }
 

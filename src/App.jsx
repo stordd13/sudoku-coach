@@ -1630,6 +1630,7 @@ export default function App() {
   const coachScript = useMemo(() => planStepScript(plan), [plan]);
   const coachDone = level >= 2 && (!coachScript || coachStep === "all"
     || (typeof coachStep === "number" && coachStep >= coachScript.length - 1));
+  const coachCur = coachScript && typeof coachStep === "number" ? coachScript[coachStep] : null;
   const planHL = useMemo(() => {
     const res = { unit: new Set(), chain: new Set(), target: null };
     if (!plan) return res;
@@ -1637,13 +1638,13 @@ export default function App() {
     if (plan.kind === "ok") {
       if (level >= 1 && plan.unitCells) plan.unitCells.forEach((c) => res.unit.add(c));
       if (level >= 2 && plan.chain) {
-        const cur = coachScript && typeof coachStep === "number" ? coachScript[coachStep] : null;
+        const cur = coachCur;
         if (cur && !cur.conclusion) (cur.cells || []).forEach((c) => res.chain.add(c));
         else if (!cur) plan.chain.forEach((s) => (s.cells || []).forEach((c) => res.chain.add(c)));
       }
     }
     return res;
-  }, [plan, level, coachScript, coachStep]);
+  }, [plan, level, coachCur]);
 
   function cellStyle(i) {
     const r = rowOf(i), c = colOf(i);
@@ -2245,32 +2246,44 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                   {level >= 1 && plan.hint2 ? <p style={pStyle}><Rich text={plan.hint2} /></p> : null}
                   {level >= 2 && (
                     <>
-                      {(typeof coachStep === "number"
-                        ? plan.chain.slice(0, coachStep + 1)
+                      {/* Révélation pas à pas : coachCur = étape courante du script
+                          (chainIx = maillon affiché, linkIx = lien en cours ; null =
+                          texte de synthèse du maillon). Les liens d'une chaîne se
+                          dévoilent un par un, chacun surligné sur la grille. */}
+                      {(coachCur && coachCur.chainIx !== null
+                        ? plan.chain.slice(0, coachCur.chainIx + 1)
                         : plan.chain
-                      ).map((s, ixx, arr) => (
-                        <div key={ixx} style={{
-                          border: `1px solid ${!coachDone && ixx === arr.length - 1 ? C.teal : C.hintBorder}`,
-                          background: C.hintBg,
-                          borderRadius: 10, padding: "8px 10px",
-                        }}>
-                          <div style={{
-                            fontSize: 11, fontWeight: 800, letterSpacing: ".06em",
-                            textTransform: "uppercase", color: C.hintInk,
+                      ).map((s, ixx, arr) => {
+                        const current = !!coachCur && coachCur.chainIx === ixx;
+                        const links = Array.isArray(s.links) ? s.links : [];
+                        const shownLinks = current && coachCur.linkIx !== null ? links.slice(0, coachCur.linkIx + 1) : links;
+                        const showText = !current || coachCur.linkIx === null;
+                        return (
+                          <div key={ixx} style={{
+                            border: `1px solid ${!coachDone && ixx === arr.length - 1 ? C.teal : C.hintBorder}`,
+                            background: C.hintBg,
+                            borderRadius: 10, padding: "8px 10px",
                           }}>
-                            {t("coach.stepTitle", { n: ixx + 1, title: s.title })}
+                            <div style={{
+                              fontSize: 11, fontWeight: 800, letterSpacing: ".06em",
+                              textTransform: "uppercase", color: C.hintInk,
+                            }}>
+                              {t("coach.stepTitle", { n: ixx + 1, title: s.title })}
+                            </div>
+                            {/* Chaînes : un maillon par ligne, révélés un à un. */}
+                            {shownLinks.length > 0 && (
+                              <ol style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.45 }}>
+                                {shownLinks.map((l, k) => <li key={k}><Rich text={l.text} /></li>)}
+                              </ol>
+                            )}
+                            {showText && (
+                              <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.5 }}>
+                                <Rich text={s.text} />
+                              </div>
+                            )}
                           </div>
-                          <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.5 }}>
-                            <Rich text={s.text} />
-                          </div>
-                          {/* Chaînes (X-Chain, XY-Chain) : un maillon par ligne. */}
-                          {Array.isArray(s.links) && s.links.length > 0 && (
-                            <ol style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.45 }}>
-                              {s.links.map((l, k) => <li key={k}><Rich text={l.text} /></li>)}
-                            </ol>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                       {!coachDone && coachScript && (
                         <Stepper n={coachStep + 1} total={coachScript.length}
                           onNext={() => setCoachStep(coachStep + 1)} onAll={() => setCoachStep("all")} />
