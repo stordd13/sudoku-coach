@@ -20,6 +20,7 @@ import { notationFor } from "./notation.js";
 import { lessonStepScript, planStepScript, exerciseStepScript, stepReveal } from "./stepper.js";
 import { lookupTerm, glossaryList } from "./glossary.js";
 import { cellAriaLabel } from "./a11y.js";
+import { trackEvent, durationBucket, hintsBucket, streakBucket, wallKind } from "./analytics.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
    Les hex vivent dans theme.js (C_LIGHT/C_DARK) ; ici chaque clé devient une
@@ -327,6 +328,7 @@ function PaywallCard({ onUnlocked }) {
   const [offer, setOffer] = useState(null); // null = chargement | false = indisponible | { price, pkg }
   const [busy, setBusy] = useState(null); // null | "buy" | "restore"
   const [note, setNote] = useState(null);
+  useEffect(() => { trackEvent("paywall_shown"); }, []); // web : jamais envoyé (natif = no-op), stub du schéma
   useEffect(() => {
     let alive = true;
     getOffer().then((o) => { if (alive) setOffer(o || false); });
@@ -484,7 +486,7 @@ function LearnView({ ix, onSelectIx }) {
   const LT = lessonText(L, getLang());
   const isExo = exo !== null && typeof exo === "object";
   const revealed = stepIx !== null;
-  useEffect(() => { setStepIx(null); setShowHint(false); setExo(null); }, [ix]);
+  useEffect(() => { setStepIx(null); setShowHint(false); setExo(null); trackEvent("lesson_viewed", { num: String(L.num) }); }, [ix]);
 
   const script = useMemo(
     () => (isExo ? exerciseStepScript(exo) : lessonStepScript(L)),
@@ -516,6 +518,7 @@ function LearnView({ ix, onSelectIx }) {
 
   function newExercise() {
     const kind = KIND_BY_LESSON[L.id];
+    trackEvent("exercise_started", { kind });
     setStepIx(null); setShowHint(false);
     const cache = loadExoCache();
     const list = cache[kind] || [];
@@ -819,6 +822,7 @@ export default function App() {
   const segStartRef = useRef(null); // timestamp du segment de chrono ouvert (jamais persisté)
   const elapsedRef = useRef(0); // total en secondes — source de vérité, lue à la victoire
   const fileRef = useRef(null);
+  const lockOriginRef = useRef("manual"); // origine de la prochaine grille verrouillée : "scan" | "manual" (analytics)
   const panelRef = useRef(null);
   const msgTimer = useRef(null);
   const errTimer = useRef(null);
@@ -976,6 +980,7 @@ export default function App() {
         setGameOrigin(null);
         resetClock();
         bumpStats((s) => recordStart(s, levelKey(p.level)));
+        trackEvent("game_started", { level: levelKey(p.level), origin: "generated" });
         histRef.current = [];
         if (p.level === lvl) flash(t("flash.newGrid", { name: levelName(p.level) }), "success");
         else flash(t("flash.fallbackGrid", { want: levelName(lvl), got: levelName(p.level) }), "warn");
@@ -1016,6 +1021,7 @@ export default function App() {
         setGameOrigin({ type: "daily", date: today });
         resetClock();
         bumpStats((s) => recordStart(s, levelKey(p.level)));
+        trackEvent("game_started", { level: levelKey(p.level), origin: "daily" });
         histRef.current = [];
         if (p.level === p.targetLevel) flash(t("flash.dailyStart", { date: fmtDailyDate(today), name: levelName(p.level) }), "success");
         else flash(t("flash.dailyFallback", { want: levelName(p.targetLevel), got: levelName(p.level) }), "warn");
@@ -1033,6 +1039,8 @@ export default function App() {
     setGameOrigin(null);
     resetClock();
     bumpStats((s) => recordStart(s, "custom"));
+    trackEvent("game_started", { level: "custom", origin: lockOriginRef.current });
+    lockOriginRef.current = "manual";
     histRef.current = [];
     setPlan(null); setNoteMode(false); resetNotationCue();
     if (multi) flash(t("flash.lockedMulti"), "warn");
@@ -1134,6 +1142,7 @@ export default function App() {
     if (p && (!solRef || multiSol || p.digit === solRef[target])) { setPlan(p); setLevel(0); setCoachStep(null); setHintsUsed((h) => h + 1); }
     else {
       const kind = stuckPlanFor(false);
+      if (wallKind(kind)) trackEvent("wall_hit", { level: levelKey(gameLevel), kind: wallKind(kind) });
       if (kind === "wrong-digit") setPlan({ kind: "stuckError" });
       else if (kind === "multi-sol") setPlan({ kind: "stuckMulti", target });
       else setPlan({ kind: "stuck", target }); // grille unique : panneau par case inchangé
@@ -1162,6 +1171,7 @@ export default function App() {
     const p = found && (!solRef || multiSol || found.digit === solRef[found.target]) ? found : null;
     if (!p) {
       const kind = stuckPlanFor(false);
+      if (wallKind(kind)) trackEvent("wall_hit", { level: levelKey(gameLevel), kind: wallKind(kind) });
       setPlan({ kind: { "wrong-digit": "stuckError", "multi-sol": "stuckMulti", "beyond-coach": "stuckAll" }[kind] });
       setLevel(0); setCoachStep(null);
       return;
@@ -1336,6 +1346,7 @@ export default function App() {
   }
   function openScan() {
     if (scansLeft <= 0) {
+      trackEvent("scan_used", { result: "quota" });
       flash(isNative() ? t("flash.scansOutNative") : t("flash.scansOutWeb"), "info");
       return;
     }
@@ -1375,6 +1386,7 @@ export default function App() {
   async function processScan(srcUrl, cleanup) {
     if (offline()) {
       if (cleanup) cleanup();
+      trackEvent("scan_used", { result: "error" });
       flash(t("flash.offline"), "warn");
       return;
     }
@@ -1392,17 +1404,19 @@ export default function App() {
         // Zéro changement serveur : l'UI traduit par code de statut, le texte
         // du serveur (FR) part en console pour le debug.
         if (data && data.error) console.warn("api/ocr:", res.status, data.error);
+        trackEvent("scan_used", { result: res.status === 429 ? "limit" : "error" });
         flash(res.status === 429 ? t("flash.scanLimit") : t("flash.scanServerError"), "warn");
         return;
       }
       const s = String(data.grid || "").replace(/[^0-9]/g, "");
-      if (s.length !== 81) { flash(t("flash.scanBadFormat"), "warn"); return; }
+      if (s.length !== 81) { trackEvent("scan_used", { result: "error" }); flash(t("flash.scanBadFormat"), "warn"); return; }
       const ng = s.split("").map(Number);
       const filledCount = ng.filter((v) => v).length;
       pushHist();
       setGrid(ng);
       setNotes(Array.from({ length: 81 }, () => []));
       setGivens(Array(81).fill(false));
+      lockOriginRef.current = "scan";
       setPhase("edit"); setSolRef(null); setMultiSol(false); setMultiSolPrompt(false); setPlan(null); setSel(null); setGameLevel(null);
       resetNotationCue();
       if (!unlimited) {
@@ -1410,8 +1424,10 @@ export default function App() {
         persist(KEYS.scans, used);
         setScansUsed(used);
       }
+      trackEvent("scan_used", { result: "ok" });
       flash(t("flash.scanOk", { n: filledCount }), "success");
     } catch (err) {
+      trackEvent("scan_used", { result: "error" });
       // Réseau tombé pendant l'appel : ne pas accuser la photo à tort.
       if (offline()) {
         flash(t("flash.offline"), "warn");
@@ -1597,6 +1613,7 @@ export default function App() {
     wonHandledRef.current = true;
     const seconds = addSegment(elapsedRef.current, segStartRef.current, Date.now());
     bumpStats((s) => recordWin(s, { levelKey: levelKey(gameLevel), seconds, hints: hintsUsed, assisted }));
+    trackEvent("game_won", { level: levelKey(gameLevel), duration: durationBucket(seconds), hints: hintsBucket(hintsUsed), assisted: assisted ? "1" : "0" });
     if (gameOrigin && gameOrigin.type === "daily" && !dailyDone[gameOrigin.date]) {
       // Fusionner le `done` RELU du store (pas seulement l'état React, hydraté
       // au boot) : un autre onglet a pu enregistrer des réussites entre-temps —
@@ -1606,6 +1623,7 @@ export default function App() {
       setDailyDone(nextDone);
       persist(KEYS.daily, { ...store, done: nextDone });
       const streak = currentStreak(nextDone, localDateStr());
+      trackEvent("daily_done", { streak: streakBucket(streak) });
       flash(streak > 1 ? t("flash.dailyStreak", { n: streak }) : t("flash.dailyDone"), "success", 7000);
     }
   }, [won, gameOrigin, dailyDone, gameLevel, hintsUsed, assisted]);
