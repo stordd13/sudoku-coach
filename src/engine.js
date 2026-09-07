@@ -933,15 +933,22 @@ function describeElimFr(e) {
   }
   if (e.kind === "aic") {
     const s0 = cellName(e.ends[0]), s1 = cellName(e.ends[1]);
+    // Nœud simple : « L3C7 » ; nœud groupé (2-3 cases d'une intersection) :
+    // « L3C1 ou L3C2 » (affirmé) / « ni L3C1 ni L3C2 » (nié).
+    const grp = (n) => n.cell === null;
+    const orList = (n) => n.cells.map(cellName).join(" ou ");
+    const neither = (n) => `ni ${n.cells.map(cellName).join(" ni ")}`;
+    const isD = (n, d) => (grp(n) ? `le ${d} est dans ${orList(n)}` : `${cellName(n.cell)} est un ${d}`);
+    const isNotD = (n, d) => (grp(n) ? `${neither(n)} n’est un ${d}` : `${cellName(n.cell)} n’est pas un ${d}`);
     const links = e.links.map((l) => ({
-      cells: l.from.cell === l.to.cell ? [l.from.cell] : [l.from.cell, l.to.cell],
+      cells: l.from.cell !== null && l.from.cell === l.to.cell ? [l.from.cell] : [...l.from.cells, ...l.to.cells],
       text: l.strong
         ? (l.via === "cell"
           ? `Si ${cellName(l.from.cell)} n’est pas un ${l.from.digit}, alors elle vaut ${l.to.digit} : elle n’a que ces deux candidats.`
-          : `Si ${cellName(l.from.cell)} n’est pas un ${l.from.digit}, alors ${cellName(l.to.cell)} est un ${l.to.digit} : dans ${unitLabel(l.via)}, le ${l.to.digit} n’a que ces deux places.`)
+          : `Si ${isNotD(l.from, l.from.digit)}, alors ${isD(l.to, l.to.digit)} : dans ${unitLabel(l.via)}, le ${l.to.digit} n’a pas d’autre place.`)
         : (l.via === "cell"
           ? `Si ${cellName(l.from.cell)} est un ${l.from.digit}, alors elle n’est pas un ${l.to.digit}.`
-          : `Si ${cellName(l.from.cell)} est un ${l.from.digit}, alors ${cellName(l.to.cell)} n’en est pas un : elles se voient.`),
+          : `Si ${isD(l.from, l.from.digit)}, alors ${isNotD(l.to, l.to.digit)} : elles se voient.`),
     }));
     const intro = `Suis une [[chaîne]] de ${e.cells.length} cases, de **${s0}** à **${s1}** : [[liens forts]] et [[liens faibles]] alternent sur plusieurs chiffres, c’est une [[AIC]].`;
     if (e.type === 1) {
@@ -1171,15 +1178,20 @@ function describeElimEn(e) {
   }
   if (e.kind === "aic") {
     const s0 = cn(e.ends[0]), s1 = cn(e.ends[1]);
+    const grp = (n) => n.cell === null;
+    const orList = (n) => n.cells.map(cn).join(" or ");
+    const neither = (n) => `neither ${n.cells.map(cn).join(" nor ")}`;
+    const isD = (n, d) => (grp(n) ? `the ${d} is in ${orList(n)}` : `${cn(n.cell)} is a ${d}`);
+    const isNotD = (n, d) => (grp(n) ? `${neither(n)} is a ${d}` : `${cn(n.cell)} is not a ${d}`);
     const links = e.links.map((l) => ({
-      cells: l.from.cell === l.to.cell ? [l.from.cell] : [l.from.cell, l.to.cell],
+      cells: l.from.cell !== null && l.from.cell === l.to.cell ? [l.from.cell] : [...l.from.cells, ...l.to.cells],
       text: l.strong
         ? (l.via === "cell"
           ? `If ${cn(l.from.cell)} is not a ${l.from.digit}, then it is a ${l.to.digit}: it has only those two candidates.`
-          : `If ${cn(l.from.cell)} is not a ${l.from.digit}, then ${cn(l.to.cell)} is a ${l.to.digit}: in ${uL(l.via)}, the ${l.to.digit} has only those two places.`)
+          : `If ${isNotD(l.from, l.from.digit)}, then ${isD(l.to, l.to.digit)}: in ${uL(l.via)}, the ${l.to.digit} has no other place.`)
         : (l.via === "cell"
           ? `If ${cn(l.from.cell)} is a ${l.from.digit}, then it is not a ${l.to.digit}.`
-          : `If ${cn(l.from.cell)} is a ${l.from.digit}, then ${cn(l.to.cell)} is not: they see each other.`),
+          : `If ${isD(l.from, l.from.digit)}, then ${isNotD(l.to, l.to.digit)}: they see each other.`),
     }));
     const intro = `Follow a [[chain]] of ${e.cells.length} cells, from **${s0}** to **${s1}**: [[strong links]] and [[weak links]] alternate over several digits, this is an [[AIC]].`;
     if (e.type === 1) {

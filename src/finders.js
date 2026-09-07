@@ -401,7 +401,8 @@ export function findBug1E(cands, prefer) {
 }
 
 /* ---------- A7. AIC — chaîne d'inférence alternée (palier B, v2.4) ----------
-   Nœud = (case, chiffre). Lien FORT (« si l'un est faux, l'autre est vrai ») :
+   Nœud = (case, chiffre) — ou (groupe de cases, chiffre), voir plus bas.
+   Lien FORT (« si l'un est faux, l'autre est vrai ») :
    bivalue (case ≠ x ⇒ case = y, via "cell") ou chiffre bilocalisé dans une
    unité (A ≠ d ⇒ B = d, via = l'unité). Lien FAIBLE (« si l'un est vrai,
    l'autre est faux ») : même case (case = x ⇒ case ≠ y, via "cell") ou deux
@@ -421,46 +422,84 @@ export function findBug1E(cands, prefer) {
    échec sur la même carte, aucun filtrage n'est nécessaire. */
 const MAX_AIC_LINKS = 9;
 const AIC_BUDGET = 200000;
+/* Liens groupés (décidés par le banc v2.4 : +4 points « sans mur » sur les
+   157 grilles, 55 → 59 %) : un nœud peut être un GROUPE de 2-3 cases d'un
+   même chiffre dans une intersection bloc∩ligne. Lien fort groupe↔case ou
+   groupe↔groupe quand les places du chiffre dans une unité se partagent
+   exactement en deux morceaux (ligne → par bloc ; bloc → par ligne, puis par
+   colonne) ; lien faible quand toutes les cases d'un nœud voient toutes
+   celles de l'autre. Les extrémités restent des cases simples. */
 const nid = (cell, d) => cell * 10 + d;
 export function findAicE(cands, prefer) {
+  // Registre des nœuds : id → { id, cells, digit, cell (case simple ou null) }.
+  const nodes = new Map();
+  const nodeOf = (cells, d) => {
+    const id = cells.length === 1 ? nid(cells[0], d) : `g:${cells.join("-")}:${d}`;
+    if (!nodes.has(id)) nodes.set(id, { id, cells: cells.slice().sort(asc), digit: d, cell: cells.length === 1 ? cells[0] : null });
+    return nodes.get(id);
+  };
   const strong = new Map();
-  const addStrong = (a, da, b, db, via) => {
-    const k = nid(a, da);
-    if (!strong.has(k)) strong.set(k, []);
-    const list = strong.get(k);
-    if (list.some((t) => t.cell === b && t.digit === db)) return; // paire bilocale en ligne ET bloc : première unité
-    list.push({ cell: b, digit: db, via });
+  const addStrong = (a, b, via) => {
+    if (!strong.has(a.id)) strong.set(a.id, []);
+    const list = strong.get(a.id);
+    if (list.some((t) => t.node === b)) return; // paire bilocale en ligne ET bloc : première unité
+    list.push({ node: b, via });
   };
   for (let i = 0; i < 81; i++) {
     if (cands[i].size !== 2) continue;
     const [x, y] = [...cands[i]].sort(asc);
-    addStrong(i, x, i, y, "cell"); addStrong(i, y, i, x, "cell");
+    const nx = nodeOf([i], x), ny = nodeOf([i], y);
+    addStrong(nx, ny, "cell"); addStrong(ny, nx, "cell");
   }
   for (const u of UNITS) {
     for (let d = 1; d <= 9; d++) {
       const pos = u.cells.filter((i) => cands[i].has(d));
-      if (pos.length === 2) { addStrong(pos[0], d, pos[1], d, u); addStrong(pos[1], d, pos[0], d, u); }
+      if (pos.length === 2) {
+        const a = nodeOf([pos[0]], d), b = nodeOf([pos[1]], d);
+        addStrong(a, b, u); addStrong(b, a, u);
+      } else if (pos.length >= 3 && pos.length <= 6) {
+        // Partition des places par intersection croisée : ligne → par bloc ;
+        // bloc → par ligne, puis par colonne. Exactement deux morceaux → lien fort.
+        const splits = u.type === "box" ? [rowOf, colOf] : [boxOf];
+        for (const key of splits) {
+          const parts = new Map();
+          for (const c of pos) { const k = key(c); if (!parts.has(k)) parts.set(k, []); parts.get(k).push(c); }
+          if (parts.size !== 2) continue;
+          const [pa, pb] = [...parts.values()];
+          const a = nodeOf(pa, d), b = nodeOf(pb, d);
+          addStrong(a, b, u); addStrong(b, a, u);
+        }
+      }
     }
   }
   if (!strong.size) return null;
-  const nodes = [...strong.keys()].sort(asc);
-  for (const k of nodes) strong.get(k).sort((p, q) => nid(p.cell, p.digit) - nid(q.cell, q.digit));
+  const rank = (n) => (n.cell !== null ? nid(n.cell, n.digit) : 1000 + n.cells[0] * 10 + n.digit + n.cells.length * 0.001);
+  for (const list of strong.values()) list.sort((p, q) => rank(p.node) - rank(q.node));
+  const starts = [...nodes.values()].filter((n) => n.cell !== null && strong.has(n.id)).sort((p, q) => rank(p) - rank(q));
+  const byDigit = Array.from({ length: 10 }, () => []);
+  for (const n of nodes.values()) if (strong.has(n.id)) byDigit[n.digit].push(n);
+  for (const l of byDigit) l.sort((p, q) => rank(p) - rank(q));
+  const seesAll = (A, B) => A.cells.every((a) => B.cells.every((b) => a !== b && sees(a, b)));
   const weakMemo = new Map();
-  const weak = (cell, d) => {
-    const k = nid(cell, d);
-    if (weakMemo.has(k)) return weakMemo.get(k);
+  const weak = (node) => {
+    if (weakMemo.has(node.id)) return weakMemo.get(node.id);
     const out = [];
-    for (const x of [...cands[cell]].sort(asc)) if (x !== d && strong.has(nid(cell, x))) out.push({ cell, digit: x, via: "cell" });
-    for (const p of [...PEERS[cell]].sort(asc)) if (cands[p].has(d) && strong.has(nid(p, d))) out.push({ cell: p, digit: d, via: "peer" });
-    weakMemo.set(k, out);
+    if (node.cell !== null) {
+      for (const x of [...cands[node.cell]].sort(asc)) {
+        if (x !== node.digit && strong.has(nid(node.cell, x))) out.push({ node: nodeOf([node.cell], x), via: "cell" });
+      }
+    }
+    for (const other of byDigit[node.digit]) if (other !== node && seesAll(node, other)) out.push({ node: other, via: "peer" });
+    weakMemo.set(node.id, out);
     return out;
   };
   let exp = 0, found = null;
   const path = [], links = [], used = new Set();
   const leaf = () => {
     const s = path[0], e = path[path.length - 1];
+    if (e.cell === null) return false; // extrémités simples seulement
     const chainCells = [];
-    for (const n of path) if (!chainCells.includes(n.cell)) chainCells.push(n.cell);
+    for (const n of path) for (const c of n.cells) if (!chainCells.includes(c)) chainCells.push(c);
     let removals = [], type;
     if (s.digit === e.digit) {
       type = 1;
@@ -476,9 +515,10 @@ export function findAicE(cands, prefer) {
     if (!accept(removals, prefer)) return false;
     const linkUnits = [];
     for (const l of links) if (l.strong && l.via !== "cell" && !linkUnits.includes(l.via)) linkUnits.push(l.via);
+    const pub = (n) => ({ cell: n.cell, cells: n.cells.slice(), digit: n.digit });
     found = {
-      kind: "aic", type, chain: path.map((n) => ({ ...n })), links: links.map((l) => ({ ...l })), linkUnits,
-      ends: [s.cell, e.cell], cells: chainCells,
+      kind: "aic", type, chain: path.map(pub), links: links.map((l) => ({ from: pub(l.from), to: pub(l.to), strong: l.strong, via: l.via })),
+      linkUnits, ends: [s.cell, e.cell], cells: chainCells,
       digits: type === 1 ? [s.digit] : [s.digit, e.digit].sort(asc), removals,
     };
     if (type === 1) found.z = s.digit; else { found.x = s.digit; found.y = e.digit; }
@@ -488,25 +528,25 @@ export function findAicE(cands, prefer) {
     if (++exp > AIC_BUDGET) throw AIC_BUDGET;
     const cur = path[path.length - 1];
     if (path.length - 1 === L) return leaf();
-    const nbrs = on ? weak(cur.cell, cur.digit) : strong.get(nid(cur.cell, cur.digit));
-    for (const nb of nbrs) {
-      const moved = nb.cell !== cur.cell;
-      if (moved && used.has(nb.cell)) continue;
+    const nbrs = on ? weak(cur) : strong.get(cur.id);
+    for (const { node: nb, via } of nbrs) {
+      const moved = nb.cell === null || cur.cell === null || nb.cell !== cur.cell;
+      if (moved && nb.cells.some((c) => used.has(c))) continue;
       if (!moved && path.length >= 2 && path[path.length - 2].cell === nb.cell) continue; // 3e nœud dans la case
-      if (moved) used.add(cur.cell);
-      path.push({ cell: nb.cell, digit: nb.digit });
-      links.push({ from: cur, to: { cell: nb.cell, digit: nb.digit }, strong: !on, via: nb.via });
+      if (moved) for (const c of cur.cells) used.add(c);
+      path.push(nb);
+      links.push({ from: cur, to: nb, strong: !on, via });
       if (dfs(!on, L)) return true;
       links.pop(); path.pop();
-      if (moved) used.delete(cur.cell);
+      if (moved) for (const c of cur.cells) used.delete(c);
     }
     return false;
   };
   try {
     for (let L = 3; L <= MAX_AIC_LINKS; L += 2) {
-      for (const k of nodes) {
+      for (const n of starts) {
         path.length = 0; links.length = 0; used.clear();
-        path.push({ cell: Math.floor(k / 10), digit: k % 10 });
+        path.push(n);
         if (dfs(false, L)) return found;
       }
     }

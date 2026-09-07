@@ -889,6 +889,34 @@ console.log("Palier A (v2.3) :");
       "AIC type 2 : extrémités L2C2 (6) et L2C8 (4) se voient, L2C2 perd le 4");
     ok(F.aic(g, null) && JSON.stringify(F.aic(g, null)) === JSON.stringify(e), "AIC : déterministe (deux appels identiques)");
   }
+  // Liens groupés : état réel (hardest-08, 10e élimination du gradeur) où la
+  // chaîne passe par le groupe {L5C8, L5C9} sur le 4 ; négatif : un 4 de plus
+  // sur une 3e ligne du bloc éclate le groupe (trois morceaux → pas de lien).
+  {
+    const FIX = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+    const f = FIX.find((x) => x.id === "hardest-08");
+    const grid = f.grid.split("").map((ch) => (ch === "." ? 0 : Number(ch)));
+    const { solution } = solveGrid(grid);
+    let state = null;
+    solveHumanlySteps(grid, (st) => {
+      if (st.type === "elim" && st.e.kind === "aic" && st.e.chain.some((n) => n.cell === null)) state = st.cands.map((a) => new Set(a));
+      return !!state;
+    }, 5);
+    const e = state && F.aic(state, null);
+    const grp = e && e.chain.find((n) => n.cell === null);
+    ok(!!grp && grp.cells.join() === "43,44" && grp.digit === 4 && e.type === 1 && e.z === 6 && hit(e, 55, 6)
+      && e.chain[0].cell === 37 && e.chain[e.chain.length - 1].cell === 60,
+      "AIC groupée (hardest-08) : L5C2 → {L5C8, L5C9} → L6C7 → L7C7 sur 4 puis 6, L7C2 perd le 6");
+    ok(e && e.removals.every((r) => !r.digits.includes(solution[r.cell])) && e.links.some((l) => l.strong && l.from.cell === null && l.via.type === "box")
+      && e.links.some((l) => !l.strong && l.to.cell === null && l.via === "peer"),
+      "AIC groupée : lien faible case→groupe (même ligne), lien fort groupe→case lu dans le bloc, élimination compatible avec la solution");
+    ok(e && e.chain.every((n) => n.cell !== null || (n.cells.length >= 2 && n.cells.length <= 3)) && e.ends.every((c) => typeof c === "number"),
+      "AIC groupée : groupes de 2-3 cases, extrémités simples");
+    const n = state.map((x) => new Set(x)); n[idx(3, 6)] = new Set([...n[idx(3, 6)], 4]);
+    const e2 = F.aic(n, null);
+    ok(!e2 || !e2.chain.some((x) => x.cell === null && x.cells.join() === "43,44"),
+      "négatif : un 4 de plus en L4C7 éclate le groupe {L5C8, L5C9} du bloc (trois lignes) → plus de lien groupé");
+  }
   ok(TECH_TIER.aic === 5 && TECH_TIER.alsXz === 5, "AIC et ALS-XZ : palier 5");
   {
     const order = Object.keys(F);
@@ -1614,7 +1642,13 @@ console.log("Lint de lisibilité (charte 3c) :");
     const g = emptyC();
     g[ix(0, 0)] = S(2, 6, 9); g[ix(1, 1)] = S(4, 6, 7); g[ix(1, 7)] = S(4, 8, 9); g[ix(6, 7)] = S(4, 6); g[ix(6, 0)] = S(5, 6);
     const g2 = g.map((x) => new Set(x)); g2[ix(1, 4)] = S(1, 4);
-    const STATES = [["aic type 1", "aic", g], ["aic type 2", "aic", g2]];
+    const FIX = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+    let grouped = null;
+    solveHumanlySteps(FIX.find((x) => x.id === "hardest-08").grid.split("").map((ch) => (ch === "." ? 0 : Number(ch))), (st) => {
+      if (st.type === "elim" && st.e.kind === "aic" && st.e.chain.some((n) => n.cell === null)) grouped = st.cands.map((a) => new Set(a));
+      return !!grouped;
+    }, 5);
+    const STATES = [["aic type 1", "aic", g], ["aic type 2", "aic", g2], ["aic groupée", "aic", grouped]];
     for (const [label, kind, cands] of STATES) {
       if (typeof ELIM_FINDER_BY_KIND[kind] !== "function") continue;
       const e = ELIM_FINDER_BY_KIND[kind](cands, null);
