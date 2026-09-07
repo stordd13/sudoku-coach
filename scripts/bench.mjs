@@ -54,6 +54,7 @@ console.log(`Banc de grilles dures${QUICK ? " (rapide)" : ""} : ${entries.length
   console.log(`  ℹ ${N_GEN} grilles générées en ${Date.now() - tg} ms`);
 }
 
+const TIER5_STATES = []; // états (grilles) où 👣 a mobilisé le palier 5 — mesure worker
 /* ---------- Mesure d'une grille ---------- */
 function measure(f) {
   const g = parse(f.grid);
@@ -83,7 +84,7 @@ function measure(f) {
     hintMs.push(ms);
     if (!p) break;
     // Appuis de palier 5 : le plan mobilise une technique de tier 5 (cible v2.4 : p95 < 800 ms).
-    if (p.chainKinds.some((k) => TECH_TIER[k] === 5)) tier5Ms.push(ms);
+    if (p.chainKinds.some((k) => TECH_TIER[k] === 5)) { tier5Ms.push(ms); if (TIER5_STATES.length < 40) TIER5_STATES.push(w.slice()); }
     for (const k of p.chainKinds) if (k in bKinds) bKinds[k]++;
     if (p.digit !== solution[p.target]) mismatches++;
     w[p.target] = p.digit;
@@ -150,6 +151,25 @@ console.log(`  ℹ 🎯 buildPlan (échantillon, ${allAim.length} appels) : p50 
   const aic = valid.reduce((n, r) => n + r.bKinds.aic, 0), als = valid.reduce((n, r) => n + r.bKinds.alsXz, 0);
   console.log(`  ℹ 👣 sur les appuis de palier 5 (${t5.length}) : p50 ${quantile(t5, 0.5).toFixed(1)} ms · p95 ${quantile(t5, 0.95).toFixed(1)} ms · max ${maxOf(t5).toFixed(1)} ms (cible indicative p95 < 800 ms)`);
   console.log(`  ℹ palier B mobilisé par le chemin joueur : AIC ${aic} fois, ALS-XZ ${als} fois`);
+}
+// Avec / sans worker : sur les états de palier 5, aller-retour par
+// node:worker_threads (même répartiteur que le Web Worker) contre appel direct.
+if (TIER5_STATES.length) {
+  const { Worker } = await import("node:worker_threads");
+  const { handleRequest } = await import("../src/coachWorker.js");
+  const wk = new Worker(
+    `import { parentPort } from "node:worker_threads"; import { handleRequest } from ${JSON.stringify(new URL("../src/coachWorker.js", import.meta.url).href)}; parentPort.on("message", (m) => parentPort.postMessage(handleRequest(m)));`,
+    { eval: true, type: "module" },
+  );
+  const ask = (g) => new Promise((res) => { wk.once("message", res); wk.postMessage({ id: 1, fn: "nextStep", args: [g, "fr", {}] }); });
+  await ask(TIER5_STATES[0]); // échauffement (chargement du module)
+  const direct = [], viaWorker = [];
+  for (const g of TIER5_STATES) {
+    const t0 = performance.now(); handleRequest({ id: 1, fn: "nextStep", args: [g, "fr", {}] }); direct.push(performance.now() - t0);
+    const t1 = performance.now(); await ask(g); viaWorker.push(performance.now() - t1);
+  }
+  await wk.terminate();
+  console.log(`  ℹ 👣 palier 5, ${TIER5_STATES.length} états — sans worker : p50 ${quantile(direct, 0.5).toFixed(1)} ms · p95 ${quantile(direct, 0.95).toFixed(1)} ms ; avec worker (aller-retour) : p50 ${quantile(viaWorker, 0.5).toFixed(1)} ms · p95 ${quantile(viaWorker, 0.95).toFixed(1)} ms`);
 }
 const walls = valid.filter((r) => !r.solved);
 if (walls.length) {

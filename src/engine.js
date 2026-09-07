@@ -1598,7 +1598,11 @@ const MAX_CHAIN_ALL = 3 * MAX_CHAIN;
 const chainCost = (chain) => chain.reduce((n, e) => n + (CHAIN_FREE_KINDS.has(e.kind) ? 0 : 1), 0);
 const chainExhausted = (chain) => chain.length >= MAX_CHAIN_ALL || chainCost(chain) >= MAX_CHAIN;
 
-export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } = {}) {
+/* maxTier (v2.4, worker) : plafond de palier de la recherche. Un appel à
+   maxTier 4 qui rend null, suivi d'un appel complet, donne exactement le
+   résultat de l'appel complet direct (le préfixe des paliers ≤ 4 est rejoué
+   et échoue de nouveau) — coachClient.js s'appuie sur cette identité. */
+export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true, maxTier = 5 } = {}) {
   if (grid[target] !== 0) return null;
   const opts = { allowUniqueness };
   const baseCands = candidatesFromGrid(grid, target);
@@ -1606,7 +1610,7 @@ export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } 
   // Recherche par paliers : une preuve SIMPLE vaut mieux qu'une preuve COURTE.
   // On retente la recherche complète avec un plafond de technique croissant ;
   // la première preuve aboutie est donc celle du palier minimal nécessaire.
-  for (const maxTier of [2, 3, 4, 5]) {
+  for (const cap of [2, 3, 4, 5].filter((t) => t <= maxTier)) {
     const cands = allCands(grid);
     const chain = [];
     // MAX_CHAIN_ALL+1 itérations : la dernière teste le single créé par la dernière élim.
@@ -1628,7 +1632,7 @@ export function buildPlan(grid, target, lang = "fr", { allowUniqueness = true } 
         return tagPlan(plan, "hiddenSingle", kept, unitLabel(hs.unit, lang));
       }
       if (chainExhausted(chain)) break; // palier suivant
-      const e = findElim(cands, prefer, maxTier, opts) || findElim(cands, null, maxTier, opts);
+      const e = findElim(cands, prefer, cap, opts) || findElim(cands, null, cap, opts);
       if (!e) break; // palier suivant
       applyElim(cands, e);
       chain.push(e); // objets bruts — describeElim n'est appelé qu'après élagage
@@ -1671,7 +1675,7 @@ function planFromSingle(grid, s, chain, lang) {
   plan.difficulty = planDifficulty(2, kept);
   return tagPlan(plan, "hiddenSingle", kept, unitLabel(s.unit, lang));
 }
-export function nextStep(grid, lang = "fr", { allowUniqueness = true } = {}) {
+export function nextStep(grid, lang = "fr", { allowUniqueness = true, maxTier = 5 } = {}) {
   const opts = { allowUniqueness };
   // Palier 1 : singles sur les candidats bruts, une passe.
   const raw = allCands(grid);
@@ -1680,7 +1684,7 @@ export function nextStep(grid, lang = "fr", { allowUniqueness = true } = {}) {
   // Paliers 2 → 5 : findElimTiered est déterministe et trié par palier, la
   // séquence au cap suivant répète le préfixe ; on repart proprement pour
   // garder « preuve simple avant preuve courte ».
-  for (const cap of [2, 3, 4, 5]) {
+  for (const cap of [2, 3, 4, 5].filter((t) => t <= maxTier)) {
     const cands = allCands(grid);
     const chain = [];
     for (let k = 0; k <= MAX_CHAIN_ALL; k++) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment, createContext, useContext } from "react";
 import {
   ROWS, COLS, BOXES, PEERS, rowOf, colOf, cellName,
-  candidatesFromGrid, conflictSet, isComplete, solveGrid, buildPlan, nextStep, stuckPanelKind, SAMPLES,
+  candidatesFromGrid, conflictSet, isComplete, solveGrid, stuckPanelKind, SAMPLES,
   snyderNotes, generatePuzzle, completedUnits,
 } from "./engine.js";
 import { dailyPuzzle, dailyLevelFor, localDateStr, monthCells, currentStreak, bestStreak } from "./daily.js";
@@ -21,6 +21,7 @@ import { lessonStepScript, planStepScript, exerciseStepScript, stepReveal } from
 import { lookupTerm, glossaryList } from "./glossary.js";
 import { cellAriaLabel } from "./a11y.js";
 import { trackEvent, durationBucket, hintsBucket, streakBucket, wallKind } from "./analytics.js";
+import { askCoach } from "./coachClient.js";
 
 /* ---------- Palette « papier quadrillé + surligneur » ----------
    Les hex vivent dans theme.js (C_LIGHT/C_DARK) ; ici chaque clé devient une
@@ -770,6 +771,7 @@ export default function App() {
   const [givens, setGivens] = useState(Array(81).fill(false));
   const [notes, setNotes] = useState(Array.from({ length: 81 }, () => []));
   const [phase, setPhase] = useState("edit"); // 'edit' | 'play'
+  const [thinking, setThinking] = useState(false); // le worker du coach réfléchit (palier 5, > 300 ms)
   const [gameLevel, setGameLevel] = useState(null); // 1-4 (grille générée) | null (scan/manuel)
   /* Origine de la partie : null (libre/scan) ou { type: "daily", date }.
      Persisté dans KEYS.save — un défi repris le lendemain garde sa réussite. */
@@ -823,6 +825,13 @@ export default function App() {
   const elapsedRef = useRef(0); // total en secondes — source de vérité, lue à la victoire
   const fileRef = useRef(null);
   const lockOriginRef = useRef("manual"); // origine de la prochaine grille verrouillée : "scan" | "manual" (analytics)
+  // Coach asynchrone (worker) : une réponse n'est appliquée que si la grille
+  // n'a pas bougé (setGrid stocke toujours un tableau neuf → égalité de
+  // référence sûre), que la partie est toujours en cours et qu'aucune demande
+  // plus récente n'a été faite.
+  const gridRef = useRef(grid); gridRef.current = grid;
+  const phaseRef = useRef(phase); phaseRef.current = phase;
+  const coachReq = useRef(0);
   const panelRef = useRef(null);
   const msgTimer = useRef(null);
   const errTimer = useRef(null);
@@ -1116,8 +1125,9 @@ export default function App() {
   }
 
   /* ----- coach : case précise / aléatoire ----- */
-  function hintForCell() {
+  async function hintForCell() {
     if (phase !== "play") { flash(t("flash.startFirst")); return; }
+    if (thinking) return;
     if (sel === null) { flash(t("flash.selectEmpty")); return; }
     const target = sel;
     if (grid[target] !== 0) {
@@ -1138,7 +1148,10 @@ export default function App() {
     }
     // Grille verrouillée par solveGrid : multiSol faux ⟺ solution unique, et
     // les techniques d'unicité (rectangle unique, BUG+1) ne valent que là.
-    const p = buildPlan(grid, target, getLang(), { allowUniqueness: !multiSol });
+    const g = grid, reqId = ++coachReq.current;
+    const p = await askCoach("buildPlan", [g, target, getLang(), { allowUniqueness: !multiSol }], { onSlow: () => setThinking(true) });
+    setThinking(false);
+    if (reqId !== coachReq.current || gridRef.current !== g || phaseRef.current !== "play") return; // périmé
     if (p && (!solRef || multiSol || p.digit === solRef[target])) { setPlan(p); setLevel(0); setCoachStep(null); setHintsUsed((h) => h + 1); }
     else {
       const kind = stuckPlanFor(false);
@@ -1158,8 +1171,9 @@ export default function App() {
       : !!solRef && grid.some((v, i) => v && !givens[i] && v !== solRef[i]);
     return stuckPanelKind({ multiSol, hasWrongDigit, anyPlan });
   }
-  function randomHint() {
+  async function randomHint() {
     if (phase !== "play") { flash(t("flash.startFirst")); return; }
+    if (thinking) return;
     const empties = [];
     grid.forEach((v, i) => { if (!v) empties.push(i); });
     if (!empties.length) { flash(t("flash.gridComplete"), "success"); return; }
@@ -1167,7 +1181,10 @@ export default function App() {
     // par case vide. multiSol : solRef n'est qu'une solution possible — si le
     // joueur en suit une autre, un plan valide peut la contredire ; on ne
     // filtre donc pas.
-    const found = nextStep(grid, getLang(), { allowUniqueness: !multiSol });
+    const g = grid, reqId = ++coachReq.current;
+    const found = await askCoach("nextStep", [g, getLang(), { allowUniqueness: !multiSol }], { onSlow: () => setThinking(true) });
+    setThinking(false);
+    if (reqId !== coachReq.current || gridRef.current !== g || phaseRef.current !== "play") return; // périmé
     const p = found && (!solRef || multiSol || found.digit === solRef[found.target]) ? found : null;
     if (!p) {
       const kind = stuckPlanFor(false);
@@ -1973,7 +1990,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                 );
               })}
             </div>
-            {(scanning || generating) && (
+            {(scanning || generating || thinking) && (
               <div style={{
                 position: "absolute", inset: 0, background: C.overlay,
                 borderRadius: 10, display: "flex", flexDirection: "column",
@@ -1984,7 +2001,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                   borderRadius: "50%", animation: "scspin .9s linear infinite",
                 }} />
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.msgInfoFg }}>
-                  {scanning ? t("overlay.scanning") : t("overlay.generating")}
+                  {scanning ? t("overlay.scanning") : generating ? t("overlay.generating") : t("overlay.thinking")}
                 </div>
               </div>
             )}
@@ -2059,8 +2076,8 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
           ) : (
             <div style={{ width: W, display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn variant="accent" grow onClick={hintForCell}>{t("btn.explain")}</Btn>
-                <Btn grow onClick={randomHint}>{t("btn.nextStep")}</Btn>
+                <Btn variant="accent" grow onClick={hintForCell} disabled={thinking}>{t("btn.explain")}</Btn>
+                <Btn grow onClick={randomHint} disabled={thinking}>{t("btn.nextStep")}</Btn>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn grow active={noteMode} ariaPressed={noteMode} onClick={() => setNoteMode((m) => !m)}>{t("btn.notes")}</Btn>
@@ -2217,7 +2234,7 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--sc-te
                     <Rich text={t("coach.stuck.body", { cell: cellName(plan.target, getLang()) })} />
                   </p>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <Btn variant="accent" grow onClick={randomHint}>{t("btn.nextStep")}</Btn>
+                    <Btn variant="accent" grow onClick={randomHint} disabled={thinking}>{t("btn.nextStep")}</Btn>
                     <Btn grow onClick={() => revealAnyway(plan.target)}>{t("btn.revealAnyway")}</Btn>
                   </div>
                 </>

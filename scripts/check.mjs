@@ -281,6 +281,51 @@ console.log("nextStep (👣) :");
   ok(nextStep(sol0) === null, "grille pleine → null");
 }
 
+/* ---------- 2g. Worker du coach : même plan via handleRequest + structuredClone ---------- */
+console.log("Worker du coach (répartiteur pur) :");
+{
+  const { handleRequest } = await import("../src/coachWorker.js");
+  const FIX = JSON.parse(readFileSync(new URL("../fixtures/hard-grids.json", import.meta.url), "utf8"));
+  const parse = (g) => g.split("").map((ch) => (ch === "." ? 0 : Number(ch)));
+  // 10 états : 5 grilles de départ + 5 états de partie (après 15 coups de 👣).
+  const states = FIX.slice(0, 5).map((f) => parse(f.grid));
+  for (const f of FIX.slice(5, 10)) {
+    const w = parse(f.grid);
+    for (let k = 0; k < 15; k++) { const p = nextStep(w); if (!p) break; w[p.target] = p.digit; }
+    states.push(w);
+  }
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  let okNext = 0, okAim = 0;
+  for (const g of states) {
+    const r = handleRequest({ id: 7, fn: "nextStep", args: [g, "fr", { allowUniqueness: true }] });
+    if (r.id === 7 && !("error" in r) && same(structuredClone(r.result), nextStep(g, "fr", { allowUniqueness: true }))) okNext++;
+    const cell = g.findIndex((v) => v === 0);
+    const a = handleRequest({ id: 8, fn: "buildPlan", args: [g, cell, "en", { allowUniqueness: true }] });
+    if (a.id === 8 && !("error" in a) && same(structuredClone(a.result), buildPlan(g, cell, "en", { allowUniqueness: true }))) okAim++;
+  }
+  ok(okNext === states.length, `nextStep via handleRequest + structuredClone == appel direct (${okNext}/${states.length} états)`);
+  ok(okAim === states.length, `buildPlan via handleRequest + structuredClone == appel direct (${okAim}/${states.length} états)`);
+  ok(handleRequest({ id: 1, fn: "nope", args: [] }).error && handleRequest({}).error && handleRequest({ id: 2, fn: "nextStep", args: null }).error,
+    "fn inconnue, requête vide ou args absents → { error }, jamais d'exception");
+  // maxTier : un null à 4 suivi d'un appel complet == appel complet direct (identité du client).
+  const g = parse(FIX.find((f) => f.id === "reddit-2026").grid);
+  const w = g.slice();
+  let tier5State = null;
+  for (let k = 0; k < 81; k++) {
+    const p4 = nextStep(w, "fr", { maxTier: 4 });
+    if (!p4) { tier5State = w.slice(); break; }
+    w[p4.target] = p4.digit;
+  }
+  ok(!!tier5State, "grille Reddit : un état exige le palier 5 (nextStep à maxTier 4 rend null)");
+  const full = tier5State && nextStep(tier5State);
+  ok(full && TECH_TIER[full.keyKind] === 5 && same(full, handleRequest({ id: 3, fn: "nextStep", args: [tier5State, "fr", {}] }).result),
+    `… l'appel complet y trouve un plan de palier 5 (${full && full.keyKind}), identique via le répartiteur`);
+  const cell0 = SAMPLES[1].split("").map(Number).findIndex((v) => v === 0);
+  const p2 = buildPlan(SAMPLES[1].split("").map(Number), cell0, "fr", { maxTier: 2 });
+  ok(!p2 || p2.chainKinds.every((k) => TECH_TIER[k] <= 2), "buildPlan maxTier 2 : jamais de technique au-delà du palier 2");
+  ok(same(nextStep(g, "fr", { maxTier: 5 }), nextStep(g)), "maxTier 5 (défaut) == appel sans option");
+}
+
 /* ---------- 3. Leçons : cohérence interne ---------- */
 console.log("Leçons :");
 for (const L of LESSONS) {
